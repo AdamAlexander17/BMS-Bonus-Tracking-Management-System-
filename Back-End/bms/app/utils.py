@@ -1,0 +1,84 @@
+import hashlib
+import secrets
+
+import jwt
+from django.utils import timezone
+from django.conf import settings
+
+
+# ─── Password Hashing ────────────────────────────────────────────────────────
+# Using Python stdlib hashlib with PBKDF2-SHA256 — no Django auth dependency
+
+def hash_password(raw_password: str) -> str:
+    """Hash a plain-text password. Returns a string: pbkdf2_sha256$iterations$salt$hexdigest"""
+    salt = secrets.token_hex(16)
+    iterations = 260000
+    key = hashlib.pbkdf2_hmac(
+        'sha256',
+        raw_password.encode('utf-8'),
+        salt.encode('utf-8'),
+        iterations
+    )
+    return f'pbkdf2_sha256${iterations}${salt}${key.hex()}'
+
+
+def verify_password(raw_password: str, stored_hash: str) -> bool:
+    """Compare a plain-text password against the stored hash."""
+    try:
+        algorithm, iterations, salt, stored_key = stored_hash.split('$')
+        iterations = int(iterations)
+        key = hashlib.pbkdf2_hmac(
+            'sha256',
+            raw_password.encode('utf-8'),
+            salt.encode('utf-8'),
+            iterations
+        )
+        return key.hex() == stored_key
+    except Exception:
+        return False
+
+
+# ─── JWT ─────────────────────────────────────────────────────────────────────
+# Using PyJWT directly — no simplejwt dependency
+
+def generate_access_token(user) -> str:
+    """Generate a short-lived access token carrying user identity, role and permissions."""
+    # Load permissions for this user's role
+    perms = list(
+        user.role.role_permissions
+        .select_related('permission')
+        .values_list('permission__module', 'permission__action')
+    )
+    permissions = [f'{m}:{a}' for m, a in perms]
+
+    payload = {
+        'user_id':     user.id,
+        'username':    user.username,
+        'role':        user.role.name,
+        'brands':      list(user.brands.values_list('name', flat=True)),
+        'permissions': permissions,
+        'type':        'access',
+        'iat':         timezone.now(),
+        'exp':         timezone.now() + timezone.timedelta(
+                           hours=settings.JWT_ACCESS_TOKEN_EXPIRE_HOURS
+                       ),
+    }
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def generate_refresh_token(user_id: int) -> str:
+    """Generate a long-lived refresh token used to obtain a new access token."""
+    payload = {
+        'user_id': user_id,
+        'type': 'refresh',
+        'iat': timezone.now(),
+        'exp': timezone.now() + timezone.timedelta(
+            days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS
+        ),
+    }
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_token(token: str) -> dict:
+    """Decode and validate a JWT. Raises jwt.ExpiredSignatureError or jwt.InvalidTokenError."""
+    return jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
