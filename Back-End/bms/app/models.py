@@ -135,7 +135,7 @@ class Broker(models.Model):
     ]
 
     id            = models.BigAutoField(primary_key=True)
-    arc_id        = models.CharField(max_length=100, unique=True)
+    arc_id        = models.CharField(max_length=6, unique=True)
     name          = models.CharField(max_length=150)
     brand         = models.ForeignKey(Brand, on_delete=models.PROTECT, related_name='brokers')
     # amount_earned is now computed from clients' earned_amount

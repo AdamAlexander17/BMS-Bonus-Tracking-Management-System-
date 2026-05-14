@@ -996,6 +996,7 @@ def broker_list(request):
         Broker.objects
         .select_related('brand', 'created_by')
         .annotate(client_count=Count('clients'))
+        .filter(client_count__gt=0)
         .order_by('id')
     )
 

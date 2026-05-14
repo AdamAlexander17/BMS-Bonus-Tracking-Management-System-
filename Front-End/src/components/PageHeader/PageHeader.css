@@ -1,0 +1,101 @@
+/* Shared page header card - transparent + bordered, consistent across all modules */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: transparent;
+  padding: 18px 22px;
+  border-radius: 12px;
+  border: 1px solid #dde2eb;
+}
+.page-header__left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.page-header__icon {
+  width: 46px;
+  height: 46px;
+  background: #e8f0fe;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4285f4;
+  flex-shrink: 0;
+}
+.page-header__icon svg { width: 22px; height: 22px; }
+.page-header__title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1a1f36;
+  margin: 0 0 2px;
+}
+.page-header__sub {
+  font-size: 0.8rem;
+  color: #8a94a6;
+  margin: 0;
+}
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Shared button styles used in headers */
+.ph-btn {
+  height: 38px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  font-size: 0.83rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.ph-btn--ghost {
+  background: transparent;
+  border: 1px solid #dde2eb;
+  color: #374151;
+}
+.ph-btn--ghost:hover { border-color: #4285f4; color: #4285f4; }
+.ph-btn--primary {
+  background: #4285f4;
+  color: #fff;
+  border: none;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(66,133,244,0.35);
+}
+.ph-btn--primary:hover { background: #3574e2; }
+
+/* Loggedin user pill in actions */
+.ph-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 6px 6px;
+  border: 1px solid #dde2eb;
+  border-radius: 999px;
+  background: transparent;
+}
+.ph-user__avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4285f4, #6ea6ff);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.ph-user__name { font-size: 0.82rem; font-weight: 600; color: #1a1f36; line-height: 1; }
+.ph-user__role { font-size: 0.7rem; color: #8a94a6; line-height: 1.4; }

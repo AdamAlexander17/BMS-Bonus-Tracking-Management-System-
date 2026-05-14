@@ -1,0 +1,69 @@
+.layout {
+  display: flex;
+  min-height: 100vh;
+  background: #fff !important;
+}
+.layout__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+.layout__main--with-top-margin {
+  margin-top: 32px; /* Adjust as needed for spacing */
+}
+.layout__content {
+  flex: 1;
+  padding: 0 28px 24px;
+  overflow-y: auto;
+}
+
+/* Top strip - user info, transparent, consistent across all pages */
+.layout__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 64px;
+  padding: 0 28px;
+  background: transparent;
+  flex-shrink: 0;
+}
+.layout__user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px 6px 16px;
+  background: transparent;
+  border: 1px solid #dde2eb;
+  border-radius: 999px;
+}
+.layout__user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+.layout__user-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1a1f36;
+}
+.layout__user-role {
+  font-size: 0.7rem;
+  color: #8a94a6;
+}
+.layout__user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4285f4, #6ea6ff);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.88rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(66,133,244,0.3);
+}
