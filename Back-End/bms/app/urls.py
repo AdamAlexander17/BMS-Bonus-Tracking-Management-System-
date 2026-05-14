@@ -36,4 +36,18 @@ urlpatterns = [
     path('roles/<int:role_id>/permissions/assign/', views.role_assign_permissions, name='role_assign_permissions'),
     path('roles/<int:role_id>/permissions/remove/', views.role_remove_permissions, name='role_remove_permissions'),
     path('roles/<int:role_id>/permissions/set/',    views.role_set_permissions,    name='role_set_permissions'),
+
+    # Broker CRUD
+    path('brokers/create/',                        views.broker_create, name='broker_create'),
+    path('brokers/',                               views.broker_list,   name='broker_list'),
+    path('brokers/<int:broker_id>/',               views.broker_get,    name='broker_get'),
+    path('brokers/<int:broker_id>/update/',        views.broker_update, name='broker_update'),
+    path('brokers/<int:broker_id>/delete/',        views.broker_delete, name='broker_delete'),
+
+    # Client CRUD (nested under broker for create/list; direct for get/update/delete)
+    path('brokers/<int:broker_id>/clients/create/', views.client_create, name='client_create'),
+    path('brokers/<int:broker_id>/clients/',        views.client_list,   name='client_list'),
+    path('clients/<int:client_id>/',               views.client_get,    name='client_get'),
+    path('clients/<int:client_id>/update/',        views.client_update, name='client_update'),
+    path('clients/<int:client_id>/delete/',        views.client_delete, name='client_delete'),
 ]

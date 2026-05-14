@@ -128,3 +128,61 @@ class UserToken(models.Model):
         return f'Token for {self.user.username}'
 
 
+class Broker(models.Model):
+    STATUS_CHOICES = [
+        ('Active',   'Active'),
+        ('Inactive', 'Inactive'),
+    ]
+
+    id            = models.BigAutoField(primary_key=True)
+    arc_id        = models.CharField(max_length=100, unique=True)
+    name          = models.CharField(max_length=150)
+    brand         = models.ForeignKey(Brand, on_delete=models.PROTECT, related_name='brokers')
+    # amount_earned is now computed from clients' earned_amount
+    status        = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Active')
+    created_by    = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_brokers'
+    )
+    created_at    = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'brokers'
+
+    def __str__(self):
+        return f'{self.name} ({self.arc_id})'
+
+    @property
+    def amount_earned(self):
+        # Sum of all clients' earned_amount
+        return sum([float(c.earned_amount) for c in self.clients.all()])
+
+
+class Client(models.Model):
+    STATUS_CHOICES = [
+        ('Active',   'Active'),
+        ('Inactive', 'Inactive'),
+    ]
+
+    id                = models.BigAutoField(primary_key=True)
+    arc_id            = models.CharField(max_length=100, unique=True)
+    broker            = models.ForeignKey(Broker, on_delete=models.CASCADE, related_name='clients')
+    deposited_amount  = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    withdrawal_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    status            = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Active')
+    created_by        = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_clients'
+    )
+    created_at        = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'clients'
+
+    def __str__(self):
+        return f'{self.arc_id} → {self.broker.name}'
+
+    @property
+    def earned_amount(self):
+        # 1% of deposited_amount
+        return round(float(self.deposited_amount) * 0.01, 2)
+
+
