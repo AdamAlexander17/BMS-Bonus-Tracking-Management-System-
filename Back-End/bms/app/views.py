@@ -1133,6 +1133,13 @@ def broker_delete(request, broker_id):
             status=status.HTTP_403_FORBIDDEN
         )
 
+    # Prevent deletion if broker has clients
+    if broker.clients.exists():
+        return Response(
+            {'success': False, 'message': 'Cannot delete broker with assigned clients.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     broker.delete()
     return Response(
         {'success': True, 'message': 'Broker deleted successfully.'},
