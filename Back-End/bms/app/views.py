@@ -182,9 +182,9 @@ def format_user(user):
 # ─── User CRUD ────────────────────────────────────────────────────────────────
 
 def create_user(request):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'user:create'):
         return Response(
-            {'success': False, 'message': 'Only Admin can create users.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -239,9 +239,9 @@ def create_user(request):
 
 
 def get_users(request):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'user:view'):
         return Response(
-            {'success': False, 'message': 'Access denied.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -253,9 +253,9 @@ def get_users(request):
 
 
 def get_user(request, user_id):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'user:view'):
         return Response(
-            {'success': False, 'message': 'Access denied.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -274,9 +274,9 @@ def get_user(request, user_id):
 
 
 def update_user(request, user_id):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'user:update'):
         return Response(
-            {'success': False, 'message': 'Only Admin can update users.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -345,9 +345,9 @@ def update_user(request, user_id):
 
 
 def delete_user(request, user_id):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'user:delete'):
         return Response(
-            {'success': False, 'message': 'Only Admin can delete users.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -889,17 +889,29 @@ def role_set_permissions(request, role_id):
 # ===========================================================================
 
 def has_perm(request, key):
-    """Return True if the JWT payload grants the given permission key (e.g. 'broker:create')."""
-    if not request.auth:
+    """Return True if the user's role grants the given permission key (e.g. 'broker:create').
+    Checks the JWT payload first; falls back to a DB lookup if no JWT payload is present."""
+    if request.auth:
+        return key in request.auth.get('permissions', [])
+    # Fallback: look up permissions for the authenticated user's role from DB
+    if not getattr(request, 'user', None) or not getattr(request.user, 'role', None):
         return False
-    return key in request.auth.get('permissions', [])
+    try:
+        module, action = key.split(':', 1)
+    except ValueError:
+        return False
+    return RolePermission.objects.filter(
+        role=request.user.role, permission__module=module, permission__action=action
+    ).exists()
 
 
 def user_brand_names(request):
-    """Brand names assigned to the current user (from JWT payload)."""
-    if not request.auth:
+    """Brand names assigned to the current user (JWT payload first, else DB)."""
+    if request.auth:
+        return request.auth.get('brands', [])
+    if not getattr(request, 'user', None):
         return []
-    return request.auth.get('brands', [])
+    return list(request.user.brands.values_list('name', flat=True))
 
 
 # ===========================================================================
