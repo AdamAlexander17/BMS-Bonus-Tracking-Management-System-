@@ -603,8 +603,11 @@ def permission_get(request, permission_id):
 
 def format_role(role):
     return {
-        'id':          role.id,
-        'name':        role.name,
+        'id':               role.id,
+        'name':             role.name,
+        'description':      role.description,
+        'status':           role.status,
+        'permission_count': role.role_permissions.count(),
         'permissions': [
             format_permission(rp.permission)
             for rp in role.role_permissions.select_related('permission').all()
@@ -621,12 +624,18 @@ def role_create(request):
             status=status.HTTP_403_FORBIDDEN
         )
 
-    name = request.data.get('name', '').strip()
+    name        = request.data.get('name', '').strip()
+    description = request.data.get('description', '').strip()
+    role_status = request.data.get('status', 'Active').strip().capitalize()
+
     if not name:
         return Response(
             {'success': False, 'message': 'Role name is required.'},
             status=status.HTTP_400_BAD_REQUEST
         )
+
+    if role_status not in ('Active', 'Inactive'):
+        role_status = 'Active'
 
     if Role.objects.filter(name=name).exists():
         return Response(
@@ -634,7 +643,15 @@ def role_create(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    role = Role.objects.create(name=name)
+    role = Role.objects.create(name=name, description=description, status=role_status)
+
+    # Assign permissions if provided
+    permission_ids = request.data.get('permissions', [])
+    if isinstance(permission_ids, list) and permission_ids:
+        perms = Permission.objects.filter(id__in=permission_ids)
+        for perm in perms:
+            RolePermission.objects.get_or_create(role=role, permission=perm)
+
     return Response(
         {'success': True, 'message': 'Role created successfully.', 'data': format_role(role)},
         status=status.HTTP_201_CREATED
@@ -697,7 +714,10 @@ def role_update(request, role_id):
             status=status.HTTP_404_NOT_FOUND
         )
 
-    name = request.data.get('name', '').strip()
+    name        = request.data.get('name', '').strip()
+    description = request.data.get('description')
+    role_status = request.data.get('status')
+
     if not name:
         return Response(
             {'success': False, 'message': 'Role name is required.'},
@@ -711,7 +731,28 @@ def role_update(request, role_id):
         )
 
     role.name = name
+    if description is not None:
+        role.description = description.strip()
+    if role_status is not None:
+        normalized = role_status.strip().capitalize()
+        if normalized in ('Active', 'Inactive'):
+            role.status = normalized
     role.save()
+
+    # Sync permissions if provided
+    permission_ids = request.data.get('permissions')
+    if permission_ids is not None and isinstance(permission_ids, list):
+        if permission_ids:
+            perms = Permission.objects.filter(id__in=permission_ids)
+            if perms.count() != len(permission_ids):
+                return Response(
+                    {'success': False, 'message': 'One or more permission IDs are invalid.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        RolePermission.objects.filter(role=role).delete()
+        for perm in Permission.objects.filter(id__in=permission_ids):
+            RolePermission.objects.create(role=role, permission=perm)
+
     return Response(
         {'success': True, 'message': 'Role updated successfully.', 'data': format_role(role)},
         status=status.HTTP_200_OK

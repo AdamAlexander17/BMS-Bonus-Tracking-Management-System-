@@ -2,7 +2,7 @@
 .sidebar {
   display: flex;
   flex-direction: column;
-  width: 260px;
+  width: 220px; /* Increased from 200px to 220px */
   height: 100vh;
   background: transparent;
   border-right: 1px solid #dde2eb;
@@ -12,7 +12,7 @@
   top: 0;
   z-index: 10;
 }
-.sidebar--collapsed { width: 76px; }
+.sidebar--collapsed { width: 66px; } /* Increased from 60px to 66px */
 
 /* Top blue accent bar */
 .sidebar::before {

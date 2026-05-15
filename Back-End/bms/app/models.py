@@ -41,8 +41,15 @@ class Permission(models.Model):
 
 
 class Role(models.Model):
+    STATUS_CHOICES = [
+        ('Active',   'Active'),
+        ('Inactive', 'Inactive'),
+    ]
+
     id          = models.BigAutoField(primary_key=True)
     name        = models.CharField(max_length=50, unique=True)
+    description = models.CharField(max_length=255, blank=True, default='')
+    status      = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Active')
     permissions = models.ManyToManyField(
         Permission,
         through='RolePermission',

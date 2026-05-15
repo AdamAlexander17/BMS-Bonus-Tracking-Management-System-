@@ -5,13 +5,14 @@ import PageHeader from '../components/PageHeader/PageHeader';
 import './Users.css';
 
 export default function Users() {
-  const [users, setUsers]       = useState([]);
-  const [roles, setRoles]       = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState('');
-  const [search, setSearch]     = useState('');
+  const [users, setUsers]         = useState([]);
+  const [roles, setRoles]         = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState('');
+  const [search, setSearch]       = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [showAdd, setShowAdd]   = useState(false);
+  const [showAdd, setShowAdd]     = useState(false);
+  const [editUser, setEditUser]   = useState(null);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -170,7 +171,7 @@ export default function Users() {
                   </td>
                   <td>
                     <div className="um__actions">
-                      <button className="um__action-btn um__action-btn--edit" title="Edit">
+                      <button className="um__action-btn um__action-btn--edit" title="Edit" onClick={() => setEditUser(u)}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -197,7 +198,7 @@ export default function Users() {
         )}
       </div>
 
-      {/* Add User Modal placeholder */}
+      {/* Add User Modal */}
       {showAdd && (
         <div className="um__modal-overlay" onClick={() => setShowAdd(false)}>
           <div className="um__modal" onClick={e => e.stopPropagation()}>
@@ -209,22 +210,75 @@ export default function Users() {
           </div>
         </div>
       )}
+
+      {/* Edit User Modal */}
+      {editUser && (
+        <div className="um__modal-overlay" onClick={() => setEditUser(null)}>
+          <div className="um__modal um__modal--wide" onClick={e => e.stopPropagation()}>
+            <div className="um__modal-header">
+              <div>
+                <h3>Edit User</h3>
+                <p className="um__modal-subtitle">Update user details and assign roles</p>
+              </div>
+              <button className="um__modal-close" onClick={() => setEditUser(null)}>✕</button>
+            </div>
+            <EditUserForm
+              user={editUser}
+              roles={roles}
+              onClose={() => setEditUser(null)}
+              onSuccess={() => { setEditUser(null); fetchAll(); }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BrandPicker({ brands, selected, onChange }) {
+  const toggle = (name) =>
+    onChange(selected.includes(name) ? selected.filter(b => b !== name) : [...selected, name]);
+  return (
+    <div className="um__brand-picker">
+      {brands.length === 0 && <span className="um__brand-picker-empty">No brands available</span>}
+      {brands.map(b => (
+        <button
+          key={b.id}
+          type="button"
+          className={`um__brand-chip${selected.includes(b.name) ? ' um__brand-chip--on' : ''}`}
+          onClick={() => toggle(b.name)}
+        >
+          {selected.includes(b.name) && <span className="um__chip-check">✓</span>}
+          {b.name}
+        </button>
+      ))}
     </div>
   );
 }
 
 function AddUserForm({ roles, onSuccess }) {
-  const [form, setForm]     = useState({ username: '', password: '', role: '', brands: '' });
-  const [saving, setSaving] = useState(false);
-  const [err, setErr]       = useState('');
+  const [form, setForm]       = useState({ username: '', password: '', role: '', brands: [] });
+  const [saving, setSaving]   = useState(false);
+  const [err, setErr]         = useState('');
+  const [brands, setBrands]   = useState([]);
+
+  useEffect(() => {
+    import('../api/brands').then(m => {
+      m.getBrands().then(res => setBrands(res.data.data || []));
+    });
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true); setErr('');
     try {
-      const brands = form.brands ? form.brands.split(',').map(b => b.trim()).filter(Boolean) : [];
       const { createUser } = await import('../api/users');
-      await createUser({ username: form.username, password: form.password, role: form.role, brands });
+      await createUser({
+        username: form.username,
+        password: form.password,
+        role:     form.role,
+        brands:   form.brands,
+      });
       onSuccess();
     } catch (ex) {
       setErr(ex.response?.data?.message || 'Failed to create user.');
@@ -252,12 +306,142 @@ function AddUserForm({ roles, onSuccess }) {
         </select>
       </div>
       <div className="um__form-group">
-        <label>Brands <span style={{color:'#8a94a6',fontWeight:400}}>(comma-separated)</span></label>
-        <input placeholder="e.g. TK, TB" value={form.brands} onChange={e => setForm(p => ({...p, brands: e.target.value}))} />
+        <label>Brands <span className="um__label-hint">({form.brands.length} selected)</span></label>
+        <BrandPicker brands={brands} selected={form.brands} onChange={v => setForm(p => ({...p, brands: v}))} />
       </div>
       <button type="submit" className="um__form-submit" disabled={saving}>
         {saving ? 'Creating...' : 'Create User'}
       </button>
+    </form>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  );
+}
+function EyeOffIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </svg>
+  );
+}
+
+function EditUserForm({ user, roles, onClose, onSuccess }) {
+  const [form, setForm]       = useState({
+    username: user.username || '',
+    role:     user.role || '',
+    brands:   user.brands || [],
+    password: '',
+    isActive: user.status === 'Active',
+  });
+  const [saving, setSaving]   = useState(false);
+  const [err, setErr]         = useState('');
+  const [brands, setBrands]   = useState([]);
+  const [showPwd, setShowPwd] = useState(false);
+
+  useEffect(() => {
+    import('../api/brands').then(m => {
+      m.getBrands().then(res => setBrands(res.data.data || []));
+    });
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.role) { setErr('Please select a role.'); return; }
+    setSaving(true); setErr('');
+    try {
+      const payload = {
+        username: form.username,
+        role:     form.role,
+        brands:   form.brands,
+        status:   form.isActive ? 'Active' : 'Inactive',
+      };
+      if (form.password) payload.password = form.password;
+      await updateUser(user.id, payload);
+      onSuccess();
+    } catch (ex) {
+      setErr(ex.response?.data?.message || 'Failed to update user.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form className="um__form" onSubmit={handleSubmit}>
+      {err && <div className="um__form-error">{err}</div>}
+
+      <div className="um__form-section">Basic Information</div>
+
+      <div className="um__form-row">
+        <div className="um__form-group">
+          <label>Username <span className="um__required">*</span></label>
+          <input
+            required
+            placeholder="e.g. john"
+            value={form.username}
+            onChange={e => setForm(p => ({...p, username: e.target.value}))}
+          />
+        </div>
+        <div className="um__form-group">
+          <label>Brands <span className="um__label-hint">({form.brands.length} selected)</span></label>
+          <BrandPicker brands={brands} selected={form.brands} onChange={v => setForm(p => ({...p, brands: v}))} />
+        </div>
+      </div>
+
+      <div className="um__form-group">
+        <label>Password <span className="um__label-hint">(leave blank to keep current)</span></label>
+        <div className="um__pwd-wrap">
+          <input
+            type={showPwd ? 'text' : 'password'}
+            placeholder="••••••••"
+            value={form.password}
+            onChange={e => setForm(p => ({...p, password: e.target.value}))}
+          />
+          <button type="button" className="um__pwd-eye" onClick={() => setShowPwd(v => !v)}>
+            {showPwd ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
+        </div>
+      </div>
+
+      <div className="um__form-section">Roles <span className="um__required">*</span></div>
+
+      <div className="um__role-pills">
+        {roles.map(r => (
+          <button
+            key={r.id}
+            type="button"
+            className={`um__role-pill${form.role === r.name ? ' um__role-pill--active' : ''}`}
+            onClick={() => setForm(p => ({...p, role: r.name}))}
+          >
+            {form.role === r.name && <span className="um__pill-check">✓</span>}
+            {r.name}
+          </button>
+        ))}
+      </div>
+
+      <label className="um__checkbox-row">
+        <input
+          type="checkbox"
+          checked={form.isActive}
+          onChange={e => setForm(p => ({...p, isActive: e.target.checked}))}
+        />
+        User is active
+      </label>
+
+      <div className="um__form-footer">
+        <button type="button" className="um__btn-cancel" onClick={onClose}>Cancel</button>
+        <button type="submit" className="um__btn-save" disabled={saving}>
+          {saving ? 'Saving...' : 'Update User'}
+        </button>
+      </div>
     </form>
   );
 }
