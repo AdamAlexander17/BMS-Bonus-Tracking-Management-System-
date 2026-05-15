@@ -145,6 +145,9 @@ class Broker(models.Model):
     arc_id        = models.CharField(max_length=6, unique=True)
     name          = models.CharField(max_length=150)
     brand         = models.ForeignKey(Brand, on_delete=models.PROTECT, related_name='brokers')
+    rm_user       = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_brokers'
+    )
     # amount_earned is now computed from clients' earned_amount
     status        = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Active')
     created_by    = models.ForeignKey(

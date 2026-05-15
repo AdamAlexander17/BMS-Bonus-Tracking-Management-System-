@@ -10,6 +10,7 @@ urlpatterns = [
     # User CRUD
     path('users/create/',                views.user_create,  name='user_create'),
     path('users/',                       views.user_list,    name='user_list'),
+    path('users/rm-jrm/',                views.rm_jrm_users, name='rm_jrm_users'),
     path('users/<int:user_id>/',         views.user_get,     name='user_get'),
     path('users/<int:user_id>/update/',  views.user_update,  name='user_update'),
     path('users/<int:user_id>/delete/',  views.user_delete,  name='user_delete'),

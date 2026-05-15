@@ -404,6 +404,25 @@ def user_delete(request, user_id):
     return delete_user(request, user_id)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def rm_jrm_users(request):
+    """Return all active users whose role is RM or JRM — used to populate broker assignment dropdowns."""
+    users = (
+        User.objects
+        .select_related('role')
+        .filter(role__name__in=['RM', 'JRM'], status='Active')
+        .order_by('role__name', 'username')
+    )
+    return Response({
+        'success': True,
+        'data': [
+            {'id': u.id, 'username': u.username, 'role': u.role.name}
+            for u in users
+        ]
+    }, status=status.HTTP_200_OK)
+
+
 # ---------------------------------------------------------------------------
 # Brand CRUD (Admin only)
 # ---------------------------------------------------------------------------
@@ -447,9 +466,17 @@ def brand_create(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def brand_list(request):
-    if request.user.role.name != 'Admin':
+    # Allow any user who can view brokers, clients, or users to read brands.
+    # Write operations remain Admin-only (enforced in create/update/delete views).
+    can_read = (
+        request.user.role.name == 'Admin'
+        or has_perm(request, 'broker:view')
+        or has_perm(request, 'broker:create')
+        or has_perm(request, 'client:view')
+    )
+    if not can_read:
         return Response(
-            {'success': False, 'message': 'Only Admin can view brands.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -960,11 +987,13 @@ def user_brand_names(request):
 # ===========================================================================
 
 def format_broker(broker):
+    rm = broker.rm_user
     return {
         'id':            broker.id,
         'arc_id':        broker.arc_id,
         'name':          broker.name,
         'brand':         {'id': broker.brand.id, 'name': broker.brand.name},
+        'rm_user':       {'id': rm.id, 'username': rm.username, 'role': rm.role.name} if rm else None,
         'amount_earned': str(broker.amount_earned),
         'status':        broker.status,
         'client_count':  getattr(broker, 'client_count', broker.clients.count()),
@@ -995,6 +1024,7 @@ def broker_create(request):
     arc_id      = request.data.get('arc_id', '').strip()
     name        = request.data.get('name', '').strip()
     brand_name  = request.data.get('brand', '').strip()
+    rm_user_id  = request.data.get('rm_user_id')
 
     if not arc_id or not name or not brand_name:
         return Response(
@@ -1023,10 +1053,27 @@ def broker_create(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    # Validate RM/JRM user if provided
+    rm_user = None
+    if rm_user_id:
+        try:
+            rm_user = User.objects.select_related('role').get(id=rm_user_id)
+            if rm_user.role.name not in ('RM', 'JRM'):
+                return Response(
+                    {'success': False, 'message': 'Assigned user must have role RM or JRM.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except User.DoesNotExist:
+            return Response(
+                {'success': False, 'message': 'Assigned user not found.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
     broker = Broker.objects.create(
         arc_id=arc_id,
         name=name,
         brand=brand,
+        rm_user=rm_user,
         status='Active',
         created_by=request.user,
     )
@@ -1049,7 +1096,6 @@ def broker_list(request):
         Broker.objects
         .select_related('brand', 'created_by')
         .annotate(client_count=Count('clients'))
-        .filter(client_count__gt=0)
         .order_by('id')
     )
 
@@ -1124,6 +1170,7 @@ def broker_update(request, broker_id):
     new_name       = request.data.get('name')
     new_brand_name = request.data.get('brand')
     new_status     = request.data.get('status')
+    new_rm_user_id = request.data.get('rm_user_id')
 
     if new_arc_id is not None:
         new_arc_id = new_arc_id.strip()
@@ -1146,6 +1193,23 @@ def broker_update(request, broker_id):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+    if new_rm_user_id is not None:
+        if new_rm_user_id == '':
+            broker.rm_user = None
+        else:
+            try:
+                rm_user = User.objects.select_related('role').get(id=new_rm_user_id)
+                if rm_user.role.name not in ('RM', 'JRM'):
+                    return Response(
+                        {'success': False, 'message': 'Assigned user must have role RM or JRM.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                broker.rm_user = rm_user
+            except User.DoesNotExist:
+                return Response(
+                    {'success': False, 'message': 'Assigned user not found.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
     if new_status is not None:
         normalized = new_status.strip().capitalize()

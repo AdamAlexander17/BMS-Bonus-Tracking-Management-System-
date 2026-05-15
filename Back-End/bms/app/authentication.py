@@ -39,3 +39,8 @@ class JWTAuthentication(BaseAuthentication):
             raise AuthenticationFailed('User account is inactive.')
 
         return (user, payload)
+
+    def authenticate_header(self, request):
+        """Return WWW-Authenticate header so DRF issues 401 (not 403) for unauthenticated requests,
+        allowing the axios interceptor to trigger the token-refresh flow."""
+        return 'Bearer realm="api"'
