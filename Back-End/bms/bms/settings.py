@@ -82,7 +82,7 @@ DATABASES = {
         'NAME': 'bms_db',
         'USER': 'root',
         'PASSWORD': 'root',
-        'HOST': 'localhost',
+        'HOST': '10.255.254.25',
         'PORT': '3306',
     }
 }
