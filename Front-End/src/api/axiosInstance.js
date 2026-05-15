@@ -12,26 +12,70 @@ axiosInstance.interceptors.request.use((config) => {
   return config;
 });
 
-// Auto-refresh on 401
+// Queue-based auto-refresh on 401
+// Prevents multiple simultaneous refresh calls when several requests expire at once.
+let isRefreshing = false;
+let failedQueue = [];
+
+function processQueue(error, token = null) {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+}
+
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
+
     if (error.response?.status === 401 && !original._retry) {
+      if (isRefreshing) {
+        // Another refresh is already in flight — queue this request
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            original.headers.Authorization = `Bearer ${token}`;
+            return axiosInstance(original);
+          })
+          .catch((err) => Promise.reject(err));
+      }
+
       original._retry = true;
+      isRefreshing = true;
+
       try {
         const refresh = localStorage.getItem('refresh_token');
+        if (!refresh) {
+          processQueue(new Error('No refresh token'), null);
+          localStorage.clear();
+          window.location.href = '/login';
+          return Promise.reject(new Error('No refresh token'));
+        }
         const { data } = await axios.post('http://127.0.0.1:8001/api/token/refresh/', {
           refresh_token: refresh,
         });
-        localStorage.setItem('access_token', data.data.access_token);
-        original.headers.Authorization = `Bearer ${data.data.access_token}`;
+        const newToken = data.data.access_token;
+        localStorage.setItem('access_token', newToken);
+        axiosInstance.defaults.headers.common.Authorization = `Bearer ${newToken}`;
+        processQueue(null, newToken);
+        original.headers.Authorization = `Bearer ${newToken}`;
         return axiosInstance(original);
-      } catch {
+      } catch (refreshError) {
+        processQueue(refreshError, null);
         localStorage.clear();
         window.location.href = '/login';
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
+
     return Promise.reject(error);
   }
 );

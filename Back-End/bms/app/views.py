@@ -77,7 +77,7 @@ def login(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def refresh_token(request):
-    token = request.data.get('refresh_token', '').strip()
+    token = (request.data.get('refresh_token') or '').strip()
 
     if not token:
         return Response(
@@ -437,9 +437,9 @@ def format_brand(brand):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def brand_create(request):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'brand:create'):
         return Response(
-            {'success': False, 'message': 'Only Admin can create brands.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -469,7 +469,7 @@ def brand_list(request):
     # Allow any user who can view brokers, clients, or users to read brands.
     # Write operations remain Admin-only (enforced in create/update/delete views).
     can_read = (
-        request.user.role.name == 'Admin'
+        has_perm(request, 'brand:view')
         or has_perm(request, 'broker:view')
         or has_perm(request, 'broker:create')
         or has_perm(request, 'client:view')
@@ -490,9 +490,9 @@ def brand_list(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def brand_get(request, brand_id):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'brand:view'):
         return Response(
-            {'success': False, 'message': 'Only Admin can view brands.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -513,9 +513,9 @@ def brand_get(request, brand_id):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def brand_update(request, brand_id):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'brand:update'):
         return Response(
-            {'success': False, 'message': 'Only Admin can update brands.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -551,9 +551,9 @@ def brand_update(request, brand_id):
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def brand_delete(request, brand_id):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'brand:delete'):
         return Response(
-            {'success': False, 'message': 'Only Admin can delete brands.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -588,9 +588,9 @@ def format_permission(permission):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def permission_list(request):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'permission:view'):
         return Response(
-            {'success': False, 'message': 'Only Admin can view permissions.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -604,9 +604,9 @@ def permission_list(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def permission_get(request, permission_id):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'permission:view'):
         return Response(
-            {'success': False, 'message': 'Only Admin can view permissions.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -645,9 +645,9 @@ def format_role(role):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def role_create(request):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'role:create'):
         return Response(
-            {'success': False, 'message': 'Only Admin can create roles.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -688,9 +688,9 @@ def role_create(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def role_list(request):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'role:view'):
         return Response(
-            {'success': False, 'message': 'Only Admin can view roles.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -704,9 +704,9 @@ def role_list(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def role_get(request, role_id):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'role:view'):
         return Response(
-            {'success': False, 'message': 'Only Admin can view roles.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -727,9 +727,9 @@ def role_get(request, role_id):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def role_update(request, role_id):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'role:update'):
         return Response(
-            {'success': False, 'message': 'Only Admin can update roles.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -789,9 +789,9 @@ def role_update(request, role_id):
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def role_delete(request, role_id):
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'role:delete'):
         return Response(
-            {'success': False, 'message': 'Only Admin can delete roles.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -824,9 +824,9 @@ def role_delete(request, role_id):
 @permission_classes([IsAuthenticated])
 def role_assign_permissions(request, role_id):
     """Assign permissions to a role. Accepts a list of permission IDs."""
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'role:update'):
         return Response(
-            {'success': False, 'message': 'Only Admin can assign permissions.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -874,9 +874,9 @@ def role_assign_permissions(request, role_id):
 @permission_classes([IsAuthenticated])
 def role_remove_permissions(request, role_id):
     """Remove permissions from a role. Accepts a list of permission IDs."""
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'role:update'):
         return Response(
-            {'success': False, 'message': 'Only Admin can remove permissions.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -910,9 +910,9 @@ def role_remove_permissions(request, role_id):
 @permission_classes([IsAuthenticated])
 def role_set_permissions(request, role_id):
     """Replace all permissions of a role with the given list of permission IDs."""
-    if request.user.role.name != 'Admin':
+    if not has_perm(request, 'role:update'):
         return Response(
-            {'success': False, 'message': 'Only Admin can set permissions.'},
+            {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -1004,8 +1004,7 @@ def format_broker(broker):
 
 def _check_broker_access(request, broker):
     """Return True if the current user is allowed to access this broker."""
-    role_name = request.user.role.name
-    if role_name == 'Admin':
+    if has_perm(request, 'brand:view'):
         return True
     if broker.brand.name not in user_brand_names(request):
         return False
@@ -1040,8 +1039,7 @@ def broker_create(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    role_name = request.user.role.name
-    if role_name != 'Admin' and brand_name not in user_brand_names(request):
+    if not has_perm(request, 'brand:view') and brand_name not in user_brand_names(request):
         return Response(
             {'success': False, 'message': 'You do not have access to this brand.'},
             status=status.HTTP_403_FORBIDDEN
@@ -1099,8 +1097,7 @@ def broker_list(request):
         .order_by('id')
     )
 
-    role_name = request.user.role.name
-    if role_name != 'Admin':
+    if not has_perm(request, 'brand:view'):
         brokers = brokers.filter(brand__name__in=user_brand_names(request))
 
     return Response(
