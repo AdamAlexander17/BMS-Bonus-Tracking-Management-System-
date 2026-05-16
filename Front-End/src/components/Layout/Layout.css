@@ -57,7 +57,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #4285f4, #6ea6ff);
+  background: linear-gradient(135deg, #004B4E, #007a7e);
   color: #fff;
   font-weight: 700;
   font-size: 0.88rem;
@@ -65,5 +65,5 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 2px 6px rgba(66,133,244,0.3);
+  box-shadow: 0 2px 6px rgba(0,75,78,0.3);
 }

@@ -100,13 +100,20 @@ export default function Roles() {
 
         {!loading && !error && (
           <table className="um__table">
+            <colgroup>
+              <col style={{ width: '18%' }} />
+              <col style={{ width: '30%' }} />
+              <col style={{ width: '18%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '20%' }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>ROLE</th>
                 <th>DESCRIPTION</th>
                 <th>PERMISSIONS</th>
                 <th>STATUS</th>
-                <th>ACTIONS</th>
+                <th style={{ textAlign: 'right' }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -131,8 +138,8 @@ export default function Roles() {
                       {r.status || 'Active'}
                     </span>
                   </td>
-                  <td>
-                    <div className="um__actions">
+                  <td style={{ textAlign: 'right' }}>
+                    <div className="um__actions" style={{ justifyContent: 'flex-end' }}>
                       <button className="um__action-btn um__action-btn--edit" title="Edit" onClick={() => setEditRole(r)}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>

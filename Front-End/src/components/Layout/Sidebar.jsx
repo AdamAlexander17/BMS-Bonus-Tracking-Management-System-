@@ -52,7 +52,7 @@ export default function Sidebar({ collapsed, setCollapsed }) {
             <span className="sidebar__brand-sub">Management Pro</span>
           </div>
         )}
-        <button className="sidebar__toggle" onClick={() => setCollapsed(!collapsed)}>
+        <button className={`sidebar__toggle${collapsed ? ' sidebar__toggle--active' : ''}`} onClick={() => setCollapsed(!collapsed)}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
             {collapsed
               ? <polyline points="9 18 15 12 9 6"/>
@@ -78,14 +78,35 @@ export default function Sidebar({ collapsed, setCollapsed }) {
         ))}
       </nav>
 
-      {/* Footer with Sign Out */}
+      {/* Footer – logged-in user card */}
       <div className="sidebar__footer">
-        <button className="sidebar__logout" onClick={handleLogout}>
-          <span className="sidebar__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          </span>
-          {!collapsed && <span>Sign Out</span>}
-        </button>
+        <div className="sidebar__user">
+          <div className="sidebar__user-avatar">
+            {user?.username?.charAt(0).toUpperCase() || 'U'}
+          </div>
+          {!collapsed && (
+            <>
+              <div className="sidebar__user-info">
+                <span className="sidebar__user-name">{user?.username || 'User'}</span>
+                <span className="sidebar__user-role">{user?.role || 'Admin'}</span>
+              </div>
+              <button className="sidebar__signout-btn" onClick={handleLogout} title="Sign Out">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                  <polyline points="16 17 21 12 16 7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+              </button>
+            </>
+          )}
+        </div>
+        {collapsed && (
+          <button className="sidebar__logout" onClick={handleLogout} title="Sign Out">
+            <span className="sidebar__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </span>
+          </button>
+        )}
       </div>
     </aside>
   );

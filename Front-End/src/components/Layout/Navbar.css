@@ -37,14 +37,14 @@
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: #f59e0b;
+  background: #004B4E;
   color: #fff;
   font-weight: 700;
   font-size: 1rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 6px rgba(245,158,11,0.35);
+  box-shadow: 0 2px 6px rgba(0,75,78,0.22);
   cursor: pointer;
   flex-shrink: 0;
 }

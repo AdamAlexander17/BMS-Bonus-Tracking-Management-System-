@@ -17,10 +17,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
-  transition: box-shadow 0.15s;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 4px rgba(0,75,78,0.06);
+  transition: box-shadow 0.15s, border-color 0.15s;
 }
-.stat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+.stat-card:hover { box-shadow: 0 4px 16px rgba(0,75,78,0.12); border-color: #c8e6e6; }
 .stat-card__label { font-size: 0.78rem; color: #64748b; font-weight: 500; margin: 0 0 6px; }
 .stat-card__value { font-size: 1.8rem; font-weight: 800; color: #0f172a; margin: 0 0 6px; line-height: 1; }
 .stat-card__change { font-size: 0.75rem; font-weight: 600; }
@@ -47,7 +48,8 @@
   background: #fff;
   border-radius: 12px;
   padding: 22px 24px;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 4px rgba(0,75,78,0.06);
 }
 .chart-card__header {
   display: flex;
@@ -85,10 +87,11 @@
 }
 .bar-chart__bar {
   width: 100%;
-  background: #60a5fa;
+  background: #004B4E;
   border-radius: 6px 6px 0 0;
   transition: height 0.3s;
   min-height: 8px;
+  opacity: 0.85;
 }
 .bar-chart__label { font-size: 0.72rem; color: #94a3b8; }
 
@@ -116,7 +119,8 @@
   background: #fff;
   border-radius: 12px;
   padding: 22px 24px;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 4px rgba(0,75,78,0.06);
 }
 .activity-card__header {
   display: flex;
@@ -128,7 +132,7 @@
 .link-btn {
   background: none;
   border: none;
-  color: #3b82f6;
+  color: #004B4E;
   font-size: 0.8rem;
   cursor: pointer;
   font-weight: 600;

@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { getBrands, deleteBrand, createBrand } from '../api/brands';
+import { getBrands, deleteBrand, createBrand, updateBrand } from '../api/brands';
 import PageHeader from '../components/PageHeader/PageHeader';
 import './Users.css';
 
 export default function Brands() {
-  const [brands, setBrands]     = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState('');
-  const [search, setSearch]     = useState('');
-  const [showAdd, setShowAdd]   = useState(false);
-  const [newName, setNewName]   = useState('');
-  const [creating, setCreating] = useState(false);
+  const [brands, setBrands]       = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState('');
+  const [search, setSearch]       = useState('');
+  const [showAdd, setShowAdd]     = useState(false);
+  const [editBrand, setEditBrand] = useState(null);
+  const [newName, setNewName]     = useState('');
+  const [creating, setCreating]   = useState(false);
 
   const fetchBrands = async () => {
     setLoading(true);
@@ -75,7 +76,7 @@ export default function Brands() {
               </svg>
               Refresh
             </button>
-            <button className="ph-btn ph-btn--primary" onClick={() => setShowAdd(true)}>
+            <button className="ph-btn ph-btn--primary" onClick={() => { setNewName(''); setShowAdd(true); }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
@@ -104,11 +105,16 @@ export default function Brands() {
 
         {!loading && !error && (
           <table className="um__table">
+            <colgroup>
+              <col style={{ width: '45%' }} />
+              <col style={{ width: '35%' }} />
+              <col style={{ width: '20%' }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>BRAND</th>
                 <th>CODE</th>
-                <th>ACTIONS</th>
+                <th style={{ textAlign: 'right' }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -125,10 +131,10 @@ export default function Brands() {
                       </div>
                     </div>
                   </td>
-                  <td><span className="um__role-badge" style={{ background: '#eef2ff', color: '#4285f4' }}>{b.name}</span></td>
-                  <td>
-                    <div className="um__actions">
-                      <button className="um__action-btn um__action-btn--edit" title="Edit">
+                  <td><span className="um__role-badge" style={{ background: '#e0f5f5', color: '#004B4E', border: 'none' }}>{b.name}</span></td>
+                  <td style={{ textAlign: 'right' }}>
+                    <div className="um__actions" style={{ justifyContent: 'flex-end' }}>
+                      <button className="um__action-btn um__action-btn--edit" title="Edit" onClick={() => setEditBrand(b)}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -151,25 +157,89 @@ export default function Brands() {
         )}
       </div>
 
+      {/* Add Brand Modal */}
       {showAdd && (
         <div className="um__modal-overlay" onClick={() => setShowAdd(false)}>
           <div className="um__modal" onClick={e => e.stopPropagation()}>
-            <div className="um__modal-header">
-              <h3>Add Brand</h3>
+            <div className="um__modal-header um__modal-header--teal">
+              <div>
+                <h3>Add Brand</h3>
+                <p className="um__modal-subtitle">Create a new brand in the system</p>
+              </div>
               <button className="um__modal-close" onClick={() => setShowAdd(false)}>✕</button>
             </div>
             <form className="um__form" onSubmit={handleCreate}>
               <div className="um__form-group">
-                <label>Brand Name</label>
+                <label>Brand Name <span className="um__required">*</span></label>
                 <input required placeholder="e.g. TK" value={newName} onChange={e => setNewName(e.target.value)} />
               </div>
-              <button type="submit" className="um__form-submit" disabled={creating}>
-                {creating ? 'Creating...' : 'Create Brand'}
-              </button>
+              <div className="um__form-footer">
+                <button type="button" className="um__btn-cancel" onClick={() => setShowAdd(false)}>Cancel</button>
+                <button type="submit" className="um__btn-save" disabled={creating}>
+                  {creating ? 'Creating...' : 'Create Brand'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Edit Brand Modal */}
+      {editBrand && (
+        <EditBrandModal
+          brand={editBrand}
+          onClose={() => setEditBrand(null)}
+          onSuccess={() => { setEditBrand(null); fetchBrands(); }}
+        />
+      )}
     </div>
   );
 }
+
+function EditBrandModal({ brand, onClose, onSuccess }) {
+  const [name, setName]       = useState(brand.name);
+  const [saving, setSaving]   = useState(false);
+  const [err, setErr]         = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSaving(true); setErr('');
+    try {
+      await updateBrand(brand.id, { name: name.trim() });
+      onSuccess();
+    } catch (ex) {
+      setErr(ex.response?.data?.message || 'Failed to update brand.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="um__modal-overlay" onClick={onClose}>
+      <div className="um__modal" onClick={e => e.stopPropagation()}>
+        <div className="um__modal-header um__modal-header--teal">
+          <div>
+            <h3>Edit Brand</h3>
+            <p className="um__modal-subtitle">Update brand name</p>
+          </div>
+          <button className="um__modal-close" onClick={onClose}>✕</button>
+        </div>
+        <form className="um__form" onSubmit={handleSubmit}>
+          {err && <div className="um__form-error">{err}</div>}
+          <div className="um__form-group">
+            <label>Brand Name <span className="um__required">*</span></label>
+            <input required placeholder="e.g. TK" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div className="um__form-footer">
+            <button type="button" className="um__btn-cancel" onClick={onClose}>Cancel</button>
+            <button type="submit" className="um__btn-save" disabled={saving}>
+              {saving ? 'Saving...' : 'Update Brand'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+

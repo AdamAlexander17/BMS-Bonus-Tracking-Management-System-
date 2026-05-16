@@ -1,0 +1,61 @@
+.csel {
+  position: relative;
+  display: inline-block;
+}
+
+.csel__trigger {
+  height: 38px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid #004B4E;
+  border-radius: 8px;
+  font-size: 0.83rem;
+  color: #004B4E;
+  background: transparent;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.csel__trigger:hover {
+  background: #004B4E;
+  color: #fff;
+}
+.csel__trigger:hover svg {
+  stroke: #fff;
+}
+
+.csel__dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 200;
+  min-width: 100%;
+  background: #fff;
+  border: 1.5px solid #004B4E;
+  border-radius: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow: hidden;
+}
+
+.csel__option {
+  padding: 5px 12px;
+  font-size: 0.83rem;
+  color: #1a1f36;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.csel__option:hover {
+  background: #004B4E;
+  color: #fff;
+}
+.csel__option--active {
+  background: #004B4E;
+  color: #fff;
+  font-weight: 600;
+}

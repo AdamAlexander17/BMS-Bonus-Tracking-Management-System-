@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getUsers, deleteUser, updateUser } from '../api/users';
 import { getRoles } from '../api/roles';
 import PageHeader from '../components/PageHeader/PageHeader';
+import CustomSelect from '../components/CustomSelect/CustomSelect';
 import './Users.css';
 
 export default function Users() {
@@ -72,14 +73,11 @@ export default function Users() {
         subtitle={`${users.length} user${users.length !== 1 ? 's' : ''} • Manage roles and permissions`}
         actions={
           <>
-            <select
-              className="um__select"
+            <CustomSelect
               value={roleFilter}
-              onChange={e => setRoleFilter(e.target.value)}
-            >
-              <option value="all">All Roles</option>
-              {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-            </select>
+              onChange={setRoleFilter}
+              options={roles.map(r => ({ value: r.name, label: r.name }))}
+            />
             <button className="ph-btn ph-btn--ghost" onClick={fetchAll}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
                 <polyline points="23 4 23 10 17 10"/>
@@ -123,6 +121,14 @@ export default function Users() {
 
         {!loading && !error && (
           <table className="um__table">
+            <colgroup>
+              <col style={{ width: '25%' }} />
+              <col style={{ width: '18%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '18%' }} />
+              <col style={{ width: '13%' }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>USER</th>
@@ -130,7 +136,7 @@ export default function Users() {
                 <th>ROLES</th>
                 <th>STATUS</th>
                 <th>CREATED ↓</th>
-                <th>ACTIONS</th>
+                <th style={{ textAlign: 'right' }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -169,8 +175,8 @@ export default function Users() {
                       {formatDate(u.created_at)}
                     </span>
                   </td>
-                  <td>
-                    <div className="um__actions">
+                  <td style={{ textAlign: 'right' }}>
+                    <div className="um__actions" style={{ justifyContent: 'flex-end' }}>
                       <button className="um__action-btn um__action-btn--edit" title="Edit" onClick={() => setEditUser(u)}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -201,12 +207,15 @@ export default function Users() {
       {/* Add User Modal */}
       {showAdd && (
         <div className="um__modal-overlay" onClick={() => setShowAdd(false)}>
-          <div className="um__modal" onClick={e => e.stopPropagation()}>
-            <div className="um__modal-header">
-              <h3>Add User</h3>
+          <div className="um__modal um__modal--wide" onClick={e => e.stopPropagation()}>
+            <div className="um__modal-header um__modal-header--teal">
+              <div>
+                <h3>Add User</h3>
+                <p className="um__modal-subtitle">Fill in the details to create a new user account</p>
+              </div>
               <button className="um__modal-close" onClick={() => setShowAdd(false)}>✕</button>
             </div>
-            <AddUserForm roles={roles} onSuccess={() => { setShowAdd(false); fetchAll(); }} />
+            <AddUserForm roles={roles} onClose={() => setShowAdd(false)} onSuccess={() => { setShowAdd(false); fetchAll(); }} />
           </div>
         </div>
       )}
@@ -215,7 +224,7 @@ export default function Users() {
       {editUser && (
         <div className="um__modal-overlay" onClick={() => setEditUser(null)}>
           <div className="um__modal um__modal--wide" onClick={e => e.stopPropagation()}>
-            <div className="um__modal-header">
+            <div className="um__modal-header um__modal-header--teal">
               <div>
                 <h3>Edit User</h3>
                 <p className="um__modal-subtitle">Update user details and assign roles</p>
@@ -256,7 +265,7 @@ function BrandPicker({ brands, selected, onChange }) {
   );
 }
 
-function AddUserForm({ roles, onSuccess }) {
+function AddUserForm({ roles, onClose, onSuccess }) {
   const [form, setForm]       = useState({ username: '', password: '', role: '', brands: [] });
   const [saving, setSaving]   = useState(false);
   const [err, setErr]         = useState('');
@@ -290,28 +299,37 @@ function AddUserForm({ roles, onSuccess }) {
   return (
     <form className="um__form" onSubmit={handleSubmit}>
       {err && <div className="um__form-error">{err}</div>}
-      <div className="um__form-group">
-        <label>Username</label>
-        <input required placeholder="e.g. john" value={form.username} onChange={e => setForm(p => ({...p, username: e.target.value}))} />
+      <div className="um__form-row">
+        <div className="um__form-group">
+          <label>Username <span className="um__required">*</span></label>
+          <input required placeholder="e.g. john" value={form.username} onChange={e => setForm(p => ({...p, username: e.target.value}))} />
+        </div>
+        <div className="um__form-group">
+          <label>Password <span className="um__required">*</span></label>
+          <input required type="password" placeholder="••••••••" value={form.password} onChange={e => setForm(p => ({...p, password: e.target.value}))} />
+        </div>
       </div>
-      <div className="um__form-group">
-        <label>Password</label>
-        <input required type="password" placeholder="••••••••" value={form.password} onChange={e => setForm(p => ({...p, password: e.target.value}))} />
+      <div className="um__form-row">
+        <div className="um__form-group">
+          <label>Role <span className="um__required">*</span></label>
+          <select required value={form.role} onChange={e => setForm(p => ({...p, role: e.target.value}))}>
+            <option value="">Select role</option>
+            {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+          </select>
+        </div>
+        <div className="um__form-group">
+          <label>Brands <span className="um__label-hint">({form.brands.length} selected)</span></label>
+          <BrandPicker brands={brands} selected={form.brands} onChange={v => setForm(p => ({...p, brands: v}))} />
+        </div>
       </div>
-      <div className="um__form-group">
-        <label>Role</label>
-        <select required value={form.role} onChange={e => setForm(p => ({...p, role: e.target.value}))}>
-          <option value="">Select role</option>
-          {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-        </select>
+      <div className="um__form-footer">
+        <button type="button" className="um__btn-cancel" onClick={onClose}>
+          Cancel
+        </button>
+        <button type="submit" className="um__btn-save" disabled={saving}>
+          {saving ? 'Creating...' : 'Create User'}
+        </button>
       </div>
-      <div className="um__form-group">
-        <label>Brands <span className="um__label-hint">({form.brands.length} selected)</span></label>
-        <BrandPicker brands={brands} selected={form.brands} onChange={v => setForm(p => ({...p, brands: v}))} />
-      </div>
-      <button type="submit" className="um__form-submit" disabled={saving}>
-        {saving ? 'Creating...' : 'Create User'}
-      </button>
     </form>
   );
 }
