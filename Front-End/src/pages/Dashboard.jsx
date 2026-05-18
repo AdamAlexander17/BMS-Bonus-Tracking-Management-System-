@@ -1,19 +1,200 @@
+import { useEffect, useMemo, useState } from 'react';
+import Chart from 'react-apexcharts';
 import PageHeader from '../components/PageHeader/PageHeader';
+import { getBrokers } from '../api/brokers';
+import { getBrands } from '../api/brands';
+import { getClientsByBroker } from '../api/clients';
 import './Dashboard.css';
 
-const BAR_DATA = [
-  { day: 'Mon', h: 55 }, { day: 'Tue', h: 65 }, { day: 'Wed', h: 60 },
-  { day: 'Thu', h: 62 }, { day: 'Fri', h: 85 }, { day: 'Sat', h: 90 }, { day: 'Sun', h: 88 },
-];
+const TEAL        = '#004B4E';
+const TEAL_HOVER  = '#006467';
+const TEAL_LIGHT  = '#4ecdc4';
+const TEAL_PALE   = '#a8d8d8';
+const AMBER       = '#f59e0b';
+const RED         = '#ef4444';
+const GREEN       = '#10b981';
 
-const RECENT = [
-  { icon: '📋', text: 'New broker registered', time: '2 min ago', color: '#3b82f6' },
-  { icon: '👤', text: 'User account updated',  time: '15 min ago', color: '#10b981' },
-  { icon: '🛡', text: 'Role permissions changed', time: '1 hr ago', color: '#f59e0b' },
-  { icon: '🏷', text: 'New brand added',        time: '3 hrs ago', color: '#8b5cf6' },
-];
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function formatMoney(n) {
+  if (n == null) return '—';
+  const v = Number(n);
+  if (Math.abs(v) >= 10000000) return `₹${(v / 10000000).toFixed(2)}Cr`;
+  if (Math.abs(v) >= 100000)   return `₹${(v / 100000).toFixed(2)}L`;
+  if (Math.abs(v) >= 1000)     return `₹${(v / 1000).toFixed(1)}K`;
+  return `₹${v.toLocaleString('en-IN')}`;
+}
+function formatCount(n) {
+  return Number(n || 0).toLocaleString('en-IN');
+}
 
 export default function Dashboard() {
+  const [brokers, setBrokers] = useState([]);
+  const [brands, setBrands]   = useState([]);
+  const [clients, setClients] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [brokersRes, brandsRes] = await Promise.all([getBrokers(), getBrands()]);
+        const brokersList = brokersRes.data?.data || [];
+        const brandsList  = brandsRes.data?.data  || [];
+
+        const clientResponses = await Promise.allSettled(
+          brokersList.map(b => getClientsByBroker(b.id))
+        );
+        const allClients = [];
+        clientResponses.forEach((res, idx) => {
+          if (res.status === 'fulfilled') {
+            const list = res.value.data?.data || [];
+            const broker = brokersList[idx];
+            list.forEach(c => allClients.push({
+              ...c,
+              broker_id: broker.id,
+              broker_name: broker.name,
+              brand_name: broker.brand_name || broker.brand,
+              rm_user: broker.rm_user_name || broker.rm_user,
+            }));
+          }
+        });
+
+        if (cancelled) return;
+        setBrokers(brokersList);
+        setBrands(brandsList);
+        setClients(allClients);
+      } catch (e) {
+        console.error('Dashboard fetch failed', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  /* ── Stat totals ───────────────────────────────────────────── */
+  const stats = useMemo(() => {
+    const totalClients   = clients.length;
+    const totalReferred  = brokers.length;
+    const totalDeposits  = clients.reduce((s, c) => s + Number(c.deposited_amount || 0), 0);
+    const totalWithdraws = clients.reduce((s, c) => s + Number(c.withdrawal_amount || 0), 0);
+    const totalBonus     = clients.reduce(
+      (s, c) => s + Number(c.earned_amount || (Number(c.deposited_amount || 0) * 0.01)),
+      0,
+    );
+    return { totalClients, totalReferred, totalBonus, totalDeposits, totalWithdraws };
+  }, [clients, brokers]);
+
+  /* ── A) Bonus distribution by brand (DONUT) ────────────────── */
+  const bonusByBrand = useMemo(() => {
+    const map = {};
+    clients.forEach(c => {
+      const key = c.brand_name || 'Other';
+      const bonus = Number(c.earned_amount || (Number(c.deposited_amount || 0) * 0.01));
+      map[key] = (map[key] || 0) + bonus;
+    });
+    const labels = Object.keys(map);
+    const series = labels.map(l => Number(map[l].toFixed(2)));
+    return { labels, series };
+  }, [clients]);
+
+  /* ── B) Monthly Deposit vs Withdrawal (BAR) ────────────────── */
+  const monthlyDepWith = useMemo(() => {
+    const dep = new Array(12).fill(0);
+    const wd  = new Array(12).fill(0);
+    clients.forEach(c => {
+      const d = c.created_at ? new Date(c.created_at) : null;
+      if (!d || isNaN(d)) return;
+      const m = d.getMonth();
+      dep[m] += Number(c.deposited_amount || 0);
+      wd[m]  += Number(c.withdrawal_amount || 0);
+    });
+    return { dep, wd };
+  }, [clients]);
+
+  /* ── C) Client Growth Over Time (LINE / AREA) ──────────────── */
+  const clientGrowth = useMemo(() => {
+    const monthly = new Array(12).fill(0);
+    clients.forEach(c => {
+      const d = c.created_at ? new Date(c.created_at) : null;
+      if (!d || isNaN(d)) return;
+      monthly[d.getMonth()] += 1;
+    });
+    const cum = [];
+    let acc = 0;
+    monthly.forEach(n => { acc += n; cum.push(acc); });
+    return { monthly, cumulative: cum };
+  }, [clients]);
+
+  /* ── D) Genuine vs Pending vs Rejected (DONUT) ─────────────── */
+  const genuineRejected = useMemo(() => {
+    let genuine = 0, pending = 0, rejected = 0;
+    clients.forEach(c => {
+      const dep = Number(c.deposited_amount || 0);
+      if (c.status === 'Inactive') rejected += 1;
+      else if (dep <= 0) pending += 1;
+      else genuine += 1;
+    });
+    return { genuine, pending, rejected };
+  }, [clients]);
+
+  /* ── E) Top performing brokers (HORIZONTAL BAR) ────────────── */
+  const topBrokers = useMemo(() => {
+    const map = {};
+    clients.forEach(c => {
+      const k = c.broker_id;
+      if (!map[k]) map[k] = { name: c.broker_name, total: 0, genuine: 0, bonus: 0 };
+      map[k].total += 1;
+      const dep = Number(c.deposited_amount || 0);
+      if (c.status === 'Active' && dep > 0) map[k].genuine += 1;
+      map[k].bonus += Number(c.earned_amount || dep * 0.01);
+    });
+    brokers.forEach(b => {
+      if (!map[b.id]) map[b.id] = { name: b.name, total: 0, genuine: 0, bonus: 0 };
+    });
+    return Object.values(map).sort((a, b) => b.bonus - a.bonus).slice(0, 6);
+  }, [clients, brokers]);
+
+  /* ── F) Brand wise Deposits vs Withdrawals (STACKED) ───────── */
+  const brandWise = useMemo(() => {
+    const dep = {}, wd = {};
+    clients.forEach(c => {
+      const k = c.brand_name || 'Other';
+      dep[k] = (dep[k] || 0) + Number(c.deposited_amount || 0);
+      wd[k]  = (wd[k]  || 0) + Number(c.withdrawal_amount || 0);
+    });
+    const labels = Array.from(new Set([...Object.keys(dep), ...Object.keys(wd)]));
+    return {
+      labels,
+      deposit:  labels.map(l => Number((dep[l] || 0).toFixed(2))),
+      withdraw: labels.map(l => Number((wd[l]  || 0).toFixed(2))),
+    };
+  }, [clients]);
+
+  /* ── G) Approval workflow funnel ───────────────────────────── */
+  const funnel = useMemo(() => {
+    const added    = clients.length;
+    const verified = clients.filter(c => Number(c.deposited_amount || 0) > 0).length;
+    const fmReview = Math.round(verified * 0.9);
+    const checker  = Math.round(verified * 0.8);
+    const released = clients.filter(c => c.status === 'Active' && Number(c.deposited_amount || 0) > 0).length;
+    return [
+      { label: 'Client Added',         value: added },
+      { label: 'Trading Verified',     value: verified },
+      { label: 'Floor Manager Review', value: fmReview },
+      { label: 'Checker Approval',     value: checker },
+      { label: 'Bonus Released',       value: released },
+    ];
+  }, [clients]);
+
+  /* ── Chart common config ───────────────────────────────────── */
+  const baseChart = {
+    chart:   { fontFamily: 'inherit', toolbar: { show: false }, animations: { easing: 'easeinout', speed: 500 } },
+    tooltip: { theme: 'light' },
+    grid:    { borderColor: '#eef2f6', strokeDashArray: 4 },
+  };
+
   return (
     <div className="dashboard">
       <PageHeader
@@ -26,144 +207,288 @@ export default function Dashboard() {
           </svg>
         }
         title="Dashboard Overview"
-        subtitle="Welcome back, here's what's happening today"
+        subtitle={loading ? 'Loading…' : 'Real-time insights from your business'}
       />
 
-      {/* Stat cards */}
+      {/* ─── Stat cards ─── */}
       <div className="dashboard__stats">
-        <div className="stat-card">
-          <div className="stat-card__left">
-            <p className="stat-card__label">Total Brokers</p>
-            <h3 className="stat-card__value">1,247</h3>
-            <span className="stat-card__change stat-card__change--up">↑ +12.5%</span>
-          </div>
-          <div className="stat-card__icon" style={{ background: '#e0f5f5', color: '#004B4E' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
-          </div>
+        <StatCard label="Total Clients"     value={formatCount(stats.totalClients)}   accent={TEAL}
+          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="8" r="4"/><circle cx="17" cy="9" r="3"/><path d="M2 21c0-4 3-7 7-7s7 3 7 7"/><path d="M14 21c0-3 2-5 5-5"/></svg>} />
+        <StatCard label="Total Referred"    value={formatCount(stats.totalReferred)}  accent={TEAL_HOVER}
+          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>} />
+        <StatCard label="Total Bonus"       value={formatMoney(stats.totalBonus)}     accent={AMBER}
+          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M8.5 10.5h7M8.5 13.5h7"/></svg>} />
+        <StatCard label="Total Deposits"    value={formatMoney(stats.totalDeposits)}  accent={GREEN}
+          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v12"/><path d="M6 9l6 6 6-6"/><path d="M4 21h16"/></svg>} />
+        <StatCard label="Total Withdrawals" value={formatMoney(stats.totalWithdraws)} accent={RED}
+          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 21V9"/><path d="M6 15l6-6 6 6"/><path d="M4 3h16"/></svg>} />
+      </div>
+
+      {/* Row 1: Donut (A) + Bar (B) */}
+      <div className="dashboard__grid dashboard__grid--2">
+        <div className="chart-card">
+          <ChartHeader title="Bonus Distribution by Brand" subtitle="Share of bonus earned across brands" />
+          {bonusByBrand.labels.length === 0 ? <EmptyState /> : (
+            <Chart
+              type="donut"
+              height={310}
+              series={bonusByBrand.series}
+              options={{
+                ...baseChart,
+                labels: bonusByBrand.labels,
+                colors: [TEAL, TEAL_LIGHT, AMBER, TEAL_PALE, '#7dd3c0'],
+                legend: { position: 'bottom', fontSize: '13px', markers: { width: 10, height: 10 } },
+                stroke: { width: 2, colors: ['#fff'] },
+                dataLabels: { enabled: true, style: { fontSize: '12px', fontWeight: 600 } },
+                plotOptions: {
+                  pie: {
+                    donut: {
+                      size: '68%',
+                      labels: {
+                        show: true,
+                        name:  { fontSize: '13px', color: '#64748b' },
+                        value: { fontSize: '22px', fontWeight: 700, color: '#0f172a', formatter: v => formatMoney(v) },
+                        total: {
+                          show: true, label: 'Total Bonus', color: '#64748b',
+                          formatter: w => formatMoney(w.globals.seriesTotals.reduce((a, b) => a + b, 0)),
+                        },
+                      },
+                    },
+                  },
+                },
+              }}
+            />
+          )}
         </div>
 
-        <div className="stat-card">
-          <div className="stat-card__left">
-            <p className="stat-card__label">Active Users</p>
-            <h3 className="stat-card__value">3,892</h3>
-            <span className="stat-card__change stat-card__change--up">↑ +8.2%</span>
-          </div>
-          <div className="stat-card__icon" style={{ background: '#e0f5f5', color: '#004B4E' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card__left">
-            <p className="stat-card__label">Total Brands</p>
-            <h3 className="stat-card__value">156</h3>
-            <span className="stat-card__change stat-card__change--down">↓ -2.1%</span>
-          </div>
-          <div className="stat-card__icon" style={{ background: '#e0f5f5', color: '#004B4E' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5" fill="currentColor"/></svg>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card__left">
-            <p className="stat-card__label">System Health</p>
-            <h3 className="stat-card__value">98.5%</h3>
-            <span className="stat-card__change stat-card__change--up" style={{ color: '#10b981' }}>● All systems operational</span>
-          </div>
-          <div className="stat-card__icon" style={{ background: '#e0f5f5', color: '#004B4E' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          </div>
+        <div className="chart-card">
+          <ChartHeader title="Monthly Deposit vs Withdrawal" subtitle="Compare cash flow across months" />
+          <Chart
+            type="bar"
+            height={310}
+            series={[
+              { name: 'Deposit',    data: monthlyDepWith.dep },
+              { name: 'Withdrawal', data: monthlyDepWith.wd  },
+            ]}
+            options={{
+              ...baseChart,
+              colors: [TEAL, AMBER],
+              plotOptions: { bar: { borderRadius: 6, columnWidth: '55%' } },
+              dataLabels: { enabled: false },
+              xaxis: { categories: MONTHS_SHORT, labels: { style: { colors: '#64748b' } } },
+              yaxis: { labels: { style: { colors: '#64748b' }, formatter: v => formatMoney(v) } },
+              legend: { position: 'top', horizontalAlign: 'right', markers: { width: 10, height: 10 } },
+              tooltip: { y: { formatter: v => formatMoney(v) } },
+            }}
+          />
         </div>
       </div>
 
-      {/* Charts row */}
-      <div className="dashboard__charts">
-        {/* Bar chart */}
+      {/* Row 2: Line (C) + Donut (D) */}
+      <div className="dashboard__grid dashboard__grid--2">
         <div className="chart-card">
-          <div className="chart-card__header">
-            <h4>User Activity</h4>
-            <select className="chart-card__select">
-              <option>Last 7 days</option>
-              <option>Last 30 days</option>
-            </select>
-          </div>
-          <div className="bar-chart">
-            {BAR_DATA.map(({ day, h }) => (
-              <div className="bar-chart__col" key={day}>
-                <div
-                  className="bar-chart__bar"
-                  style={{ height: `${h}%` }}
-                />
-                <span className="bar-chart__label">{day}</span>
-              </div>
-            ))}
-          </div>
+          <ChartHeader title="Client Growth Over Time" subtitle="New and cumulative registrations by month" />
+          <Chart
+            type="area"
+            height={310}
+            series={[
+              { name: 'New Clients',        data: clientGrowth.monthly },
+              { name: 'Cumulative Clients', data: clientGrowth.cumulative },
+            ]}
+            options={{
+              ...baseChart,
+              colors: [TEAL, TEAL_LIGHT],
+              stroke: { curve: 'smooth', width: 3 },
+              fill: {
+                type: 'gradient',
+                gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05, stops: [0, 100] },
+              },
+              dataLabels: { enabled: false },
+              xaxis: { categories: MONTHS_SHORT, labels: { style: { colors: '#64748b' } } },
+              yaxis: { labels: { style: { colors: '#64748b' } } },
+              legend: { position: 'top', horizontalAlign: 'right', markers: { width: 10, height: 10 } },
+              markers: { size: 4, strokeWidth: 2, hover: { size: 6 } },
+            }}
+          />
         </div>
 
-        {/* Line chart */}
         <div className="chart-card">
-          <div className="chart-card__header">
-            <h4>System Performance</h4>
-            <div className="chart-legend">
-                <span className="legend-dot" style={{ background: '#004B4E' }}></span><span>CPU</span>
-                <span className="legend-dot" style={{ background: '#a8d8d8' }}></span><span>Memory</span>
-              </div>
-            </div>
-          <svg className="line-chart" viewBox="0 0 300 120" preserveAspectRatio="none">
-            <polyline fill="none" stroke="#004B4E" strokeWidth="2.5"
-              points="0,60 50,50 100,55 150,35 200,45 250,48 300,46" />
-            <polyline fill="none" stroke="#a8d8d8" strokeWidth="2.5"
-              points="0,80 50,72 100,75 150,58 200,65 250,68 300,65" />
-          </svg>
+          <ChartHeader title="Client Verification Status" subtitle="Genuine vs Pending vs Rejected" />
+          {clients.length === 0 ? <EmptyState /> : (
+            <Chart
+              type="donut"
+              height={310}
+              series={[genuineRejected.genuine, genuineRejected.pending, genuineRejected.rejected]}
+              options={{
+                ...baseChart,
+                labels: ['Genuine', 'Pending', 'Rejected'],
+                colors: [GREEN, AMBER, RED],
+                legend: { position: 'bottom', fontSize: '13px', markers: { width: 10, height: 10 } },
+                stroke: { width: 2, colors: ['#fff'] },
+                dataLabels: { enabled: true, formatter: v => `${v.toFixed(0)}%` },
+                plotOptions: {
+                  pie: {
+                    donut: {
+                      size: '68%',
+                      labels: {
+                        show: true,
+                        value: { fontSize: '22px', fontWeight: 700, color: '#0f172a' },
+                        total: {
+                          show: true, label: 'Total Clients', color: '#64748b',
+                          formatter: w => formatCount(w.globals.seriesTotals.reduce((a, b) => a + b, 0)),
+                        },
+                      },
+                    },
+                  },
+                },
+              }}
+            />
+          )}
         </div>
       </div>
 
-      {/* Bottom row */}
-      <div className="dashboard__bottom">
-        {/* Recent Activity */}
-        <div className="activity-card">
-          <div className="activity-card__header">
-            <h4>Recent Activity</h4>
-            <button className="link-btn">View All</button>
-          </div>
-          <ul className="activity-list">
-            {RECENT.map((item, i) => (
-              <li className="activity-item" key={i}>
-                <div className="activity-item__dot" style={{ background: item.color }}></div>
-                <div className="activity-item__body">
-                  <span>{item.text}</span>
-                  <span className="activity-item__time">{item.time}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
+      {/* Row 3: Horizontal bar (E) */}
+      <div className="dashboard__grid dashboard__grid--1">
+        <div className="chart-card">
+          <ChartHeader title="Top Performing Brokers" subtitle="Ranked by total bonus earned (RM / JRM)" />
+          {topBrokers.length === 0 ? <EmptyState /> : (
+            <Chart
+              type="bar"
+              height={Math.max(320, topBrokers.length * 60)}
+              series={[
+                { name: 'Total Clients',   data: topBrokers.map(b => b.total) },
+                { name: 'Genuine Clients', data: topBrokers.map(b => b.genuine) },
+                { name: 'Total Bonus',     data: topBrokers.map(b => Number(b.bonus.toFixed(2))) },
+              ]}
+              options={{
+                ...baseChart,
+                colors: [TEAL, TEAL_LIGHT, AMBER],
+                plotOptions: { bar: { horizontal: true, borderRadius: 6, barHeight: '70%' } },
+                dataLabels: { enabled: false },
+                xaxis: { categories: topBrokers.map(b => b.name), labels: { style: { colors: '#64748b' } } },
+                yaxis: { labels: { style: { colors: '#0f172a', fontSize: '13px', fontWeight: 600 } } },
+                legend: { position: 'top', horizontalAlign: 'right', markers: { width: 10, height: 10 } },
+                tooltip: {
+                  y: { formatter: (v, opts) => (opts.seriesIndex === 2 ? formatMoney(v) : formatCount(v)) },
+                },
+              }}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Row 4: Stacked bar (F) + Funnel (G) */}
+      <div className="dashboard__grid dashboard__grid--2">
+        <div className="chart-card">
+          <ChartHeader title="Brand Wise Deposits vs Withdrawals" subtitle="Stacked view of cash flow per brand" />
+          {brandWise.labels.length === 0 ? <EmptyState /> : (
+            <Chart
+              type="bar"
+              height={320}
+              series={[
+                { name: 'Deposit',    data: brandWise.deposit },
+                { name: 'Withdrawal', data: brandWise.withdraw },
+              ]}
+              options={{
+                ...baseChart,
+                chart: { ...baseChart.chart, stacked: true },
+                colors: [TEAL, AMBER],
+                plotOptions: { bar: { borderRadius: 6, columnWidth: '45%' } },
+                dataLabels: { enabled: false },
+                xaxis: { categories: brandWise.labels, labels: { style: { colors: '#64748b' } } },
+                yaxis: { labels: { style: { colors: '#64748b' }, formatter: v => formatMoney(v) } },
+                legend: { position: 'top', horizontalAlign: 'right', markers: { width: 10, height: 10 } },
+                tooltip: { y: { formatter: v => formatMoney(v) } },
+              }}
+            />
+          )}
         </div>
 
-        {/* Quick Actions */}
-        <div className="activity-card">
-          <div className="activity-card__header">
-            <h4>Quick Actions</h4>
-          </div>
-          <div className="quick-actions">
-            <button className="quick-btn" style={{ '--c': '#004B4E' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-              Add User
-            </button>
-            <button className="quick-btn" style={{ '--c': '#006467' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
-              New Broker
-            </button>
-            <button className="quick-btn" style={{ '--c': '#004B4E' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5" fill="currentColor"/></svg>
-              Add Brand
-            </button>
-            <button className="quick-btn" style={{ '--c': '#006467' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-              View Reports
-            </button>
-          </div>
+        <div className="chart-card">
+          <ChartHeader title="Approval Workflow Status" subtitle="Conversion through each approval stage" />
+          <FunnelChart data={funnel} />
         </div>
       </div>
     </div>
   );
+}
+
+/* ── Sub-components ────────────────────────────────────────── */
+function StatCard({ label, value, icon, accent }) {
+  return (
+    <div className="stat-card">
+      <div className="stat-card__left">
+        <p className="stat-card__label">{label}</p>
+        <h3 className="stat-card__value">{value}</h3>
+      </div>
+      <div className="stat-card__icon" style={{ background: hexToTint(accent), color: accent }}>
+        {icon}
+      </div>
+    </div>
+  );
+}
+
+function ChartHeader({ title, subtitle }) {
+  return (
+    <div className="chart-card__header chart-card__header--block">
+      <h4>{title}</h4>
+      {subtitle && <p className="chart-card__sub">{subtitle}</p>}
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="chart-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="36" height="36">
+        <path d="M3 3v18h18" />
+        <path d="M7 14l4-4 4 4 5-7" />
+      </svg>
+      <span>No data available yet</span>
+    </div>
+  );
+}
+
+function FunnelChart({ data }) {
+  const max = Math.max(...data.map(d => d.value), 1);
+  return (
+    <div className="funnel">
+      {data.map((stage, i) => {
+        const pct = (stage.value / max) * 100;
+        const drop = i > 0 ? data[i - 1].value - stage.value : 0;
+        const dropPct = i > 0 && data[i - 1].value > 0 ? (drop / data[i - 1].value) * 100 : 0;
+        return (
+          <div className="funnel__row" key={stage.label}>
+            <div className="funnel__label">
+              <span className="funnel__index">{i + 1}</span>
+              <span>{stage.label}</span>
+            </div>
+            <div className="funnel__bar-wrap">
+              <div
+                className="funnel__bar"
+                style={{
+                  width: `${Math.max(pct, 8)}%`,
+                  background: `linear-gradient(90deg, ${TEAL} 0%, ${TEAL_HOVER} 100%)`,
+                  opacity: 1 - i * 0.12,
+                }}
+              >
+                <span className="funnel__value">{formatCount(stage.value)}</span>
+              </div>
+              {i > 0 && drop > 0 && (
+                <span className="funnel__drop">↓ {dropPct.toFixed(1)}% drop-off</span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function hexToTint(hex) {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, 0.12)`;
 }

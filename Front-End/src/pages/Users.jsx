@@ -302,7 +302,7 @@ function AddUserForm({ roles, onClose, onSuccess }) {
       <div className="um__form-row">
         <div className="um__form-group">
           <label>Username <span className="um__required">*</span></label>
-          <input required placeholder="e.g. john" value={form.username} onChange={e => setForm(p => ({...p, username: e.target.value}))} />
+          <input required placeholder=" Name " value={form.username} onChange={e => setForm(p => ({...p, username: e.target.value}))} />
         </div>
         <div className="um__form-group">
           <label>Password <span className="um__required">*</span></label>
@@ -312,10 +312,13 @@ function AddUserForm({ roles, onClose, onSuccess }) {
       <div className="um__form-row">
         <div className="um__form-group">
           <label>Role <span className="um__required">*</span></label>
-          <select required value={form.role} onChange={e => setForm(p => ({...p, role: e.target.value}))}>
-            <option value="">Select role</option>
-            {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-          </select>
+          <CustomSelect
+            variant="form"
+            placeholder="Select role"
+            value={form.role}
+            onChange={v => setForm(p => ({...p, role: v}))}
+            options={roles.map(r => ({ value: r.name, label: r.name }))}
+          />
         </div>
         <div className="um__form-group">
           <label>Brands <span className="um__label-hint">({form.brands.length} selected)</span></label>
@@ -403,7 +406,7 @@ function EditUserForm({ user, roles, onClose, onSuccess }) {
           <label>Username <span className="um__required">*</span></label>
           <input
             required
-            placeholder="e.g. john"
+            placeholder=" Name "
             value={form.username}
             onChange={e => setForm(p => ({...p, username: e.target.value}))}
           />

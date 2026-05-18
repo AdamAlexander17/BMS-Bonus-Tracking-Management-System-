@@ -59,3 +59,44 @@
   color: #fff;
   font-weight: 600;
 }
+
+/* Form variant */
+.csel--form {
+  display: block;
+  width: 100%;
+}
+.csel--form .csel__trigger {
+  width: 100%;
+  height: 40px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 400;
+  justify-content: space-between;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+.csel--form .csel__trigger:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #004B4E;
+}
+.csel--form .csel__trigger:hover svg {
+  stroke: #0f172a;
+}
+.csel--form.csel--open .csel__trigger,
+.csel--form .csel__trigger:focus {
+  border-color: #004B4E;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(0,75,78,0.1);
+}
+.csel--form .csel__placeholder {
+  color: #94a3b8;
+}
+.csel--form .csel__dropdown {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  z-index: 300;
+}
