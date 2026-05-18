@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader/PageHeader';
 import { getBroker, createBroker, updateBroker } from '../api/brokers';
 import { getBrands } from '../api/brands';
@@ -23,7 +23,9 @@ const Icon = () => (
 export default function BrokerForm() {
   const navigate = useNavigate();
   const { id }   = useParams();
+  const [searchParams] = useSearchParams();
   const isEdit   = Boolean(id);
+  const presetRmUserId = searchParams.get('rm_user_id') || '';
 
   const [brands, setBrands]     = useState([]);
   const [rmUsers, setRmUsers]   = useState([]);
@@ -35,7 +37,7 @@ export default function BrokerForm() {
     name: '',
     arc_id: '',
     brand_id: '',
-    rm_user_id: '',
+    rm_user_id: presetRmUserId,
     status: 'Active',
   });
 
@@ -109,7 +111,7 @@ export default function BrokerForm() {
     <div className="um">
       <PageHeader
         icon={<Icon />}
-        title={isEdit ? 'Edit Broker' : 'Add Broker'}
+        title={isEdit ? 'Edit Broker' : 'Add Client'}
         subtitle={isEdit ? 'Update broker details' : 'Create a new broker'}
         actions={
           <button className="ph-btn ph-btn--ghost" onClick={() => navigate('/brokers')}>

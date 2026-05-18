@@ -39,9 +39,10 @@ urlpatterns = [
     path('roles/<int:role_id>/permissions/set/',    views.role_set_permissions,    name='role_set_permissions'),
 
     # Broker CRUD
-    path('brokers/create/',                        views.broker_create, name='broker_create'),
-    path('brokers/',                               views.broker_list,   name='broker_list'),
-    path('brokers/<int:broker_id>/',               views.broker_get,    name='broker_get'),
+    path('brokers/create/',                        views.broker_create,       name='broker_create'),
+    path('brokers/',                               views.broker_list,         name='broker_list'),
+    path('users/<int:user_id>/brokers/',           views.brokers_by_rm_user,  name='brokers_by_rm_user'),
+    path('brokers/<int:broker_id>/',               views.broker_get,          name='broker_get'),
     path('brokers/<int:broker_id>/update/',        views.broker_update, name='broker_update'),
     path('brokers/<int:broker_id>/delete/',        views.broker_delete, name='broker_delete'),
 

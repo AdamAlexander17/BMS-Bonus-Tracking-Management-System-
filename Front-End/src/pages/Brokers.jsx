@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../components/PageHeader/PageHeader';
+import { getRmJrmUsers } from '../api/users';
+import './Users.css';
 
 export const formatINR = (val) => {
   const n = Number(val);
@@ -11,9 +13,6 @@ export const formatINR = (val) => {
     maximumFractionDigits: 2,
   });
 };
-
-import { getRmJrmUsers } from '../api/users';
-import './Users.css';
 
 const BrokerIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -138,7 +137,7 @@ export default function Brokers() {
               {filtered.length === 0 ? (
                 <tr><td colSpan="6" className="um__empty">No RM / JRM users found.</td></tr>
               ) : filtered.map(u => (
-                <tr key={u.id}>
+                <tr key={u.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/brokers/rm/${u.id}`)}>
                   <td>
                     <div className="um__user-cell">
                       <div className="um__avatar">{u.username[0]?.toUpperCase() || 'U'}</div>
@@ -166,19 +165,6 @@ export default function Brokers() {
                   </td>
                   <td>
                     <span style={{ fontWeight: 600 }}>{u.broker_count ?? 0}</span>
-                    {u.broker_count > 0 && (
-                      <button
-                        className="um__action-btn um__action-btn--edit"
-                        style={{ marginLeft: 8 }}
-                        title="View assigned brokers"
-                        onClick={() => navigate(`/brokers/${u.id}/managed`)}
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                          <circle cx="12" cy="12" r="3"/>
-                        </svg>
-                      </button>
-                    )}
                   </td>
                   <td>
                     <span className={`um__status-badge ${u.status === 'Active' ? 'um__status-badge--active' : 'um__status-badge--inactive'}`}>

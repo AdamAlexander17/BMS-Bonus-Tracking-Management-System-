@@ -996,6 +996,39 @@ def user_brand_names(request):
 # Broker CRUD
 # ===========================================================================
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def brokers_by_rm_user(request, user_id):
+    """Return all broker companies assigned to a specific RM/JRM user."""
+    if not has_perm(request, 'broker:view'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    try:
+        rm_user = User.objects.select_related('role').get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'success': False, 'message': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    brokers = (
+        Broker.objects
+        .select_related('brand', 'created_by')
+        .annotate(client_count=Count('clients'))
+        .filter(rm_user=rm_user)
+        .order_by('id')
+    )
+    return Response({
+        'success': True,
+        'rm_user': {
+            'id':       rm_user.id,
+            'username': rm_user.username,
+            'role':     rm_user.role.name,
+            'brands':   list(rm_user.brands.values_list('name', flat=True)),
+        },
+        'data': [format_broker(b) for b in brokers],
+    }, status=status.HTTP_200_OK)
+
+
 def format_broker(broker):
     rm = broker.rm_user
     return {
