@@ -407,17 +407,27 @@ def user_delete(request, user_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def rm_jrm_users(request):
-    """Return all active users whose role is RM or JRM — used to populate broker assignment dropdowns."""
+    """Return all users whose role is RM or JRM, with their brands and managed-broker count."""
     users = (
         User.objects
-        .select_related('role')
-        .filter(role__name__in=['RM', 'JRM'], status='Active')
+        .select_related('role', 'created_by')
+        .prefetch_related('brands', 'managed_brokers')
+        .filter(role__name__in=['RM', 'JRM'])
         .order_by('role__name', 'username')
     )
     return Response({
         'success': True,
         'data': [
-            {'id': u.id, 'username': u.username, 'role': u.role.name}
+            {
+                'id':           u.id,
+                'username':     u.username,
+                'role':         u.role.name,
+                'brands':       list(u.brands.values_list('name', flat=True)),
+                'status':       u.status,
+                'created_by':   u.created_by.username if u.created_by else None,
+                'created_at':   u.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'broker_count': u.managed_brokers.count(),
+            }
             for u in users
         ]
     }, status=status.HTTP_200_OK)

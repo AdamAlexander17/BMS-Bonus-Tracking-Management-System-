@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../components/PageHeader/PageHeader';
-import {
-  getBrokers, createBroker, updateBroker, deleteBroker,
-} from '../api/brokers';
-import { getBrands } from '../api/brands';
-import { getRmJrmUsers } from '../api/users';
-import './Users.css';
 
 export const formatINR = (val) => {
   const n = Number(val);
@@ -17,6 +12,9 @@ export const formatINR = (val) => {
   });
 };
 
+import { getRmJrmUsers } from '../api/users';
+import './Users.css';
+
 const BrokerIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <rect x="2" y="7" width="20" height="14" rx="2"/>
@@ -27,69 +25,38 @@ const BrokerIcon = () => (
 );
 
 export default function Brokers() {
-  const [brokers, setBrokers]       = useState([]);
-  const [brands, setBrands]         = useState([]);
-  const [rmUsers, setRmUsers]       = useState([]);
+  const navigate = useNavigate();
+  const [users, setUsers]           = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState('');
   const [search, setSearch]         = useState('');
-  const [brandFilter, setBrandFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [showAdd, setShowAdd]       = useState(false);
-  const [editBroker, setEditBroker] = useState(null);
 
   const fetchAll = async () => {
     setLoading(true);
     setError('');
     try {
-      const [brokersRes, brandsRes] = await Promise.all([getBrokers(), getBrands()]);
-      setBrokers(brokersRes.data.data || []);
-      setBrands(brandsRes.data.data || []);
+      const res = await getRmJrmUsers();
+      setUsers(res.data.data || []);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load brokers.');
+      setError(err.response?.data?.message || 'Failed to load users.');
     } finally {
       setLoading(false);
-    }
-    // Fetch RM/JRM users independently so their failure never blocks the main table
-    try {
-      const rmRes = await getRmJrmUsers();
-      setRmUsers(rmRes.data.data || []);
-    } catch {
-      setRmUsers([]);
     }
   };
 
   useEffect(() => { fetchAll(); }, []);
 
-  const handleToggleStatus = async (b) => {
-    const newStatus = b.status === 'Active' ? 'Inactive' : 'Active';
-    try {
-      await updateBroker(b.id, { status: newStatus });
-      setBrokers(prev => prev.map(x => x.id === b.id ? { ...x, status: newStatus } : x));
-    } catch (err) {
-      alert(err.response?.data?.message || 'Update failed.');
-    }
-  };
-
-  const handleDelete = async (broker) => {
-    if (!window.confirm(`Delete broker "${broker.name}" (${broker.arc_id})?`)) return;
-    try {
-      await deleteBroker(broker.id);
-      setBrokers(prev => prev.filter(b => b.id !== broker.id));
-    } catch (err) {
-      alert(err.response?.data?.message || 'Delete failed.');
-    }
-  };
-
-  const filtered = brokers.filter(b => {
+  const filtered = users.filter(u => {
     const q = search.toLowerCase();
     const matchSearch =
-      b.name.toLowerCase().includes(q) ||
-      b.arc_id.toLowerCase().includes(q) ||
-      (b.brand?.name || '').toLowerCase().includes(q);
-    const matchBrand  = brandFilter  === 'all' || b.brand?.name === brandFilter;
-    const matchStatus = statusFilter === 'all' || b.status      === statusFilter;
-    return matchSearch && matchBrand && matchStatus;
+      u.username.toLowerCase().includes(q) ||
+      u.role.toLowerCase().includes(q) ||
+      (u.brands || []).some(b => b.toLowerCase().includes(q));
+    const matchRole   = roleFilter   === 'all' || u.role   === roleFilter;
+    const matchStatus = statusFilter === 'all' || u.status === statusFilter;
+    return matchSearch && matchRole && matchStatus;
   });
 
   const formatDate = (str) => {
@@ -97,27 +64,22 @@ export default function Brokers() {
     return new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const formatMoney = (val) => {
-    const n = Number(val);
-    if (Number.isNaN(n)) return '—';
-    return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-  };
-
   return (
     <div className="um">
       <PageHeader
         icon={<BrokerIcon />}
         title="Broker Management"
-        subtitle={`${brokers.length} broker${brokers.length !== 1 ? 's' : ''} • Manage brokers and their client portfolios`}
+        subtitle={`${users.length} broker${users.length !== 1 ? 's' : ''} • Relationship Managers & Junior Relationship Managers`}
         actions={
           <>
             <select
               className="um__select"
-              value={brandFilter}
-              onChange={e => setBrandFilter(e.target.value)}
+              value={roleFilter}
+              onChange={e => setRoleFilter(e.target.value)}
             >
-              <option value="all">All Brands</option>
-              {brands.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+              <option value="all">All Roles</option>
+              <option value="RM">RM</option>
+              <option value="JRM">JRM</option>
             </select>
             <select
               className="um__select"
@@ -136,13 +98,6 @@ export default function Brokers() {
               </svg>
               Refresh
             </button>
-            <button className="ph-btn ph-btn--primary" onClick={() => setShowAdd(true)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              Add Broker
-            </button>
           </>
         }
       />
@@ -154,7 +109,7 @@ export default function Brokers() {
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
             <input
-              placeholder="Search brokers by name, ARC ID or brand"
+              placeholder="Search by name, role or brand"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -171,56 +126,64 @@ export default function Brokers() {
           <table className="um__table">
             <thead>
               <tr>
-                <th>BROKER</th>
-                <th>ARC ID</th>
-                <th>BRAND</th>
-                <th>RM / JRM</th>
-                <th>CLIENTS</th>
-                <th>EARNED</th>
+                <th>USER</th>
+                <th>BRANDS</th>
+                <th>ROLE</th>
+                <th>Clients MANAGED</th>
                 <th>STATUS</th>
                 <th>CREATED ↓</th>
-                <th>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan="8" className="um__empty">No brokers found.</td></tr>
-              ) : filtered.map(b => (
-                <tr key={b.id}>
+                <tr><td colSpan="6" className="um__empty">No RM / JRM users found.</td></tr>
+              ) : filtered.map(u => (
+                <tr key={u.id}>
                   <td>
                     <div className="um__user-cell">
-                      <div className="um__avatar">{b.name[0]?.toUpperCase() || 'B'}</div>
+                      <div className="um__avatar">{u.username[0]?.toUpperCase() || 'U'}</div>
                       <div>
-                        <div className="um__username">{b.name}</div>
-                        <div className="um__handle">by {b.created_by || '—'}</div>
+                        <div className="um__username">{u.username}</div>
+                        <div className="um__handle">by {u.created_by || '—'}</div>
                       </div>
                     </div>
                   </td>
-                  <td><code className="um__handle">{b.arc_id}</code></td>
-                  <td><span className="um__role-badge">{b.brand?.name || '—'}</span></td>
                   <td>
-                    {b.rm_user ? (
-                      <div className="um__user-cell" style={{ gap: 6 }}>
-                        <div className="um__avatar" style={{ width: 26, height: 26, fontSize: 11 }}>
-                          {b.rm_user.username[0].toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="um__username" style={{ fontSize: 13 }}>{b.rm_user.username}</div>
-                          <div className="um__handle">{b.rm_user.role}</div>
-                        </div>
-                      </div>
-                    ) : <span className="um__handle">—</span>}
+                    {(u.brands || []).length > 0
+                      ? u.brands.map(b => (
+                          <span key={b} className="um__role-badge" style={{ marginRight: 4 }}>{b}</span>
+                        ))
+                      : <span className="um__handle">—</span>
+                    }
                   </td>
-                  <td>{b.client_count ?? 0}</td>
-                  <td>{formatMoney(b.amount_earned)}</td>
                   <td>
-                    <button
-                      className={`um__toggle ${b.status === 'Active' ? 'um__toggle--on' : ''}`}
-                      onClick={() => handleToggleStatus(b)}
-                      title={b.status}
+                    <span
+                      className="um__role-badge"
+                      style={{ background: u.role === 'RM' ? '#dbeafe' : '#fef3c7', color: u.role === 'RM' ? '#1d4ed8' : '#92400e' }}
                     >
-                      <span className="um__toggle-thumb" />
-                    </button>
+                      {u.role}
+                    </span>
+                  </td>
+                  <td>
+                    <span style={{ fontWeight: 600 }}>{u.broker_count ?? 0}</span>
+                    {u.broker_count > 0 && (
+                      <button
+                        className="um__action-btn um__action-btn--edit"
+                        style={{ marginLeft: 8 }}
+                        title="View assigned brokers"
+                        onClick={() => navigate(`/brokers/${u.id}/managed`)}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                          <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                      </button>
+                    )}
+                  </td>
+                  <td>
+                    <span className={`um__status-badge ${u.status === 'Active' ? 'um__status-badge--active' : 'um__status-badge--inactive'}`}>
+                      {u.status}
+                    </span>
                   </td>
                   <td>
                     <span className="um__date">
@@ -230,30 +193,8 @@ export default function Brokers() {
                         <line x1="8" y1="2" x2="8" y2="6"/>
                         <line x1="3" y1="10" x2="21" y2="10"/>
                       </svg>
-                      {formatDate(b.created_at)}
+                      {formatDate(u.created_at)}
                     </span>
-                  </td>
-                  <td>
-                    <div className="um__actions">
-                      <button className="um__action-btn um__action-btn--edit" title="Edit" onClick={() => setEditBroker(b)}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                        </svg>
-                      </button>
-                      <button
-                        className="um__action-btn um__action-btn--delete"
-                        title="Delete"
-                        onClick={() => handleDelete(b)}
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="3 6 5 6 21 6"/>
-                          <path d="M19 6l-1 14H6L5 6"/>
-                          <path d="M10 11v6M14 11v6"/>
-                          <path d="M9 6V4h6v2"/>
-                        </svg>
-                      </button>
-                    </div>
                   </td>
                 </tr>
               ))}
@@ -261,7 +202,6 @@ export default function Brokers() {
           </table>
         )}
       </div>
-
     </div>
   );
 }
