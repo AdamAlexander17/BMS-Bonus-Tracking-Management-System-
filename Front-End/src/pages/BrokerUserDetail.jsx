@@ -585,7 +585,7 @@ export default function BrokerUserDetail() {
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 24 }}>
         <InfoCard label="Role"             value={(rmUser.roles || []).join('/')} accent={(rmUser.roles || []).includes('RM') ? '#1d4ed8' : '#92400e'} />
-        <InfoCard label="Broker Companies" value={brokers.length} />
+        <InfoCard label="Broker Count" value={brokers.length} />
         <InfoCard label="Total Clients"    value={totalClients} />
       </div>
 

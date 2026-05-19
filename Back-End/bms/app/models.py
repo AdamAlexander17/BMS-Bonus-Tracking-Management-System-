@@ -188,10 +188,12 @@ class Client(models.Model):
     ]
 
     id                = models.BigAutoField(primary_key=True)
+    name              = models.CharField(max_length=100)
     arc_id            = models.CharField(max_length=100, unique=True)
     broker            = models.ForeignKey(Broker, on_delete=models.CASCADE, related_name='clients')
     deposited_amount  = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     withdrawal_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    is_legitimate     = models.BooleanField(default=False)
     status            = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Active')
     created_by        = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_clients'
@@ -202,11 +204,14 @@ class Client(models.Model):
         db_table = 'clients'
 
     def __str__(self):
-        return f'{self.arc_id} → {self.broker.name}'
+        return f'{self.name} ({self.arc_id}) → {self.broker.name}'
 
     @property
     def earned_amount(self):
-        # 1% of deposited_amount
+        if not self.is_legitimate:
+            return 0
+
+        # 1% of deposited_amount for legitimate trading clients only
         return round(float(self.deposited_amount) * 0.01, 2)
 
 

@@ -1412,6 +1412,7 @@ def format_client(client):
     net_total = client.deposited_amount - client.withdrawal_amount
     return {
         'id':                client.id,
+        'name':              client.name,
         'arc_id':            client.arc_id,
         'broker':            {
             'id':     client.broker.id,
@@ -1422,10 +1423,28 @@ def format_client(client):
         'withdrawal_amount': str(client.withdrawal_amount),
         'net_total':         str(net_total),
         'earned_amount':     str(client.earned_amount),
+        'is_legitimate':     client.is_legitimate,
         'status':            client.status,
         'created_by':        client.created_by.username if client.created_by else None,
         'created_at':        client.created_at.strftime('%Y-%m-%d %H:%M:%S'),
     }
+
+
+def _parse_bool(value, field_name):
+    if isinstance(value, bool):
+        return value
+
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ('true', '1', 'yes', 'on'):
+            return True
+        if normalized in ('false', '0', 'no', 'off'):
+            return False
+
+    if isinstance(value, (int, float)):
+        return bool(value)
+
+    raise ValueError(f'{field_name} must be true or false.')
 
 
 def _check_client_access(request, client):
@@ -1456,9 +1475,17 @@ def client_create(request, broker_id):
             status=status.HTTP_403_FORBIDDEN
         )
 
+    name              = request.data.get('name', '').strip()
     arc_id            = request.data.get('arc_id', '').strip()
     deposited_amount  = request.data.get('deposited_amount', 0)
     withdrawal_amount = request.data.get('withdrawal_amount', 0)
+    is_legitimate     = request.data.get('is_legitimate', False)
+
+    if not name:
+        return Response(
+            {'success': False, 'message': 'name is required.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     if not arc_id:
         return Response(
@@ -1475,17 +1502,20 @@ def client_create(request, broker_id):
     try:
         deposited_amount  = float(deposited_amount)
         withdrawal_amount = float(withdrawal_amount)
+        is_legitimate     = _parse_bool(is_legitimate, 'is_legitimate')
     except (ValueError, TypeError):
         return Response(
-            {'success': False, 'message': 'deposited_amount and withdrawal_amount must be numbers.'},
+            {'success': False, 'message': 'deposited_amount and withdrawal_amount must be numbers, and is_legitimate must be true or false.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
     client = Client.objects.create(
+        name=name,
         arc_id=arc_id,
         broker=broker,
         deposited_amount=deposited_amount,
         withdrawal_amount=withdrawal_amount,
+        is_legitimate=is_legitimate,
         status='Active',
         created_by=request.user,
     )
@@ -1582,13 +1612,29 @@ def client_update(request, client_id):
             status=status.HTTP_403_FORBIDDEN
         )
 
+    new_name              = request.data.get('name')
     new_arc_id            = request.data.get('arc_id')
     new_deposited_amount  = request.data.get('deposited_amount')
     new_withdrawal_amount = request.data.get('withdrawal_amount')
+    new_is_legitimate     = request.data.get('is_legitimate')
     new_status            = request.data.get('status')
+
+    if new_name is not None:
+        new_name = new_name.strip()
+        if not new_name:
+            return Response(
+                {'success': False, 'message': 'name is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        client.name = new_name
 
     if new_arc_id is not None:
         new_arc_id = new_arc_id.strip()
+        if not new_arc_id:
+            return Response(
+                {'success': False, 'message': 'arc_id is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         if Client.objects.filter(arc_id=new_arc_id).exclude(id=client_id).exists():
             return Response(
                 {'success': False, 'message': f'arc_id "{new_arc_id}" is already in use.'},
@@ -1611,6 +1657,15 @@ def client_update(request, client_id):
         except (ValueError, TypeError):
             return Response(
                 {'success': False, 'message': 'withdrawal_amount must be a number.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    if new_is_legitimate is not None:
+        try:
+            client.is_legitimate = _parse_bool(new_is_legitimate, 'is_legitimate')
+        except ValueError as exc:
+            return Response(
+                {'success': False, 'message': str(exc)},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

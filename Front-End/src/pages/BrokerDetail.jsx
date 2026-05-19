@@ -109,7 +109,7 @@ function ConfirmDialog({ title, message, confirmLabel = 'Yes, Delete', onConfirm
 function AddClientModal({ broker, onClose, onCreated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
-  const [form, setForm]     = useState({ arc_id: '', deposited_amount: '', withdrawal_amount: '' });
+  const [form, setForm]     = useState({ name: '', arc_id: '', deposited_amount: '', withdrawal_amount: '', is_legitimate: false });
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -123,9 +123,11 @@ function AddClientModal({ broker, onClose, onCreated }) {
     setSaving(true);
     try {
       await createClient(broker.id, {
+        name:              form.name.trim(),
         arc_id:            form.arc_id.trim(),
         deposited_amount:  form.deposited_amount  || 0,
         withdrawal_amount: form.withdrawal_amount || 0,
+        is_legitimate:     form.is_legitimate,
       });
       onCreated();
     } catch (err) {
@@ -192,6 +194,19 @@ function AddClientModal({ broker, onClose, onCreated }) {
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 20px' }}>
               <div style={{ gridColumn: '1 / -1' }}>
+                <Field label="Client Name" required>
+                  <input
+                    style={inputStyle}
+                    value={form.name}
+                    onChange={set('name')}
+                    required
+                    placeholder="Enter client name"
+                    onFocus={e => e.target.style.borderColor = '#004B4E'}
+                    onBlur={e => e.target.style.borderColor = '#d1d5db'}
+                  />
+                </Field>
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
                 <Field label="ARC ID" required>
                   <input
                     style={inputStyle}
@@ -227,6 +242,16 @@ function AddClientModal({ broker, onClose, onCreated }) {
                   onBlur={e => e.target.style.borderColor = '#d1d5db'}
                 />
               </Field>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 500, color: '#374151', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.is_legitimate}
+                    onChange={(e) => setForm(f => ({ ...f, is_legitimate: e.target.checked }))}
+                  />
+                  Client has proper trading and is eligible for earned amount
+                </label>
+              </div>
             </div>
           </div>
 
@@ -252,9 +277,11 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
   const [form, setForm]     = useState({
+    name:              client.name ?? '',
     arc_id:            client.arc_id,
     deposited_amount:  client.deposited_amount  ?? '',
     withdrawal_amount: client.withdrawal_amount ?? '',
+    is_legitimate:     Boolean(client.is_legitimate),
   });
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -269,9 +296,11 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
     setSaving(true);
     try {
       await updateClient(client.id, {
+        name:              form.name.trim(),
         arc_id:            form.arc_id.trim(),
         deposited_amount:  form.deposited_amount  || 0,
         withdrawal_amount: form.withdrawal_amount || 0,
+        is_legitimate:     form.is_legitimate,
       });
       onUpdated();
     } catch (err) {
@@ -338,6 +367,19 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 20px' }}>
               <div style={{ gridColumn: '1 / -1' }}>
+                <Field label="Client Name" required>
+                  <input
+                    style={inputStyle}
+                    value={form.name}
+                    onChange={set('name')}
+                    required
+                    placeholder="Enter client name"
+                    onFocus={e => e.target.style.borderColor = '#004B4E'}
+                    onBlur={e => e.target.style.borderColor = '#d1d5db'}
+                  />
+                </Field>
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
                 <Field label="ARC ID" required>
                   <input
                     style={inputStyle}
@@ -373,6 +415,16 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
                   onBlur={e => e.target.style.borderColor = '#d1d5db'}
                 />
               </Field>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 500, color: '#374151', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.is_legitimate}
+                    onChange={(e) => setForm(f => ({ ...f, is_legitimate: e.target.checked }))}
+                  />
+                  Client has proper trading and is eligible for earned amount
+                </label>
+              </div>
             </div>
           </div>
 
@@ -394,21 +446,29 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
   );
 }
 
-function AddAmountModal({ client, onClose, onUpdated }) {
+function AddAmountModal({ client, mode, onClose, onUpdated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
-  const [form, setForm]     = useState({ deposit: '', withdrawal: '' });
+  const [amount, setAmount] = useState('');
 
-  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+  const isDeposit = mode === 'deposit';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!amount || Number(amount) <= 0) {
+      setError(`Enter a valid ${isDeposit ? 'deposit' : 'withdrawal'} amount.`);
+      return;
+    }
     setSaving(true);
     try {
       await updateClient(client.id, {
-        deposited_amount:  Number(client.deposited_amount  || 0) + Number(form.deposit   || 0),
-        withdrawal_amount: Number(client.withdrawal_amount || 0) + Number(form.withdrawal || 0),
+        deposited_amount: isDeposit
+          ? Number(client.deposited_amount || 0) + Number(amount)
+          : Number(client.deposited_amount || 0),
+        withdrawal_amount: isDeposit
+          ? Number(client.withdrawal_amount || 0)
+          : Number(client.withdrawal_amount || 0) + Number(amount),
       });
       onUpdated();
     } catch (err) {
@@ -440,9 +500,12 @@ function AddAmountModal({ client, onClose, onUpdated }) {
           padding: '20px 24px 18px', borderBottom: '1px solid #f1f5f9',
         }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>Add Amount</h2>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>
+              {isDeposit ? 'Add Deposit' : 'Add Withdrawal'}
+            </h2>
             <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>
-              Client <strong>{client.arc_id}</strong> · Current deposit: <strong>{formatINR(client.deposited_amount)}</strong>
+              Client <strong>{client.arc_id}</strong> · Current {isDeposit ? 'deposit' : 'withdrawal'}:{' '}
+              <strong>{formatINR(isDeposit ? client.deposited_amount : client.withdrawal_amount)}</strong>
             </p>
           </div>
           <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9ca3af', padding: 4, borderRadius: 6, display: 'flex' }}>
@@ -458,24 +521,13 @@ function AddAmountModal({ client, onClose, onUpdated }) {
             {error && (
               <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>
             )}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 20px' }}>
-              <Field label="Add Deposit (₹)">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '18px 20px' }}>
+              <Field label={`${isDeposit ? 'Add Deposit' : 'Add Withdrawal'} (₹)`}>
                 <input
                   type="number" min="0" step="0.01"
                   style={inputStyle}
-                  value={form.deposit}
-                  onChange={set('deposit')}
-                  placeholder="0.00"
-                  onFocus={e => e.target.style.borderColor = '#004B4E'}
-                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
-                />
-              </Field>
-              <Field label="Add Withdrawal (₹)">
-                <input
-                  type="number" min="0" step="0.01"
-                  style={inputStyle}
-                  value={form.withdrawal}
-                  onChange={set('withdrawal')}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
                   placeholder="0.00"
                   onFocus={e => e.target.style.borderColor = '#004B4E'}
                   onBlur={e => e.target.style.borderColor = '#d1d5db'}
@@ -485,7 +537,9 @@ function AddAmountModal({ client, onClose, onUpdated }) {
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
             <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Adding...' : 'Add Amount'}</button>
+            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>
+              {saving ? 'Saving...' : isDeposit ? 'Add Deposit' : 'Withdrawal'}
+            </button>
           </div>
         </form>
       </div>
@@ -624,7 +678,7 @@ export default function BrokerDetail() {
 
   const [showModal, setShowModal]             = useState(false);
   const [editClient, setEditClient]           = useState(null);
-  const [addAmountClient, setAddAmountClient] = useState(null);
+  const [amountAction, setAmountAction] = useState(null);
   const [showEditBroker, setShowEditBroker]   = useState(false);
   const [confirmState, setConfirmState]       = useState(null);
   const [pageError, setPageError]             = useState('');
@@ -652,6 +706,17 @@ export default function BrokerDetail() {
       setClients(prev => prev.map(x => x.id === c.id ? { ...x, status: newStatus } : x));
     } catch (err) {
       setPageError(err.response?.data?.message || 'Could not update client status. Please try again.');
+    }
+  };
+
+  const handleToggleLegitimate = async (c) => {
+    setPageError('');
+    try {
+      const res = await updateClient(c.id, { is_legitimate: !c.is_legitimate });
+      const updated = res.data?.data;
+      setClients(prev => prev.map(x => x.id === c.id ? { ...x, ...updated } : x));
+    } catch (err) {
+      setPageError(err.response?.data?.message || 'Could not update trading legitimacy. Please try again.');
     }
   };
 
@@ -715,11 +780,12 @@ export default function BrokerDetail() {
           onCreated={() => { setShowModal(false); fetchAll(); }}
         />
       )}
-      {addAmountClient && (
+      {amountAction && (
         <AddAmountModal
-          client={addAmountClient}
-          onClose={() => setAddAmountClient(null)}
-          onUpdated={() => { setAddAmountClient(null); fetchAll(); }}
+          client={amountAction.client}
+          mode={amountAction.mode}
+          onClose={() => setAmountAction(null)}
+          onUpdated={() => { setAmountAction(null); fetchAll(); }}
         />
       )}
       {editClient && (
@@ -761,21 +827,24 @@ export default function BrokerDetail() {
         <table className="um__table">
           <thead>
             <tr>
+              <th>NAME</th>
               <th>ARC ID</th>
               <th>DEPOSITED</th>
               <th>WITHDRAWN</th>
               <th>NET TOTAL</th>
               <th>EARNED (1%)</th>
               <th>STATUS</th>
+              <th>TRADING OK</th>
               <th>CREATED</th>
               <th>ACTIONS</th>
             </tr>
           </thead>
           <tbody>
             {clients.length === 0 ? (
-              <tr><td colSpan="8" className="um__empty">No clients yet. Click "Add Client" to create the first one.</td></tr>
+              <tr><td colSpan="10" className="um__empty">No clients yet. Click "Add Client" to create the first one.</td></tr>
             ) : clients.map(c => (
               <tr key={c.id}>
+                <td>{c.name}</td>
                 <td><code className="um__handle">{c.arc_id}</code></td>
                 <td>{formatINR(c.deposited_amount)}</td>
                 <td>{formatINR(c.withdrawal_amount)}</td>
@@ -790,17 +859,35 @@ export default function BrokerDetail() {
                     <span className="um__toggle-thumb" />
                   </button>
                 </td>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(c.is_legitimate)}
+                    onChange={() => handleToggleLegitimate(c)}
+                    title={c.is_legitimate ? 'Legitimate trading confirmed' : 'Legitimate trading not confirmed'}
+                  />
+                </td>
                 <td><span className="um__date">{formatDate(c.created_at)}</span></td>
                 <td>
                   <div className="um__actions">
                     <button
                       className="um__action-btn"
-                      title="Add Amount"
+                      title="Add Deposit"
                       style={{ color: '#10b981' }}
-                      onClick={() => setAddAmountClient(c)}
+                      onClick={() => setAmountAction({ client: c, mode: 'deposit' })}
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
                         <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                      </svg>
+                    </button>
+                    <button
+                      className="um__action-btn"
+                      title="Add Withdrawal"
+                      style={{ color: '#f59e0b' }}
+                      onClick={() => setAmountAction({ client: c, mode: 'withdrawal' })}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
                         <line x1="5" y1="12" x2="19" y2="12"/>
                       </svg>
                     </button>

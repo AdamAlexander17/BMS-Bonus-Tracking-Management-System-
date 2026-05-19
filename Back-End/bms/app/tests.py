@@ -718,12 +718,13 @@ class ClientTests(BaseAPITestCase):
         # create
         res = self.client_api.post(
             reverse('client_create', args=[self.broker.id]),
-            {'arc_id': 'CL001', 'deposited_amount': 1000, 'withdrawal_amount': 100},
+            {'name': 'Client One', 'arc_id': 'CL001', 'deposited_amount': 1000, 'withdrawal_amount': 100},
             format='json',
         )
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         cid = res.data['data']['id']
-        self.assertEqual(res.data['data']['earned_amount'], '10.0')
+        self.assertEqual(res.data['data']['earned_amount'], '0')
+        self.assertFalse(res.data['data']['is_legitimate'])
 
         # list under broker
         res = self.client_api.get(reverse('client_list', args=[self.broker.id]))
@@ -737,12 +738,14 @@ class ClientTests(BaseAPITestCase):
         # update
         res = self.client_api.put(
             reverse('client_update', args=[cid]),
-            {'arc_id': 'CL002', 'deposited_amount': 2000,
-             'withdrawal_amount': 50, 'status': 'Inactive'},
+            {'name': 'Client Two', 'arc_id': 'CL002', 'deposited_amount': 2000,
+             'withdrawal_amount': 50, 'is_legitimate': True, 'status': 'Inactive'},
             format='json',
         )
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data['data']['arc_id'], 'CL002')
+        self.assertEqual(res.data['data']['earned_amount'], '20.0')
+        self.assertTrue(res.data['data']['is_legitimate'])
 
         # delete
         res = self.client_api.delete(reverse('client_delete', args=[cid]))
@@ -751,7 +754,14 @@ class ClientTests(BaseAPITestCase):
     def test_client_create_missing_arc_id(self):
         res = self.client_api.post(
             reverse('client_create', args=[self.broker.id]),
-            {'deposited_amount': 100}, format='json',
+            {'name': 'Client One', 'deposited_amount': 100}, format='json',
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_client_create_missing_name(self):
+        res = self.client_api.post(
+            reverse('client_create', args=[self.broker.id]),
+            {'arc_id': 'CL001', 'deposited_amount': 100}, format='json',
         )
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
