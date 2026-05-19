@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader/PageHeader';
-import { getBroker } from '../api/brokers';
+import { getBroker, updateBroker } from '../api/brokers';
+import { getBrands } from '../api/brands';
+import { getRmJrmUsers } from '../api/users';
 import { getClientsByBroker, createClient, updateClient, deleteClient } from '../api/clients';
 import { formatINR } from './Brokers';
 import './Users.css';
@@ -56,6 +58,54 @@ function Field({ label, required, children }) {
   );
 }
 
+/* ── Confirm Dialog ─────────────────────────────────────────── */
+function ConfirmDialog({ title, message, confirmLabel = 'Yes, Delete', onConfirm, onCancel }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 2000,
+      background: 'rgba(15,23,42,0.5)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 24,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 400,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden',
+      }}>
+        <div style={{ padding: '28px 24px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: '50%',
+              background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" width="22" height="22">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div>
+              <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: '#111827' }}>{title}</h3>
+              <p style={{ margin: 0, fontSize: 14, color: '#6b7280', lineHeight: 1.6 }}>{message}</p>
+            </div>
+          </div>
+        </div>
+        <div style={{
+          display: 'flex', justifyContent: 'flex-end', gap: 10,
+          padding: '16px 24px', borderTop: '1px solid #f1f5f9',
+        }}>
+          <button className="ph-btn ph-btn--ghost" onClick={onCancel}>No, Keep It</button>
+          <button
+            style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AddClientModal({ broker, onClose, onCreated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
@@ -66,6 +116,10 @@ function AddClientModal({ broker, onClose, onCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!/^\d{5}$/.test(form.arc_id.trim())) {
+      setError('ARC ID must be exactly 5 digits (e.g. 12345).');
+      return;
+    }
     setSaving(true);
     try {
       await createClient(broker.id, {
@@ -144,7 +198,8 @@ function AddClientModal({ broker, onClose, onCreated }) {
                     value={form.arc_id}
                     onChange={set('arc_id')}
                     required
-                    placeholder="e.g. CLIENT-001"
+                    maxLength={5}
+                    placeholder="12345"
                     onFocus={e => e.target.style.borderColor = '#004B4E'}
                     onBlur={e => e.target.style.borderColor = '#d1d5db'}
                   />
@@ -193,6 +248,371 @@ function AddClientModal({ broker, onClose, onCreated }) {
   );
 }
 
+function EditClientModal({ client, broker, onClose, onUpdated }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState('');
+  const [form, setForm]     = useState({
+    arc_id:            client.arc_id,
+    deposited_amount:  client.deposited_amount  ?? '',
+    withdrawal_amount: client.withdrawal_amount ?? '',
+  });
+
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!/^\d{5}$/.test(form.arc_id.trim())) {
+      setError('ARC ID must be exactly 5 digits (e.g. 12345).');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateClient(client.id, {
+        arc_id:            form.arc_id.trim(),
+        deposited_amount:  form.deposited_amount  || 0,
+        withdrawal_amount: form.withdrawal_amount || 0,
+      });
+      onUpdated();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update client.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(15,23,42,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 14,
+          width: '100%',
+          maxWidth: 580,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px 18px',
+          borderBottom: '1px solid #f1f5f9',
+        }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>Edit Client</h2>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>
+              Editing <strong>{client.arc_id}</strong> in {broker.name}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              border: 'none', background: 'none', cursor: 'pointer',
+              color: '#9ca3af', padding: 4, borderRadius: 6,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '24px 24px 8px' }}>
+            {error && (
+              <div style={{
+                background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626',
+                borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18,
+              }}>{error}</div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 20px' }}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Field label="ARC ID" required>
+                  <input
+                    style={inputStyle}
+                    value={form.arc_id}
+                    onChange={set('arc_id')}
+                    required
+                    maxLength={5}
+                    placeholder="12345"
+                    onFocus={e => e.target.style.borderColor = '#004B4E'}
+                    onBlur={e => e.target.style.borderColor = '#d1d5db'}
+                  />
+                </Field>
+              </div>
+              <Field label="Deposited Amount (₹)">
+                <input
+                  type="number" min="0" step="0.01"
+                  style={inputStyle}
+                  value={form.deposited_amount}
+                  onChange={set('deposited_amount')}
+                  placeholder="0.00"
+                  onFocus={e => e.target.style.borderColor = '#004B4E'}
+                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
+                />
+              </Field>
+              <Field label="Withdrawal Amount (₹)">
+                <input
+                  type="number" min="0" step="0.01"
+                  style={inputStyle}
+                  value={form.withdrawal_amount}
+                  onChange={set('withdrawal_amount')}
+                  placeholder="0.00"
+                  onFocus={e => e.target.style.borderColor = '#004B4E'}
+                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
+                />
+              </Field>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div style={{
+            display: 'flex', justifyContent: 'flex-end', gap: 10,
+            padding: '20px 24px',
+            borderTop: '1px solid #f1f5f9',
+            marginTop: 16,
+          }}>
+            <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function AddAmountModal({ client, onClose, onUpdated }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState('');
+  const [form, setForm]     = useState({ deposit: '', withdrawal: '' });
+
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSaving(true);
+    try {
+      await updateClient(client.id, {
+        deposited_amount:  Number(client.deposited_amount  || 0) + Number(form.deposit   || 0),
+        withdrawal_amount: Number(client.withdrawal_amount || 0) + Number(form.withdrawal || 0),
+      });
+      onUpdated();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update amounts.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(15,23,42,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: 14, width: '100%', maxWidth: 500,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px 18px', borderBottom: '1px solid #f1f5f9',
+        }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>Add Amount</h2>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>
+              Client <strong>{client.arc_id}</strong> · Current deposit: <strong>{formatINR(client.deposited_amount)}</strong>
+            </p>
+          </div>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9ca3af', padding: 4, borderRadius: 6, display: 'flex' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '24px 24px 8px' }}>
+            {error && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 20px' }}>
+              <Field label="Add Deposit (₹)">
+                <input
+                  type="number" min="0" step="0.01"
+                  style={inputStyle}
+                  value={form.deposit}
+                  onChange={set('deposit')}
+                  placeholder="0.00"
+                  onFocus={e => e.target.style.borderColor = '#004B4E'}
+                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
+                />
+              </Field>
+              <Field label="Add Withdrawal (₹)">
+                <input
+                  type="number" min="0" step="0.01"
+                  style={inputStyle}
+                  value={form.withdrawal}
+                  onChange={set('withdrawal')}
+                  placeholder="0.00"
+                  onFocus={e => e.target.style.borderColor = '#004B4E'}
+                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
+                />
+              </Field>
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
+            <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Adding...' : 'Add Amount'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EditBrokerModal({ broker, onClose, onUpdated }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState('');
+  const [brands, setBrands] = useState([]);
+  const [rmUsers, setRmUsers] = useState([]);
+  const [form, setForm] = useState({
+    name:       broker.name || '',
+    arc_id:     broker.arc_id || '',
+    brand_id:   broker.brand?.id || '',
+    rm_user_id: broker.rm_user?.id || '',
+    status:     broker.status || 'Active',
+  });
+
+  useEffect(() => {
+    getBrands().then(r => setBrands(r.data.data || [])).catch(() => {});
+    getRmJrmUsers().then(r => setRmUsers(r.data.data || [])).catch(() => {});
+  }, []);
+
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSaving(true);
+    try {
+      await updateBroker(broker.id, {
+        name:       form.name.trim(),
+        arc_id:     form.arc_id.trim(),
+        brand_id:   form.brand_id   ? Number(form.brand_id)   : null,
+        rm_user_id: form.rm_user_id ? Number(form.rm_user_id) : null,
+        status:     form.status,
+      });
+      onUpdated();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update broker.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(15,23,42,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: 14, width: '100%', maxWidth: 620,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px 18px', borderBottom: '1px solid #f1f5f9',
+        }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>Edit Broker</h2>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>Update details for <strong>{broker.name}</strong></p>
+          </div>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9ca3af', padding: 4, borderRadius: 6, display: 'flex' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '24px 24px 8px' }}>
+            {error && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 20px' }}>
+              <Field label="Broker Name" required>
+                <input style={inputStyle} value={form.name} onChange={set('name')} required placeholder="e.g. ABC Brokers Pvt Ltd"
+                  onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'} />
+              </Field>
+              <Field label="ARC ID" required>
+                <input style={inputStyle} value={form.arc_id} onChange={set('arc_id')} required maxLength={5} placeholder="12345"
+                  onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'} />
+              </Field>
+              <Field label="Brand" required>
+                <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.brand_id} onChange={set('brand_id')} required
+                  onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'}>
+                  <option value="">Select brand</option>
+                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Designation (RM / JRM)">
+                <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.rm_user_id} onChange={set('rm_user_id')}
+                  onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'}>
+                  <option value="">-- Unassigned --</option>
+                  {rmUsers.map(u => <option key={u.id} value={u.id}>{u.username} ({u.role})</option>)}
+                </select>
+              </Field>
+              <Field label="Status">
+                <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.status} onChange={set('status')}
+                  onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'}>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </Field>
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
+            <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Update Broker'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function BrokerDetail() {
   const { id }   = useParams();
   const navigate = useNavigate();
@@ -202,7 +622,12 @@ export default function BrokerDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
 
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal]             = useState(false);
+  const [editClient, setEditClient]           = useState(null);
+  const [addAmountClient, setAddAmountClient] = useState(null);
+  const [showEditBroker, setShowEditBroker]   = useState(false);
+  const [confirmState, setConfirmState]       = useState(null);
+  const [pageError, setPageError]             = useState('');
 
   const fetchAll = async () => {
     setLoading(true);
@@ -226,18 +651,25 @@ export default function BrokerDetail() {
       await updateClient(c.id, { status: newStatus });
       setClients(prev => prev.map(x => x.id === c.id ? { ...x, status: newStatus } : x));
     } catch (err) {
-      alert(err.response?.data?.message || 'Update failed.');
+      setPageError(err.response?.data?.message || 'Could not update client status. Please try again.');
     }
   };
 
-  const handleDeleteClient = async (c) => {
-    if (!window.confirm(`Delete client "${c.arc_id}"?`)) return;
-    try {
-      await deleteClient(c.id);
-      setClients(prev => prev.filter(x => x.id !== c.id));
-    } catch (err) {
-      alert(err.response?.data?.message || 'Delete failed.');
-    }
+  const handleDeleteClient = (c) => {
+    setPageError('');
+    setConfirmState({
+      title: 'Delete Client',
+      message: `You are about to permanently delete client "${c.arc_id}". This action cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmState(null);
+        try {
+          await deleteClient(c.id);
+          setClients(prev => prev.filter(x => x.id !== c.id));
+        } catch (err) {
+          setPageError(err.response?.data?.message || 'Could not delete this client. Please try again.');
+        }
+      },
+    });
   };
 
   if (loading) return <div className="um"><div className="um__loading">Loading...</div></div>;
@@ -256,11 +688,8 @@ export default function BrokerDetail() {
         subtitle={`ARC ID: ${broker.arc_id} • ${broker.brand?.name || 'No brand'} • ${clients.length} client${clients.length !== 1 ? 's' : ''}`}
         actions={
           <>
-            <button className="ph-btn ph-btn--ghost" onClick={() => navigate('/brokers')}>
+            <button className="ph-btn ph-btn--ghost" onClick={() => broker.rm_user ? navigate(`/brokers/rm/${broker.rm_user.id}`) : navigate('/brokers')}>
               <BackIcon /> Back
-            </button>
-            <button className="ph-btn ph-btn--ghost" onClick={() => navigate(`/brokers/${id}/edit`)}>
-              Edit Broker
             </button>
             <button className="ph-btn ph-btn--primary" onClick={() => setShowModal(true)}>
               <PlusIcon /> Add Client
@@ -278,12 +707,42 @@ export default function BrokerDetail() {
         <InfoCard label="Total Earned"     value={formatINR(totalEarned)} accent="#3b82f6" />
       </div>
 
-      {/* Modal */}
+      {/* Modals */}
       {showModal && (
         <AddClientModal
           broker={broker}
           onClose={() => setShowModal(false)}
           onCreated={() => { setShowModal(false); fetchAll(); }}
+        />
+      )}
+      {addAmountClient && (
+        <AddAmountModal
+          client={addAmountClient}
+          onClose={() => setAddAmountClient(null)}
+          onUpdated={() => { setAddAmountClient(null); fetchAll(); }}
+        />
+      )}
+      {editClient && (
+        <EditClientModal
+          client={editClient}
+          broker={broker}
+          onClose={() => setEditClient(null)}
+          onUpdated={() => { setEditClient(null); fetchAll(); }}
+        />
+      )}
+      {showEditBroker && (
+        <EditBrokerModal
+          broker={broker}
+          onClose={() => setShowEditBroker(false)}
+          onUpdated={() => { setShowEditBroker(false); fetchAll(); }}
+        />
+      )}
+      {confirmState && (
+        <ConfirmDialog
+          title={confirmState.title}
+          message={confirmState.message}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState(null)}
         />
       )}
 
@@ -292,6 +751,12 @@ export default function BrokerDetail() {
         <div className="um__toolbar">
           <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Clients ({clients.length})</h3>
         </div>
+        {pageError && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 16px', fontSize: 13, margin: '0 16px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{pageError}</span>
+            <button onClick={() => setPageError('')} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', fontWeight: 700, fontSize: 16, lineHeight: 1 }}>×</button>
+          </div>
+        )}
 
         <table className="um__table">
           <thead>
@@ -328,6 +793,27 @@ export default function BrokerDetail() {
                 <td><span className="um__date">{formatDate(c.created_at)}</span></td>
                 <td>
                   <div className="um__actions">
+                    <button
+                      className="um__action-btn"
+                      title="Add Amount"
+                      style={{ color: '#10b981' }}
+                      onClick={() => setAddAmountClient(c)}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                      </svg>
+                    </button>
+                    <button
+                      className="um__action-btn um__action-btn--edit"
+                      title="Edit"
+                      onClick={() => setEditClient(c)}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </button>
                     <button
                       className="um__action-btn um__action-btn--delete"
                       title="Delete"

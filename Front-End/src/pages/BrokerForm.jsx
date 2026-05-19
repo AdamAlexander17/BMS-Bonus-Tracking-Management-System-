@@ -144,7 +144,7 @@ export default function BrokerForm() {
               value={form.arc_id}
               onChange={handleChange}
               required
-              placeholder="e.g. ARC-12345"
+              placeholder="e.g.-12345"
             />
           </label>
 

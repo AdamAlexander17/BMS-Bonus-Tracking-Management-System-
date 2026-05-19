@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../components/PageHeader/PageHeader';
-import { getBrokersByRmUser, createBroker } from '../api/brokers';
+import { getBrokersByRmUser, createBroker, updateBroker, deleteBroker } from '../api/brokers';
 import { createClient } from '../api/clients';
 import './Users.css';
 
@@ -50,6 +50,54 @@ const inputStyle = {
   transition: 'border-color 0.15s',
 };
 
+/* ── Confirm Dialog ─────────────────────────────────────────── */
+function ConfirmDialog({ title, message, confirmLabel = 'Yes, Delete', onConfirm, onCancel }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 2000,
+      background: 'rgba(15,23,42,0.5)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 24,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 400,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden',
+      }}>
+        <div style={{ padding: '28px 24px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: '50%',
+              background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" width="22" height="22">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div>
+              <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: '#111827' }}>{title}</h3>
+              <p style={{ margin: 0, fontSize: 14, color: '#6b7280', lineHeight: 1.6 }}>{message}</p>
+            </div>
+          </div>
+        </div>
+        <div style={{
+          display: 'flex', justifyContent: 'flex-end', gap: 10,
+          padding: '16px 24px', borderTop: '1px solid #f1f5f9',
+        }}>
+          <button className="ph-btn ph-btn--ghost" onClick={onCancel}>No, Keep It</button>
+          <button
+            style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Modal ───────────────────────────────────────────────────── */
 function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
   const [saving, setSaving]   = useState(false);
@@ -61,6 +109,10 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!/^\d{5}$/.test(form.arc_id.trim())) {
+      setError('ARC ID must be exactly 5 digits (e.g. 12345).');
+      return;
+    }
     setSaving(true);
     try {
       await createBroker({
@@ -158,7 +210,8 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
                   value={form.arc_id}
                   onChange={set('arc_id')}
                   required
-                  placeholder="e.g. ARC-001"
+                  maxLength={5}
+                  placeholder="12345"
                   onFocus={e => e.target.style.borderColor = '#004B4E'}
                   onBlur={e => e.target.style.borderColor = '#d1d5db'}
                 />
@@ -199,6 +252,106 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
   );
 }
 
+/* ── Edit Broker Modal ───────────────────────────────────────── */
+function EditBrokerModal({ broker, onClose, onUpdated }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState('');
+  const [form, setForm]     = useState({
+    name:   broker.name   || '',
+    arc_id: broker.arc_id || '',
+    status: broker.status || 'Active',
+  });
+
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!/^\d{5}$/.test(form.arc_id.trim())) {
+      setError('ARC ID must be exactly 5 digits (e.g. 12345).');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateBroker(broker.id, {
+        name:   form.name.trim(),
+        arc_id: form.arc_id.trim(),
+        status: form.status,
+      });
+      onUpdated();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update broker.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(15,23,42,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: 14, width: '100%', maxWidth: 580,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px 18px', borderBottom: '1px solid #f1f5f9',
+        }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>Edit Broker</h2>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>Update details for <strong>{broker.name}</strong></p>
+          </div>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9ca3af', padding: 4, borderRadius: 6, display: 'flex' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '24px 24px 8px' }}>
+            {error && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 20px' }}>
+              <Field label="Broker Name" required>
+                <input style={inputStyle} value={form.name} onChange={set('name')} required placeholder="e.g. ABC Brokers Pvt Ltd"
+                  onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'} />
+              </Field>
+              <Field label="ARC ID" required>
+                <input style={inputStyle} value={form.arc_id} onChange={set('arc_id')} required maxLength={5} placeholder="12345"
+                  onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'} />
+              </Field>
+              <Field label="Status">
+                <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.status} onChange={set('status')}
+                  onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'}>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </Field>
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
+            <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Update Broker'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 /* ── Add Client Modal ────────────────────────────────────────── */
 function AddClientModal({ broker, onClose, onCreated }) {
   const [saving, setSaving] = useState(false);
@@ -210,6 +363,10 @@ function AddClientModal({ broker, onClose, onCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!/^\d{5}$/.test(form.arc_id.trim())) {
+      setError('ARC ID must be exactly 5 digits (e.g. 12345).');
+      return;
+    }
     setSaving(true);
     try {
       await createClient(broker.id, {
@@ -292,7 +449,8 @@ function AddClientModal({ broker, onClose, onCreated }) {
                     value={form.arc_id}
                     onChange={set('arc_id')}
                     required
-                    placeholder="e.g. CLIENT-001"
+                    maxLength={5}
+                    placeholder="12345"
                     onFocus={e => e.target.style.borderColor = '#004B4E'}
                     onBlur={e => e.target.style.borderColor = '#d1d5db'}
                   />
@@ -359,6 +517,9 @@ export default function BrokerUserDetail() {
   const [showModal, setShowModal] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
   const [selectedBroker, setSelectedBroker]   = useState(null);
+  const [editBroker, setEditBroker]           = useState(null);
+  const [confirmState, setConfirmState]       = useState(null);
+  const [pageError, setPageError]             = useState('');
 
   const fetchAll = async () => {
     setLoading(true);
@@ -375,6 +536,23 @@ export default function BrokerUserDetail() {
   };
 
   useEffect(() => { fetchAll(); }, [userId]);
+
+  const handleDeleteBroker = (b) => {
+    setPageError('');
+    setConfirmState({
+      title: 'Delete Broker',
+      message: `You are about to permanently delete "${b.name}" and all its associated data. This action cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmState(null);
+        try {
+          await deleteBroker(b.id);
+          fetchAll();
+        } catch {
+          setPageError('Could not delete this broker. Please try again.');
+        }
+      },
+    });
+  };
 
   if (loading) return <div className="um"><div className="um__loading">Loading...</div></div>;
   if (error)   return <div className="um"><div className="um__error">{error}</div></div>;
@@ -463,13 +641,30 @@ export default function BrokerUserDetail() {
                 </td>
                 <td><span className="um__date">{formatDate(b.created_at)}</span></td>
                 <td onClick={e => e.stopPropagation()}>
-                  <button
-                    className="ph-btn ph-btn--primary"
-                    style={{ fontSize: 12, padding: '5px 12px' }}
-                    onClick={() => { setSelectedBroker(b); setShowClientModal(true); }}
-                  >
-                    + Add Client
-                  </button>
+                  <div className="um__actions">
+                    <button
+                      className="um__action-btn um__action-btn--edit"
+                      title="Edit broker"
+                      onClick={() => setEditBroker(b)}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </button>
+                    <button
+                      className="um__action-btn um__action-btn--delete"
+                      title="Delete broker"
+                      onClick={() => handleDeleteBroker(b)}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                        <path d="M10 11v6M14 11v6"/>
+                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                      </svg>
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -492,6 +687,33 @@ export default function BrokerUserDetail() {
           onClose={() => { setShowClientModal(false); setSelectedBroker(null); }}
           onCreated={() => { setShowClientModal(false); setSelectedBroker(null); fetchAll(); }}
         />
+      )}
+      {editBroker && (
+        <EditBrokerModal
+          broker={editBroker}
+          onClose={() => setEditBroker(null)}
+          onUpdated={() => { setEditBroker(null); fetchAll(); }}
+        />
+      )}
+      {confirmState && (
+        <ConfirmDialog
+          title={confirmState.title}
+          message={confirmState.message}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState(null)}
+        />
+      )}
+      {pageError && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626',
+          borderRadius: 10, padding: '12px 20px', fontSize: 14, fontWeight: 500,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.12)', zIndex: 3000,
+          display: 'flex', alignItems: 'center', gap: 12, minWidth: 320,
+        }}>
+          <span style={{ flex: 1 }}>{pageError}</span>
+          <button onClick={() => setPageError('')} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', fontWeight: 700, fontSize: 18, lineHeight: 1 }}>×</button>
+        </div>
       )}
     </div>
   );

@@ -31,6 +31,7 @@ export default function Brokers() {
   const [search, setSearch]         = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [brandFilter, setBrandFilter] = useState('all');
 
   const fetchAll = async () => {
     setLoading(true);
@@ -47,6 +48,8 @@ export default function Brokers() {
 
   useEffect(() => { fetchAll(); }, []);
 
+  const allBrands = [...new Set(users.flatMap(u => u.brands || []))].sort();
+
   const filtered = users.filter(u => {
     const q = search.toLowerCase();
     const matchSearch =
@@ -55,7 +58,8 @@ export default function Brokers() {
       (u.brands || []).some(b => b.toLowerCase().includes(q));
     const matchRole   = roleFilter   === 'all' || u.role   === roleFilter;
     const matchStatus = statusFilter === 'all' || u.status === statusFilter;
-    return matchSearch && matchRole && matchStatus;
+    const matchBrand  = brandFilter  === 'all' || (u.brands || []).includes(brandFilter);
+    return matchSearch && matchRole && matchStatus && matchBrand;
   });
 
   const formatDate = (str) => {
@@ -79,6 +83,14 @@ export default function Brokers() {
               <option value="all">All Roles</option>
               <option value="RM">RM</option>
               <option value="JRM">JRM</option>
+            </select>
+            <select
+              className="um__select"
+              value={brandFilter}
+              onChange={e => setBrandFilter(e.target.value)}
+            >
+              <option value="all">All Brands</option>
+              {allBrands.map(b => <option key={b} value={b}>{b}</option>)}
             </select>
             <select
               className="um__select"
