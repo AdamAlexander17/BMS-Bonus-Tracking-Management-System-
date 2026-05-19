@@ -591,7 +591,7 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
                 <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.rm_user_id} onChange={set('rm_user_id')}
                   onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'}>
                   <option value="">-- Unassigned --</option>
-                  {rmUsers.map(u => <option key={u.id} value={u.id}>{u.username} ({u.role})</option>)}
+                  {rmUsers.map(u => <option key={u.id} value={u.id}>{u.username} ({(u.roles || []).join('/')})</option>)}
                 </select>
               </Field>
               <Field label="Status">
@@ -700,7 +700,7 @@ export default function BrokerDetail() {
 
       {/* Broker info cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 20 }}>
-        <InfoCard label="Designation" value={broker.rm_user ? `${broker.rm_user.username} (${broker.rm_user.role})` : 'Unassigned'} />
+        <InfoCard label="Designation" value={broker.rm_user ? `${broker.rm_user.username} (${(broker.rm_user.roles || []).join('/')})` : 'Unassigned'} />
         <InfoCard label="Status"      value={broker.status} accent={broker.status === 'Active' ? '#10b981' : '#9ca3af'} />
         <InfoCard label="Total Deposited"  value={formatINR(totalDeposited)} />
         <InfoCard label="Total Withdrawn"  value={formatINR(totalWithdrawn)} />

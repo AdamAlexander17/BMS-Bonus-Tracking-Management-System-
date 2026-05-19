@@ -47,9 +47,16 @@ class Role(models.Model):
     ]
 
     id          = models.BigAutoField(primary_key=True)
-    name        = models.CharField(max_length=50, unique=True)
+    name        = models.CharField(max_length=50)
     description = models.CharField(max_length=255, blank=True, default='')
     status      = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Active')
+    brand       = models.ForeignKey(
+        Brand,
+        on_delete=models.PROTECT,
+        related_name='roles',
+        null=True,
+        blank=True,
+    )
     permissions = models.ManyToManyField(
         Permission,
         through='RolePermission',
@@ -58,6 +65,7 @@ class Role(models.Model):
 
     class Meta:
         db_table = 'roles'
+        unique_together = ('name', 'brand')
 
     def __str__(self):
         return self.name
@@ -85,10 +93,9 @@ class User(models.Model):
     id         = models.BigAutoField(primary_key=True)
     username   = models.CharField(max_length=150, unique=True)
     password   = models.CharField(max_length=255)
-    role       = models.ForeignKey(Role, on_delete=models.PROTECT, related_name='users')
-    brands     = models.ManyToManyField(
-        Brand,
-        through='UserBrand',
+    roles      = models.ManyToManyField(
+        Role,
+        through='UserRole',
         related_name='users'
     )
     status     = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Active')
@@ -101,24 +108,38 @@ class User(models.Model):
         db_table = 'users'
 
     def __str__(self):
-        return f'{self.username} ({self.role.name})'
+        return self.username
 
     @property
     def is_authenticated(self):
         return True
 
+    @property
+    def role_names(self):
+        return list(self.roles.values_list('name', flat=True))
 
-class UserBrand(models.Model):
-    id    = models.BigAutoField(primary_key=True)
-    user  = models.ForeignKey(User,  on_delete=models.CASCADE, related_name='user_brands')
-    brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='user_brands')
+    @property
+    def brand_names(self):
+        # Brands are derived from the user's roles (each role has at most one brand)
+        return list(
+            Brand.objects
+            .filter(roles__users=self, roles__brand__isnull=False)
+            .distinct()
+            .values_list('name', flat=True)
+        )
+
+
+class UserRole(models.Model):
+    id   = models.BigAutoField(primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_roles')
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='user_roles')
 
     class Meta:
-        db_table = 'user_brands'
-        unique_together = ('user', 'brand')
+        db_table = 'user_roles'
+        unique_together = ('user', 'role')
 
     def __str__(self):
-        return f'{self.user.username} → {self.brand.name}'
+        return f'{self.user.username} → {self.role.name}'
 
 
 class UserToken(models.Model):

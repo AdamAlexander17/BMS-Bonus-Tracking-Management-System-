@@ -10,7 +10,7 @@ export default function Navbar() {
         <div className="navbar__user">
           <div className="navbar__user-info">
             <span className="navbar__user-name">{user.username}</span>
-            <span className="navbar__user-role">{user.role}</span>
+            <span className="navbar__user-role">{(user.roles || []).join(', ')}</span>
           </div>
           <div className="navbar__user-avatar">
             {user.username?.[0]?.toUpperCase()}

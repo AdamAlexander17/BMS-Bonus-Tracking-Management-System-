@@ -88,7 +88,7 @@ export default function Sidebar({ collapsed, setCollapsed }) {
             <>
               <div className="sidebar__user-info">
                 <span className="sidebar__user-name">{user?.username || 'User'}</span>
-                <span className="sidebar__user-role">{user?.role || 'Admin'}</span>
+                <span className="sidebar__user-role">{(user?.roles || []).join(', ') || 'Admin'}</span>
               </div>
               <button className="sidebar__signout-btn" onClick={handleLogout} title="Sign Out">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">

@@ -175,7 +175,7 @@ export default function BrokerForm() {
               <option value="">-- Unassigned --</option>
               {rmUsers.map(u => (
                 <option key={u.id} value={u.id}>
-                  {u.username} ({u.role})
+                  {u.username} ({(u.roles || []).join('/')})
                 </option>
               ))}
             </select>

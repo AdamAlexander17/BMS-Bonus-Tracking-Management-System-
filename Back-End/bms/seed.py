@@ -8,7 +8,7 @@ import django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'bms.settings')
 django.setup()
 
-from app.models import Brand, Permission, Role, RolePermission, User
+from app.models import Brand, Permission, Role, RolePermission, User, UserRole
 from app.utils import hash_password
 
 # ─── Brands ──────────────────────────────────────────────────────────────────
@@ -53,10 +53,13 @@ role_permissions_map = {
 }
 
 for role_name, perms in role_permissions_map.items():
-    role, _ = Role.objects.get_or_create(name=role_name)
-    for module, action in perms:
-        perm = Permission.objects.get(module=module, action=action)
-        RolePermission.objects.get_or_create(role=role, permission=perm)
+    # Each role is scoped to a single brand. Seed creates a copy of every role
+    # for every brand, so each brand has its own RM/JRM/FM/Checker/Admin.
+    for brand in Brand.objects.all():
+        role, _ = Role.objects.get_or_create(name=role_name, brand=brand)
+        for module, action in perms:
+            perm = Permission.objects.get(module=module, action=action)
+            RolePermission.objects.get_or_create(role=role, permission=perm)
 
 print(f'✔ Roles seeded: {list(role_permissions_map.keys())}')
 
@@ -65,18 +68,14 @@ admin_username = 'admin'
 admin_password = 'Admin@123'
 
 if not User.objects.filter(username=admin_username).exists():
-    admin_role = Role.objects.get(name='Admin')
+    admin_role = Role.objects.filter(name='Admin').order_by('id').first()
     admin_user = User.objects.create(
         username=admin_username,
         password=hash_password(admin_password),
-        role=admin_role,
         status='Active',
         created_by=None,
     )
-    # Assign all brands to Admin
-    for brand in Brand.objects.all():
-        from app.models import UserBrand
-        UserBrand.objects.create(user=admin_user, brand=brand)
+    UserRole.objects.create(user=admin_user, role=admin_role)
     print(f'✔ Admin user created → username: {admin_username} | password: {admin_password}')
 else:
     print(f'⚠ Admin user already exists, skipped.')

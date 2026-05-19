@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getPermissions } from '../../api/permissions';
+import { getBrands } from '../../api/brands';
 import { createRole, updateRole } from '../../api/roles';
 import './RoleModal.css';
 
@@ -14,6 +15,8 @@ export default function RoleModal({ open, role, onClose, onSuccess }) {
   const [roleName, setRoleName]     = useState('');
   const [description, setDescription] = useState('');
   const [roleStatus, setRoleStatus] = useState('Active');
+  const [brand, setBrand]           = useState('');
+  const [brands, setBrands]         = useState([]);
   const [permissions, setPermissions] = useState([]);
   const [selected, setSelected]     = useState([]);
   const [loading, setLoading]       = useState(false);
@@ -26,11 +29,15 @@ export default function RoleModal({ open, role, onClose, onSuccess }) {
     setRoleName(isEdit ? (role.name || '') : '');
     setDescription(isEdit ? (role.description || '') : '');
     setRoleStatus(isEdit ? (role.status || 'Active') : 'Active');
+    setBrand(isEdit ? (role.brand_name || role.brand?.name || '') : '');
     setSelected(isEdit ? (role.permissions?.map(p => p.id) || []) : []);
     setErr('');
     setLoading(true);
-    getPermissions()
-      .then(res => setPermissions(res.data.data || []))
+    Promise.all([getPermissions(), getBrands()])
+      .then(([permRes, brandRes]) => {
+        setPermissions(permRes.data.data || []);
+        setBrands(brandRes.data.data || []);
+      })
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -81,10 +88,11 @@ export default function RoleModal({ open, role, onClose, onSuccess }) {
           name: roleName,
           description,
           status: roleStatus,
+          brand,
           permissions: selected,
         });
       } else {
-        await createRole({ name: roleName, description, status: roleStatus, permissions: selected });
+        await createRole({ name: roleName, description, status: roleStatus, brand, permissions: selected });
       }
       onSuccess();
       onClose();
@@ -133,6 +141,19 @@ export default function RoleModal({ open, role, onClose, onSuccess }) {
                   >
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+                <div className="rm__field">
+                  <label>Brand</label>
+                  <select
+                    className="rm__select"
+                    value={brand}
+                    onChange={e => setBrand(e.target.value)}
+                  >
+                    <option value="">— No brand —</option>
+                    {brands.map(b => (
+                      <option key={b.id} value={b.name}>{b.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="rm__field rm__field--full">

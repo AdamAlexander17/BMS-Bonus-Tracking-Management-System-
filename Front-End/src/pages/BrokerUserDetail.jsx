@@ -163,7 +163,7 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
               Create New Broker
             </h2>
             <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>
-              Assigned to <strong>{rmUser.username}</strong> · {rmUser.role}
+              Assigned to <strong>{rmUser.username}</strong> · {(rmUser.roles || []).join('/')}
             </p>
           </div>
           <button
@@ -565,7 +565,7 @@ export default function BrokerUserDetail() {
       <PageHeader
         icon={<UserIcon />}
         title={rmUser.username}
-        subtitle={`${rmUser.role} • ${brokers.length} broker compan${brokers.length !== 1 ? 'ies' : 'y'} • ${totalClients} client${totalClients !== 1 ? 's' : ''}`}
+        subtitle={`${(rmUser.roles || []).join('/')} • ${brokers.length} broker compan${brokers.length !== 1 ? 'ies' : 'y'} • ${totalClients} client${totalClients !== 1 ? 's' : ''}`}
         actions={
           <>
             <button className="ph-btn ph-btn--ghost" onClick={() => navigate('/brokers')}>
@@ -584,7 +584,7 @@ export default function BrokerUserDetail() {
 
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 24 }}>
-        <InfoCard label="Role"             value={rmUser.role} accent={rmUser.role === 'RM' ? '#1d4ed8' : '#92400e'} />
+        <InfoCard label="Role"             value={(rmUser.roles || []).join('/')} accent={(rmUser.roles || []).includes('RM') ? '#1d4ed8' : '#92400e'} />
         <InfoCard label="Broker Companies" value={brokers.length} />
         <InfoCard label="Total Clients"    value={totalClients} />
       </div>

@@ -101,16 +101,18 @@ export default function Roles() {
         {!loading && !error && (
           <table className="um__table">
             <colgroup>
-              <col style={{ width: '18%' }} />
-              <col style={{ width: '30%' }} />
-              <col style={{ width: '18%' }} />
-              <col style={{ width: '14%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '24%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '12%' }} />
               <col style={{ width: '20%' }} />
             </colgroup>
             <thead>
               <tr>
                 <th>ROLE</th>
                 <th>DESCRIPTION</th>
+                <th>BRAND</th>
                 <th>PERMISSIONS</th>
                 <th>STATUS</th>
                 <th style={{ textAlign: 'right' }}>ACTIONS</th>
@@ -118,7 +120,7 @@ export default function Roles() {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan="5" className="um__empty">No roles found.</td></tr>
+                <tr><td colSpan="6" className="um__empty">No roles found.</td></tr>
               ) : filtered.map(r => (
                 <tr key={r.id}>
                   <td>
@@ -128,6 +130,7 @@ export default function Roles() {
                     </div>
                   </td>
                   <td className="um__desc-cell">{r.description || <span style={{ color: '#c0c8d8' }}>—</span>}</td>
+                  <td className="um__brands">{r.brand_name || <span style={{ color: '#c0c8d8' }}>—</span>}</td>
                   <td>
                     <span className="um__perm-count-badge">
                       {r.permission_count ?? r.permissions?.length ?? 0} permissions

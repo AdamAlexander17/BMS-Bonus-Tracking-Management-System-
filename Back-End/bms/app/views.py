@@ -9,7 +9,7 @@ from rest_framework import status
 
 from django.db.models import Count
 
-from app.models import User, UserToken, Role, Brand, UserBrand, Permission, RolePermission, Broker, Client
+from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, Client
 from app.utils import verify_password, generate_access_token, generate_refresh_token, decode_token
 
 
@@ -67,8 +67,8 @@ def login(request):
             'user': {
                 'id': user.id,
                 'username': user.username,
-                'role': user.role.name,
-                'brands': list(user.brands.values_list('name', flat=True)),
+                'roles': user.role_names,
+                'brands': user.brand_names,
             }
         }
     }, status=status.HTTP_200_OK)
@@ -168,14 +168,20 @@ def logout(request):
 # ─── Helper ───────────────────────────────────────────────────────────────────
 
 def format_user(user):
+    role_objs = [
+        {'id': r.id, 'name': r.name, 'brand_name': r.brand.name if r.brand_id else None}
+        for r in user.roles.all()
+    ]
     return {
-        'id':         user.id,
-        'username':   user.username,
-        'role':       user.role.name,
-        'brands':     list(user.brands.values_list('name', flat=True)),
-        'status':     user.status,
-        'created_by': user.created_by.username if user.created_by else None,
-        'created_at': user.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        'id':          user.id,
+        'username':    user.username,
+        'roles':       [r['name'] for r in role_objs],   # display: names
+        'role_ids':    [r['id']   for r in role_objs],   # forms:   ids
+        'role_objects': role_objs,                       # detailed
+        'brands':      user.brand_names,
+        'status':      user.status,
+        'created_by':  user.created_by.username if user.created_by else None,
+        'created_at':  user.created_at.strftime('%Y-%m-%d %H:%M:%S'),
     }
 
 
@@ -188,14 +194,19 @@ def create_user(request):
             status=status.HTTP_403_FORBIDDEN
         )
 
-    username    = request.data.get('username', '').strip()
-    password    = request.data.get('password', '').strip()
-    role_name   = request.data.get('role', '').strip()
-    brand_names = request.data.get('brands', []) 
+    username   = request.data.get('username', '').strip()
+    password   = request.data.get('password', '').strip()
+    brand_name = (request.data.get('brand') or '').strip()
+    # Accept role IDs (most precise) OR role names scoped by `brand`
+    role_ids   = request.data.get('role_ids')
+    role_names = request.data.get('roles')
+    if role_ids is None and role_names is None:
+        single = (request.data.get('role') or '').strip()
+        role_names = [single] if single else []
 
-    if not username or not password or not role_name or not brand_names:
+    if not username or not password or not (role_ids or role_names):
         return Response(
-            {'success': False, 'message': 'username, password, role and brands are required.'},
+            {'success': False, 'message': 'username, password and at least one role are required.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -205,31 +216,52 @@ def create_user(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    try:
-        role = Role.objects.get(name=role_name)
-    except Role.DoesNotExist:
-        return Response(
-            {'success': False, 'message': f'Role "{role_name}" does not exist.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    brands = Brand.objects.filter(name__in=brand_names)
-    if brands.count() != len(brand_names):
-        return Response(
-            {'success': False, 'message': 'One or more brand names are invalid.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+    if role_ids:
+        try:
+            role_ids = [int(x) for x in role_ids]
+        except (TypeError, ValueError):
+            return Response(
+                {'success': False, 'message': 'role_ids must be a list of integers.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        roles = list(Role.objects.filter(id__in=role_ids))
+        if len(roles) != len(set(role_ids)):
+            return Response(
+                {'success': False, 'message': 'One or more roles not found.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    else:
+        role_names = [r.strip() for r in role_names if r and r.strip()]
+        if not brand_name:
+            return Response(
+                {'success': False, 'message': 'brand is required when assigning roles by name.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            brand_obj = Brand.objects.get(name=brand_name)
+        except Brand.DoesNotExist:
+            return Response(
+                {'success': False, 'message': f'Brand "{brand_name}" not found.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        roles = list(Role.objects.filter(name__in=role_names, brand=brand_obj))
+        found_names = {r.name for r in roles}
+        missing = [n for n in role_names if n not in found_names]
+        if missing:
+            return Response(
+                {'success': False, 'message': f'Role(s) not found for brand {brand_name}: {", ".join(missing)}.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     from app.utils import hash_password
     new_user = User.objects.create(
         username=username,
         password=hash_password(password),
-        role=role,
         status='Active',
         created_by=request.user,
     )
-    for brand in brands:
-        UserBrand.objects.create(user=new_user, brand=brand)
+    for role in roles:
+        UserRole.objects.create(user=new_user, role=role)
 
     return Response({
         'success': True,
@@ -245,7 +277,7 @@ def get_users(request):
             status=status.HTTP_403_FORBIDDEN
         )
 
-    all_users = User.objects.select_related('role', 'created_by').prefetch_related('brands').all()
+    all_users = User.objects.select_related('created_by').prefetch_related('roles', 'roles__brand').all()
     return Response({
         'success': True,
         'data': [format_user(u) for u in all_users]
@@ -260,7 +292,7 @@ def get_user(request, user_id):
         )
 
     try:
-        user = User.objects.select_related('role', 'created_by').prefetch_related('brands').get(id=user_id)
+        user = User.objects.select_related('created_by').prefetch_related('roles', 'roles__brand').get(id=user_id)
     except User.DoesNotExist:
         return Response(
             {'success': False, 'message': 'User not found.'},
@@ -289,8 +321,13 @@ def update_user(request, user_id):
         )
 
     new_username = request.data.get('username')
-    role_name    = request.data.get('role')
-    brand_names  = request.data.get('brands')
+    brand_name   = (request.data.get('brand') or '').strip()
+    # Accept role IDs (most precise) OR role names scoped by `brand`
+    role_ids     = request.data.get('role_ids')
+    role_names   = request.data.get('roles')
+    if role_ids is None and role_names is None and 'role' in request.data:
+        single = (request.data.get('role') or '').strip()
+        role_names = [single] if single else []
     new_status   = request.data.get('status')
     new_password = request.data.get('password')
 
@@ -302,25 +339,56 @@ def update_user(request, user_id):
             )
         user.username = new_username
 
-    if role_name:
-        try:
-            user.role = Role.objects.get(name=role_name)
-        except Role.DoesNotExist:
-            return Response(
-                {'success': False, 'message': f'Role "{role_name}" does not exist.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-    if brand_names is not None:
-        brands = Brand.objects.filter(name__in=brand_names)
-        if brands.count() != len(brand_names):
-            return Response(
-                {'success': False, 'message': 'One or more brand names are invalid.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        UserBrand.objects.filter(user=user).delete()
-        for brand in brands:
-            UserBrand.objects.create(user=user, brand=brand)
+    if role_ids is not None or role_names is not None:
+        if role_ids is not None:
+            try:
+                role_ids = [int(x) for x in role_ids]
+            except (TypeError, ValueError):
+                return Response(
+                    {'success': False, 'message': 'role_ids must be a list of integers.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if not role_ids:
+                return Response(
+                    {'success': False, 'message': 'At least one role is required.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            roles = list(Role.objects.filter(id__in=role_ids))
+            if len(roles) != len(set(role_ids)):
+                return Response(
+                    {'success': False, 'message': 'One or more roles not found.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            role_names = [r.strip() for r in role_names if r and r.strip()]
+            if not role_names:
+                return Response(
+                    {'success': False, 'message': 'At least one role is required.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if not brand_name:
+                return Response(
+                    {'success': False, 'message': 'brand is required when assigning roles by name.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            try:
+                brand_obj = Brand.objects.get(name=brand_name)
+            except Brand.DoesNotExist:
+                return Response(
+                    {'success': False, 'message': f'Brand "{brand_name}" not found.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            roles = list(Role.objects.filter(name__in=role_names, brand=brand_obj))
+            found_names = {r.name for r in roles}
+            missing = [n for n in role_names if n not in found_names]
+            if missing:
+                return Response(
+                    {'success': False, 'message': f'Role(s) not found: {", ".join(missing)}.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        UserRole.objects.filter(user=user).delete()
+        for role in roles:
+            UserRole.objects.create(user=user, role=role)
 
     if new_status:
         normalized_status = new_status.capitalize()
@@ -410,10 +478,11 @@ def rm_jrm_users(request):
     """Return all users whose role is RM or JRM, with their brands and managed-broker count."""
     users = (
         User.objects
-        .select_related('role', 'created_by')
-        .prefetch_related('brands', 'managed_brokers')
-        .filter(role__name__in=['RM', 'JRM'])
-        .order_by('role__name', 'username')
+        .select_related('created_by')
+        .prefetch_related('roles', 'roles__brand', 'managed_brokers')
+        .filter(roles__name__in=['RM', 'JRM'])
+        .distinct()
+        .order_by('username')
     )
     return Response({
         'success': True,
@@ -421,8 +490,8 @@ def rm_jrm_users(request):
             {
                 'id':           u.id,
                 'username':     u.username,
-                'role':         u.role.name,
-                'brands':       list(u.brands.values_list('name', flat=True)),
+                'roles':        u.role_names,
+                'brands':       u.brand_names,
                 'status':       u.status,
                 'created_by':   u.created_by.username if u.created_by else None,
                 'created_at':   u.created_at.strftime('%Y-%m-%d %H:%M:%S'),
@@ -644,6 +713,8 @@ def format_role(role):
         'name':             role.name,
         'description':      role.description,
         'status':           role.status,
+        'brand':            {'id': role.brand.id, 'name': role.brand.name} if role.brand_id else None,
+        'brand_name':       role.brand.name if role.brand_id else None,
         'permission_count': role.role_permissions.count(),
         'permissions': [
             format_permission(rp.permission)
@@ -664,6 +735,7 @@ def role_create(request):
     name        = request.data.get('name', '').strip()
     description = request.data.get('description', '').strip()
     role_status = request.data.get('status', 'Active').strip().capitalize()
+    brand_name  = (request.data.get('brand') or '').strip()
 
     if not name:
         return Response(
@@ -674,13 +746,26 @@ def role_create(request):
     if role_status not in ('Active', 'Inactive'):
         role_status = 'Active'
 
-    if Role.objects.filter(name=name).exists():
+    brand_obj = None
+    if brand_name:
+        try:
+            brand_obj = Brand.objects.get(name=brand_name)
+        except Brand.DoesNotExist:
+            return Response(
+                {'success': False, 'message': f'Brand "{brand_name}" not found.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    if Role.objects.filter(name=name, brand=brand_obj).exists():
+        scope = f' for brand "{brand_obj.name}"' if brand_obj else ''
         return Response(
-            {'success': False, 'message': f'Role "{name}" already exists.'},
+            {'success': False, 'message': f'Role "{name}"{scope} already exists.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    role = Role.objects.create(name=name, description=description, status=role_status)
+    role = Role.objects.create(
+        name=name, description=description, status=role_status, brand=brand_obj
+    )
 
     # Assign permissions if provided
     permission_ids = request.data.get('permissions', [])
@@ -704,7 +789,7 @@ def role_list(request):
             status=status.HTTP_403_FORBIDDEN
         )
 
-    roles = Role.objects.prefetch_related('role_permissions__permission').all().order_by('id')
+    roles = Role.objects.select_related('brand').prefetch_related('role_permissions__permission').all().order_by('id')
     return Response(
         {'success': True, 'data': [format_role(r) for r in roles]},
         status=status.HTTP_200_OK
@@ -721,7 +806,7 @@ def role_get(request, role_id):
         )
 
     try:
-        role = Role.objects.prefetch_related('role_permissions__permission').get(id=role_id)
+        role = Role.objects.select_related('brand').prefetch_related('role_permissions__permission').get(id=role_id)
     except Role.DoesNotExist:
         return Response(
             {'success': False, 'message': 'Role not found.'},
@@ -754,6 +839,7 @@ def role_update(request, role_id):
     name        = request.data.get('name', '').strip()
     description = request.data.get('description')
     role_status = request.data.get('status')
+    brand_name  = request.data.get('brand')
 
     if not name:
         return Response(
@@ -761,13 +847,30 @@ def role_update(request, role_id):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    if Role.objects.filter(name=name).exclude(id=role_id).exists():
+    # Resolve target brand (defaults to existing if not supplied)
+    target_brand = role.brand
+    if brand_name is not None:
+        brand_name = brand_name.strip()
+        if brand_name == '':
+            target_brand = None
+        else:
+            try:
+                target_brand = Brand.objects.get(name=brand_name)
+            except Brand.DoesNotExist:
+                return Response(
+                    {'success': False, 'message': f'Brand "{brand_name}" not found.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+    if Role.objects.filter(name=name, brand=target_brand).exclude(id=role_id).exists():
+        scope = f' for brand "{target_brand.name}"' if target_brand else ''
         return Response(
-            {'success': False, 'message': f'Role "{name}" already exists.'},
+            {'success': False, 'message': f'Role "{name}"{scope} already exists.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
     role.name = name
+    role.brand = target_brand
     if description is not None:
         role.description = description.strip()
     if role_status is not None:
@@ -813,7 +916,7 @@ def role_delete(request, role_id):
             status=status.HTTP_404_NOT_FOUND
         )
 
-    if User.objects.filter(role=role).exists():
+    if User.objects.filter(roles=role).exists():
         return Response(
             {'success': False, 'message': 'Cannot delete role that is assigned to users.'},
             status=status.HTTP_400_BAD_REQUEST
@@ -967,19 +1070,21 @@ def role_set_permissions(request, role_id):
 # ===========================================================================
 
 def has_perm(request, key):
-    """Return True if the user's role grants the given permission key (e.g. 'broker:create').
+    """Return True if any of the user's roles grants the given permission key (e.g. 'broker:create').
     Checks the JWT payload first; falls back to a DB lookup if no JWT payload is present."""
     if request.auth:
         return key in request.auth.get('permissions', [])
-    # Fallback: look up permissions for the authenticated user's role from DB
-    if not getattr(request, 'user', None) or not getattr(request.user, 'role', None):
+    # Fallback: union of permissions across all of the user's roles
+    if not getattr(request, 'user', None):
         return False
     try:
         module, action = key.split(':', 1)
     except ValueError:
         return False
     return RolePermission.objects.filter(
-        role=request.user.role, permission__module=module, permission__action=action
+        role__in=request.user.roles.all(),
+        permission__module=module,
+        permission__action=action,
     ).exists()
 
 
@@ -989,7 +1094,7 @@ def user_brand_names(request):
         return request.auth.get('brands', [])
     if not getattr(request, 'user', None):
         return []
-    return list(request.user.brands.values_list('name', flat=True))
+    return request.user.brand_names
 
 
 # ===========================================================================
@@ -1006,7 +1111,7 @@ def brokers_by_rm_user(request, user_id):
             status=status.HTTP_403_FORBIDDEN
         )
     try:
-        rm_user = User.objects.select_related('role').get(id=user_id)
+        rm_user = User.objects.prefetch_related('roles').get(id=user_id)
     except User.DoesNotExist:
         return Response({'success': False, 'message': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1022,8 +1127,8 @@ def brokers_by_rm_user(request, user_id):
         'rm_user': {
             'id':       rm_user.id,
             'username': rm_user.username,
-            'role':     rm_user.role.name,
-            'brands':   list(rm_user.brands.values_list('name', flat=True)),
+            'roles':    rm_user.role_names,
+            'brands':   rm_user.brand_names,
         },
         'data': [format_broker(b) for b in brokers],
     }, status=status.HTTP_200_OK)
@@ -1036,7 +1141,7 @@ def format_broker(broker):
         'arc_id':        broker.arc_id,
         'name':          broker.name,
         'brand':         {'id': broker.brand.id, 'name': broker.brand.name},
-        'rm_user':       {'id': rm.id, 'username': rm.username, 'role': rm.role.name} if rm else None,
+        'rm_user':       {'id': rm.id, 'username': rm.username, 'roles': rm.role_names} if rm else None,
         'amount_earned': str(broker.amount_earned),
         'status':        broker.status,
         'client_count':  getattr(broker, 'client_count', broker.clients.count()),
@@ -1098,8 +1203,8 @@ def broker_create(request):
     rm_user = None
     if rm_user_id:
         try:
-            rm_user = User.objects.select_related('role').get(id=rm_user_id)
-            if rm_user.role.name not in ('RM', 'JRM'):
+            rm_user = User.objects.prefetch_related('roles').get(id=rm_user_id)
+            if not rm_user.roles.filter(name__in=['RM', 'JRM']).exists():
                 return Response(
                     {'success': False, 'message': 'Assigned user must have role RM or JRM.'},
                     status=status.HTTP_400_BAD_REQUEST
@@ -1238,8 +1343,8 @@ def broker_update(request, broker_id):
             broker.rm_user = None
         else:
             try:
-                rm_user = User.objects.select_related('role').get(id=new_rm_user_id)
-                if rm_user.role.name not in ('RM', 'JRM'):
+                rm_user = User.objects.prefetch_related('roles').get(id=new_rm_user_id)
+                if not rm_user.roles.filter(name__in=['RM', 'JRM']).exists():
                     return Response(
                         {'success': False, 'message': 'Assigned user must have role RM or JRM.'},
                         status=status.HTTP_400_BAD_REQUEST

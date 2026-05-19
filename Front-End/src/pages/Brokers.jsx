@@ -54,9 +54,9 @@ export default function Brokers() {
     const q = search.toLowerCase();
     const matchSearch =
       u.username.toLowerCase().includes(q) ||
-      u.role.toLowerCase().includes(q) ||
+      (u.roles || []).some(r => r.toLowerCase().includes(q)) ||
       (u.brands || []).some(b => b.toLowerCase().includes(q));
-    const matchRole   = roleFilter   === 'all' || u.role   === roleFilter;
+    const matchRole   = roleFilter   === 'all' || (u.roles || []).includes(roleFilter);
     const matchStatus = statusFilter === 'all' || u.status === statusFilter;
     const matchBrand  = brandFilter  === 'all' || (u.brands || []).includes(brandFilter);
     return matchSearch && matchRole && matchStatus && matchBrand;
@@ -170,9 +170,9 @@ export default function Brokers() {
                   <td>
                     <span
                       className="um__role-badge"
-                      style={{ background: u.role === 'RM' ? '#dbeafe' : '#fef3c7', color: u.role === 'RM' ? '#1d4ed8' : '#92400e' }}
+                      style={{ background: (u.roles || []).includes('RM') ? '#dbeafe' : '#fef3c7', color: (u.roles || []).includes('RM') ? '#1d4ed8' : '#92400e' }}
                     >
-                      {u.role}
+                      {(u.roles || []).join('/')}
                     </span>
                   </td>
                   <td>

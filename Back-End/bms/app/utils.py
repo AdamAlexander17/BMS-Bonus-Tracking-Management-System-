@@ -42,20 +42,24 @@ def verify_password(raw_password: str, stored_hash: str) -> bool:
 # Using PyJWT directly — no simplejwt dependency
 
 def generate_access_token(user) -> str:
-    """Generate a short-lived access token carrying user identity, role and permissions."""
-    # Load permissions for this user's role
-    perms = list(
-        user.role.role_permissions
-        .select_related('permission')
-        .values_list('permission__module', 'permission__action')
+    """Generate a short-lived access token carrying user identity, roles, brands and permissions."""
+    # Union of permissions across all of the user's roles
+    perms = (
+        user.roles
+        .values_list('role_permissions__permission__module',
+                     'role_permissions__permission__action')
+        .distinct()
     )
-    permissions = [f'{m}:{a}' for m, a in perms]
+    permissions = sorted({f'{m}:{a}' for m, a in perms if m and a})
+
+    role_names  = list(user.roles.values_list('name', flat=True))
+    brand_names = user.brand_names  # derived from the user's roles
 
     payload = {
         'user_id':     user.id,
         'username':    user.username,
-        'role':        user.role.name,
-        'brands':      list(user.brands.values_list('name', flat=True)),
+        'roles':       role_names,
+        'brands':      brand_names,
         'permissions': permissions,
         'type':        'access',
         'iat':         timezone.now(),
