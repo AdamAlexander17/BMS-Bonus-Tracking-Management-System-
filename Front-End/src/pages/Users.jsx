@@ -264,11 +264,8 @@ function AddUserForm({ roles, onClose, onSuccess }) {
     });
   }, []);
 
-  const toggleRole = (name) =>
-    setForm(p => ({
-      ...p,
-      roleNames: p.roleNames.includes(name) ? p.roleNames.filter(x => x !== name) : [...p.roleNames, name],
-    }));
+  const selectRole = (name) =>
+    setForm(p => ({ ...p, roleNames: [name] }));
 
   // Roles are global — show all available role names.
   const availableRoleNames = Array.from(new Set(roles.map(r => r.name)));
@@ -276,7 +273,7 @@ function AddUserForm({ roles, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.brand)              { setErr('Please select a brand.'); return; }
-    if (form.roleNames.length === 0) { setErr('Please select at least one role.'); return; }
+    if (form.roleNames.length === 0) { setErr('Please select a role.'); return; }
     setSaving(true); setErr('');
     try {
       const { createUser } = await import('../api/users');
@@ -323,7 +320,7 @@ function AddUserForm({ roles, onClose, onSuccess }) {
         </select>
       </div>
 
-      <div className="um__form-section">Roles <span className="um__required">*</span> <span className="um__label-hint">({form.roleNames.length} selected)</span></div>
+      <div className="um__form-section">Role <span className="um__required">*</span></div>
       <div className="um__role-pills">
         {availableRoleNames.length === 0 && (
           <span className="um__label-hint">No roles available. Create one from the Roles page.</span>
@@ -333,7 +330,7 @@ function AddUserForm({ roles, onClose, onSuccess }) {
             key={name}
             type="button"
             className={`um__role-pill${form.roleNames.includes(name) ? ' um__role-pill--active' : ''}`}
-            onClick={() => toggleRole(name)}
+            onClick={() => selectRole(name)}
           >
             {form.roleNames.includes(name) && <span className="um__pill-check">✓</span>}
             {name}
@@ -375,7 +372,7 @@ function EditUserForm({ user, roles, onClose, onSuccess }) {
   const [form, setForm]       = useState({
     username:  user.username || '',
     brand:     user.brand || '',
-    roleNames: user.roles || [],
+    roleNames: (user.roles || []).slice(0, 1),
     password:  '',
     isActive:  user.status === 'Active',
   });
@@ -390,18 +387,15 @@ function EditUserForm({ user, roles, onClose, onSuccess }) {
     });
   }, []);
 
-  const toggleRole = (name) =>
-    setForm(p => ({
-      ...p,
-      roleNames: p.roleNames.includes(name) ? p.roleNames.filter(x => x !== name) : [...p.roleNames, name],
-    }));
+  const selectRole = (name) =>
+    setForm(p => ({ ...p, roleNames: [name] }));
 
   const availableRoleNames = Array.from(new Set(roles.map(r => r.name)));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.brand)                 { setErr('Please select a brand.'); return; }
-    if (form.roleNames.length === 0) { setErr('Please select at least one role.'); return; }
+    if (form.roleNames.length === 0) { setErr('Please select a role.'); return; }
     setSaving(true); setErr('');
     try {
       const payload = {
@@ -467,7 +461,7 @@ function EditUserForm({ user, roles, onClose, onSuccess }) {
         </div>
       </div>
 
-      <div className="um__form-section">Roles <span className="um__required">*</span> <span className="um__label-hint">({form.roleNames.length} selected)</span></div>
+      <div className="um__form-section">Role <span className="um__required">*</span></div>
 
       <div className="um__role-pills">
         {availableRoleNames.length === 0 && (
@@ -478,7 +472,7 @@ function EditUserForm({ user, roles, onClose, onSuccess }) {
             key={name}
             type="button"
             className={`um__role-pill${form.roleNames.includes(name) ? ' um__role-pill--active' : ''}`}
-            onClick={() => toggleRole(name)}
+            onClick={() => selectRole(name)}
           >
             {form.roleNames.includes(name) && <span className="um__pill-check">✓</span>}
             {name}
