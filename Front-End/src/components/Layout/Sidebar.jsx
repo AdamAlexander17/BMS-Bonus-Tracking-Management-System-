@@ -63,7 +63,16 @@ export default function Sidebar({ collapsed, setCollapsed }) {
 
       {/* Nav */}
       <nav className="sidebar__nav">
-        {NAV_ITEMS.map(({ path, label, icon }) => (
+        {(() => {
+          const roles = user?.roles || [];
+          const isRmOnly =
+            roles.length > 0 &&
+            roles.every(r => r === 'RM' || r === 'JRM');
+          const visibleItems = isRmOnly
+            ? NAV_ITEMS.filter(i => i.path === '/' || i.path === '/brokers')
+            : NAV_ITEMS;
+          return visibleItems;
+        })().map(({ path, label, icon }) => (
           <NavLink
             key={path}
             to={path}

@@ -48,17 +48,17 @@ export default function Brokers() {
 
   useEffect(() => { fetchAll(); }, []);
 
-  const allBrands = [...new Set(users.flatMap(u => u.brands || []))].sort();
+  const allBrands = [...new Set(users.map(u => u.brand).filter(Boolean))].sort();
 
   const filtered = users.filter(u => {
     const q = search.toLowerCase();
     const matchSearch =
       u.username.toLowerCase().includes(q) ||
       (u.roles || []).some(r => r.toLowerCase().includes(q)) ||
-      (u.brands || []).some(b => b.toLowerCase().includes(q));
+      (u.brand || '').toLowerCase().includes(q);
     const matchRole   = roleFilter   === 'all' || (u.roles || []).includes(roleFilter);
     const matchStatus = statusFilter === 'all' || u.status === statusFilter;
-    const matchBrand  = brandFilter  === 'all' || (u.brands || []).includes(brandFilter);
+    const matchBrand  = brandFilter  === 'all' || u.brand === brandFilter;
     return matchSearch && matchRole && matchStatus && matchBrand;
   });
 
@@ -160,10 +160,8 @@ export default function Brokers() {
                     </div>
                   </td>
                   <td>
-                    {(u.brands || []).length > 0
-                      ? u.brands.map(b => (
-                          <span key={b} className="um__role-badge" style={{ marginRight: 4 }}>{b}</span>
-                        ))
+                    {u.brand
+                      ? <span className="um__role-badge" style={{ marginRight: 4 }}>{u.brand}</span>
                       : <span className="um__handle">—</span>
                     }
                   </td>
