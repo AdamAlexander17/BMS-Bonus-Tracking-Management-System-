@@ -50,6 +50,8 @@ urlpatterns = [
     path('brokers/<int:broker_id>/clients/create/', views.client_create, name='client_create'),
     path('brokers/<int:broker_id>/clients/',        views.client_list,   name='client_list'),
     path('clients/<int:client_id>/',               views.client_get,    name='client_get'),
+    path('clients/<int:client_id>/transactions/',  views.client_transaction_list,   name='client_transaction_list'),
+    path('clients/<int:client_id>/transactions/create/', views.client_transaction_create, name='client_transaction_create'),
     path('clients/<int:client_id>/update/',        views.client_update, name='client_update'),
     path('clients/<int:client_id>/delete/',        views.client_delete, name='client_delete'),
 ]

@@ -215,3 +215,26 @@ class Client(models.Model):
         return round(float(self.deposited_amount) * 0.01, 2)
 
 
+class ClientTransaction(models.Model):
+    TYPE_CHOICES = [
+        ('deposit', 'Deposit'),
+        ('withdrawal', 'Withdrawal'),
+    ]
+
+    id               = models.BigAutoField(primary_key=True)
+    client           = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='transactions')
+    transaction_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    amount           = models.DecimalField(max_digits=15, decimal_places=2)
+    entered_by       = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='client_transactions'
+    )
+    created_at       = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'client_transactions'
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'{self.client.arc_id} {self.transaction_type} {self.amount}'
+
+

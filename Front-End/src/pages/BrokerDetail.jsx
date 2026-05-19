@@ -4,7 +4,7 @@ import PageHeader from '../components/PageHeader/PageHeader';
 import { getBroker, updateBroker } from '../api/brokers';
 import { getBrands } from '../api/brands';
 import { getRmJrmUsers } from '../api/users';
-import { getClientsByBroker, createClient, updateClient, deleteClient } from '../api/clients';
+import { getClientsByBroker, createClient, updateClient, deleteClient, createClientTransaction } from '../api/clients';
 import { formatINR } from './Brokers';
 import './Users.css';
 
@@ -279,8 +279,6 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
   const [form, setForm]     = useState({
     name:              client.name ?? '',
     arc_id:            client.arc_id,
-    deposited_amount:  client.deposited_amount  ?? '',
-    withdrawal_amount: client.withdrawal_amount ?? '',
     is_legitimate:     Boolean(client.is_legitimate),
   });
 
@@ -298,8 +296,6 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
       await updateClient(client.id, {
         name:              form.name.trim(),
         arc_id:            form.arc_id.trim(),
-        deposited_amount:  form.deposited_amount  || 0,
-        withdrawal_amount: form.withdrawal_amount || 0,
         is_legitimate:     form.is_legitimate,
       });
       onUpdated();
@@ -393,28 +389,6 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
                   />
                 </Field>
               </div>
-              <Field label="Deposited Amount (₹)">
-                <input
-                  type="number" min="0" step="0.01"
-                  style={inputStyle}
-                  value={form.deposited_amount}
-                  onChange={set('deposited_amount')}
-                  placeholder="0.00"
-                  onFocus={e => e.target.style.borderColor = '#004B4E'}
-                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
-                />
-              </Field>
-              <Field label="Withdrawal Amount (₹)">
-                <input
-                  type="number" min="0" step="0.01"
-                  style={inputStyle}
-                  value={form.withdrawal_amount}
-                  onChange={set('withdrawal_amount')}
-                  placeholder="0.00"
-                  onFocus={e => e.target.style.borderColor = '#004B4E'}
-                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
-                />
-              </Field>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 500, color: '#374151', cursor: 'pointer' }}>
                   <input
@@ -462,13 +436,9 @@ function AddAmountModal({ client, mode, onClose, onUpdated }) {
     }
     setSaving(true);
     try {
-      await updateClient(client.id, {
-        deposited_amount: isDeposit
-          ? Number(client.deposited_amount || 0) + Number(amount)
-          : Number(client.deposited_amount || 0),
-        withdrawal_amount: isDeposit
-          ? Number(client.withdrawal_amount || 0)
-          : Number(client.withdrawal_amount || 0) + Number(amount),
+      await createClientTransaction(client.id, {
+        transaction_type: isDeposit ? 'deposit' : 'withdrawal',
+        amount: Number(amount),
       });
       onUpdated();
     } catch (err) {
@@ -678,7 +648,7 @@ export default function BrokerDetail() {
 
   const [showModal, setShowModal]             = useState(false);
   const [editClient, setEditClient]           = useState(null);
-  const [amountAction, setAmountAction] = useState(null);
+  const [amountAction, setAmountAction]       = useState(null);
   const [showEditBroker, setShowEditBroker]   = useState(false);
   const [confirmState, setConfirmState]       = useState(null);
   const [pageError, setPageError]             = useState('');
@@ -870,6 +840,18 @@ export default function BrokerDetail() {
                 <td><span className="um__date">{formatDate(c.created_at)}</span></td>
                 <td>
                   <div className="um__actions">
+                    <button
+                      className="um__action-btn"
+                      title="Transaction History"
+                      style={{ color: '#2563eb' }}
+                      onClick={() => navigate(`/clients/${c.id}/transactions`)}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                        <path d="M3 12h18"/>
+                        <path d="M3 6h18"/>
+                        <path d="M3 18h18"/>
+                      </svg>
+                    </button>
                     <button
                       className="um__action-btn"
                       title="Add Deposit"

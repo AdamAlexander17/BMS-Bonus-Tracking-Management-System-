@@ -1,4 +1,6 @@
 import jwt
+from django.db import transaction as db_transaction
+from decimal import Decimal, InvalidOperation
 
 from django.utils import timezone
 from django.conf import settings
@@ -9,7 +11,7 @@ from rest_framework import status
 
 from django.db.models import Count
 
-from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, Client
+from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, Client, ClientTransaction
 from app.utils import verify_password, generate_access_token, generate_refresh_token, decode_token
 
 
@@ -1409,7 +1411,9 @@ def broker_delete(request, broker_id):
 # ===========================================================================
 
 def format_client(client):
-    net_total = client.deposited_amount - client.withdrawal_amount
+    deposited_amount = Decimal(str(client.deposited_amount or 0))
+    withdrawal_amount = Decimal(str(client.withdrawal_amount or 0))
+    net_total = deposited_amount - withdrawal_amount
     return {
         'id':                client.id,
         'name':              client.name,
@@ -1419,14 +1423,24 @@ def format_client(client):
             'arc_id': client.broker.arc_id,
             'name':   client.broker.name,
         },
-        'deposited_amount':  str(client.deposited_amount),
-        'withdrawal_amount': str(client.withdrawal_amount),
+        'deposited_amount':  str(deposited_amount),
+        'withdrawal_amount': str(withdrawal_amount),
         'net_total':         str(net_total),
         'earned_amount':     str(client.earned_amount),
         'is_legitimate':     client.is_legitimate,
         'status':            client.status,
         'created_by':        client.created_by.username if client.created_by else None,
         'created_at':        client.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+    }
+
+
+def format_client_transaction(transaction):
+    return {
+        'id':               transaction.id,
+        'transaction_type': transaction.transaction_type,
+        'amount':           str(transaction.amount),
+        'entered_by':       transaction.entered_by.username if transaction.entered_by else None,
+        'created_at':       transaction.created_at.strftime('%Y-%m-%d %H:%M:%S'),
     }
 
 
@@ -1500,10 +1514,10 @@ def client_create(request, broker_id):
         )
 
     try:
-        deposited_amount  = float(deposited_amount)
-        withdrawal_amount = float(withdrawal_amount)
+        deposited_amount  = Decimal(str(deposited_amount))
+        withdrawal_amount = Decimal(str(withdrawal_amount))
         is_legitimate     = _parse_bool(is_legitimate, 'is_legitimate')
-    except (ValueError, TypeError):
+    except (InvalidOperation, ValueError, TypeError):
         return Response(
             {'success': False, 'message': 'deposited_amount and withdrawal_amount must be numbers, and is_legitimate must be true or false.'},
             status=status.HTTP_400_BAD_REQUEST
@@ -1519,6 +1533,23 @@ def client_create(request, broker_id):
         status='Active',
         created_by=request.user,
     )
+
+    if deposited_amount > 0:
+        ClientTransaction.objects.create(
+            client=client,
+            transaction_type='deposit',
+            amount=deposited_amount,
+            entered_by=request.user,
+        )
+
+    if withdrawal_amount > 0:
+        ClientTransaction.objects.create(
+            client=client,
+            transaction_type='withdrawal',
+            amount=withdrawal_amount,
+            entered_by=request.user,
+        )
+
     return Response(
         {'success': True, 'message': 'Client created successfully.', 'data': format_client(client)},
         status=status.HTTP_201_CREATED
@@ -1614,8 +1645,6 @@ def client_update(request, client_id):
 
     new_name              = request.data.get('name')
     new_arc_id            = request.data.get('arc_id')
-    new_deposited_amount  = request.data.get('deposited_amount')
-    new_withdrawal_amount = request.data.get('withdrawal_amount')
     new_is_legitimate     = request.data.get('is_legitimate')
     new_status            = request.data.get('status')
 
@@ -1642,23 +1671,11 @@ def client_update(request, client_id):
             )
         client.arc_id = new_arc_id
 
-    if new_deposited_amount is not None:
-        try:
-            client.deposited_amount = float(new_deposited_amount)
-        except (ValueError, TypeError):
-            return Response(
-                {'success': False, 'message': 'deposited_amount must be a number.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-    if new_withdrawal_amount is not None:
-        try:
-            client.withdrawal_amount = float(new_withdrawal_amount)
-        except (ValueError, TypeError):
-            return Response(
-                {'success': False, 'message': 'withdrawal_amount must be a number.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+    if request.data.get('deposited_amount') is not None or request.data.get('withdrawal_amount') is not None:
+        return Response(
+            {'success': False, 'message': 'Use client transaction actions to update deposited or withdrawal amounts.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     if new_is_legitimate is not None:
         try:
@@ -1682,6 +1699,115 @@ def client_update(request, client_id):
     return Response(
         {'success': True, 'message': 'Client updated successfully.', 'data': format_client(client)},
         status=status.HTTP_200_OK
+    )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def client_transaction_list(request, client_id):
+    if not has_perm(request, 'client:view'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    try:
+        client = Client.objects.select_related('broker__brand').get(id=client_id)
+    except Client.DoesNotExist:
+        return Response(
+            {'success': False, 'message': 'Client not found.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not _check_client_access(request, client):
+        return Response(
+            {'success': False, 'message': 'Access denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    transactions = (
+        ClientTransaction.objects
+        .select_related('entered_by')
+        .filter(client=client)
+        .order_by('-created_at', '-id')
+    )
+    return Response(
+        {'success': True, 'data': [format_client_transaction(t) for t in transactions]},
+        status=status.HTTP_200_OK
+    )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def client_transaction_create(request, client_id):
+    if not has_perm(request, 'client:update'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    try:
+        client = Client.objects.select_related('broker__brand').get(id=client_id)
+    except Client.DoesNotExist:
+        return Response(
+            {'success': False, 'message': 'Client not found.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not _check_client_access(request, client):
+        return Response(
+            {'success': False, 'message': 'Access denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    transaction_type = (request.data.get('transaction_type') or '').strip().lower()
+    amount = request.data.get('amount')
+
+    if transaction_type not in ('deposit', 'withdrawal'):
+        return Response(
+            {'success': False, 'message': 'transaction_type must be deposit or withdrawal.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        amount = Decimal(str(amount))
+    except (InvalidOperation, ValueError, TypeError):
+        return Response(
+            {'success': False, 'message': 'amount must be a number.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if amount <= 0:
+        return Response(
+            {'success': False, 'message': 'amount must be greater than zero.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    with db_transaction.atomic():
+        if transaction_type == 'deposit':
+            client.deposited_amount = Decimal(str(client.deposited_amount or 0)) + amount
+        else:
+            client.withdrawal_amount = Decimal(str(client.withdrawal_amount or 0)) + amount
+
+        client.save(update_fields=['deposited_amount', 'withdrawal_amount'])
+
+        transaction = ClientTransaction.objects.create(
+            client=client,
+            transaction_type=transaction_type,
+            amount=amount,
+            entered_by=request.user,
+        )
+
+    return Response(
+        {
+            'success': True,
+            'message': 'Client transaction recorded successfully.',
+            'data': {
+                'client': format_client(client),
+                'transaction': format_client_transaction(transaction),
+            }
+        },
+        status=status.HTTP_201_CREATED
     )
 
 
