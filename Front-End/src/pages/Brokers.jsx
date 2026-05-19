@@ -140,7 +140,7 @@ export default function Brokers() {
                 <th>USER</th>
                 <th>BRANDS</th>
                 <th>ROLE</th>
-                <th>Clients MANAGED</th>
+                <th>BROKER MANAGED</th>
                 <th>STATUS</th>
                 <th>CREATED ↓</th>
               </tr>
