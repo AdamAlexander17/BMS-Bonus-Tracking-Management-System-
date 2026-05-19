@@ -118,7 +118,7 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
       await createBroker({
         name:       form.name.trim(),
         arc_id:     form.arc_id.trim(),
-        brand:      rmUser.brands?.[0] || '',
+        brand:      rmUser.brand || '',
         rm_user_id: Number(userId),
         status:     form.status,
       });

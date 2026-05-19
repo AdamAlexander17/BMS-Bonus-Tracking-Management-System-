@@ -53,13 +53,11 @@ role_permissions_map = {
 }
 
 for role_name, perms in role_permissions_map.items():
-    # Each role is scoped to a single brand. Seed creates a copy of every role
-    # for every brand, so each brand has its own RM/JRM/FM/Checker/Admin.
-    for brand in Brand.objects.all():
-        role, _ = Role.objects.get_or_create(name=role_name, brand=brand)
-        for module, action in perms:
-            perm = Permission.objects.get(module=module, action=action)
-            RolePermission.objects.get_or_create(role=role, permission=perm)
+    # Roles are global — brand association lives on the User, not the Role.
+    role, _ = Role.objects.get_or_create(name=role_name)
+    for module, action in perms:
+        perm = Permission.objects.get(module=module, action=action)
+        RolePermission.objects.get_or_create(role=role, permission=perm)
 
 print(f'✔ Roles seeded: {list(role_permissions_map.keys())}')
 
@@ -68,10 +66,12 @@ admin_username = 'admin'
 admin_password = 'Admin@123'
 
 if not User.objects.filter(username=admin_username).exists():
-    admin_role = Role.objects.filter(name='Admin').order_by('id').first()
-    admin_user = User.objects.create(
+    admin_role  = Role.objects.get(name='Admin')
+    admin_brand = Brand.objects.get(name='TK')
+    admin_user  = User.objects.create(
         username=admin_username,
         password=hash_password(admin_password),
+        brand=admin_brand,
         status='Active',
         created_by=None,
     )

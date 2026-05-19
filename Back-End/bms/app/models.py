@@ -47,16 +47,9 @@ class Role(models.Model):
     ]
 
     id          = models.BigAutoField(primary_key=True)
-    name        = models.CharField(max_length=50)
+    name        = models.CharField(max_length=50, unique=True)
     description = models.CharField(max_length=255, blank=True, default='')
     status      = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Active')
-    brand       = models.ForeignKey(
-        Brand,
-        on_delete=models.PROTECT,
-        related_name='roles',
-        null=True,
-        blank=True,
-    )
     permissions = models.ManyToManyField(
         Permission,
         through='RolePermission',
@@ -65,7 +58,6 @@ class Role(models.Model):
 
     class Meta:
         db_table = 'roles'
-        unique_together = ('name', 'brand')
 
     def __str__(self):
         return self.name
@@ -93,6 +85,13 @@ class User(models.Model):
     id         = models.BigAutoField(primary_key=True)
     username   = models.CharField(max_length=150, unique=True)
     password   = models.CharField(max_length=255)
+    brand      = models.ForeignKey(
+        Brand,
+        on_delete=models.PROTECT,
+        related_name='users',
+        null=True,
+        blank=True,
+    )
     roles      = models.ManyToManyField(
         Role,
         through='UserRole',
@@ -119,14 +118,8 @@ class User(models.Model):
         return list(self.roles.values_list('name', flat=True))
 
     @property
-    def brand_names(self):
-        # Brands are derived from the user's roles (each role has at most one brand)
-        return list(
-            Brand.objects
-            .filter(roles__users=self, roles__brand__isnull=False)
-            .distinct()
-            .values_list('name', flat=True)
-        )
+    def brand_name(self):
+        return self.brand.name if self.brand_id else None
 
 
 class UserRole(models.Model):

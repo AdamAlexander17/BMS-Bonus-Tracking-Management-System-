@@ -52,14 +52,14 @@ def generate_access_token(user) -> str:
     )
     permissions = sorted({f'{m}:{a}' for m, a in perms if m and a})
 
-    role_names  = list(user.roles.values_list('name', flat=True))
-    brand_names = user.brand_names  # derived from the user's roles
+    role_names = list(user.roles.values_list('name', flat=True))
+    brand_name = user.brand.name if user.brand_id else None
 
     payload = {
         'user_id':     user.id,
         'username':    user.username,
         'roles':       role_names,
-        'brands':      brand_names,
+        'brand':       brand_name,
         'permissions': permissions,
         'type':        'access',
         'iat':         timezone.now(),

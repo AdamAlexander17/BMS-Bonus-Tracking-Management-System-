@@ -132,7 +132,7 @@ export default function Users() {
             <thead>
               <tr>
                 <th>USER</th>
-                <th>BRANDS</th>
+                <th>BRAND</th>
                 <th>ROLES</th>
                 <th>STATUS</th>
                 <th>CREATED ↓</th>
@@ -153,7 +153,7 @@ export default function Users() {
                       </div>
                     </div>
                   </td>
-                  <td className="um__brands">{u.brands?.join(', ') || '—'}</td>
+                  <td className="um__brands">{u.brand || '—'}</td>
                   <td>
                     <div className="um__role-badges">
                       {(u.roles || []).length === 0
@@ -270,14 +270,8 @@ function AddUserForm({ roles, onClose, onSuccess }) {
       roleNames: p.roleNames.includes(name) ? p.roleNames.filter(x => x !== name) : [...p.roleNames, name],
     }));
 
-  // Deduplicated role names available for the selected brand.
-  const availableRoleNames = form.brand
-    ? Array.from(new Set(
-        roles
-          .filter(r => (r.brand_name || r.brand?.name) === form.brand)
-          .map(r => r.name)
-      ))
-    : [];
+  // Roles are global — show all available role names.
+  const availableRoleNames = Array.from(new Set(roles.map(r => r.name)));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -320,7 +314,7 @@ function AddUserForm({ roles, onClose, onSuccess }) {
           required
           className="um__select"
           value={form.brand}
-          onChange={e => setForm(p => ({ ...p, brand: e.target.value, roleNames: [] }))}
+          onChange={e => setForm(p => ({ ...p, brand: e.target.value }))}
         >
           <option value="">— Select a brand —</option>
           {brands.map(b => (
@@ -331,11 +325,8 @@ function AddUserForm({ roles, onClose, onSuccess }) {
 
       <div className="um__form-section">Roles <span className="um__required">*</span> <span className="um__label-hint">({form.roleNames.length} selected)</span></div>
       <div className="um__role-pills">
-        {!form.brand && (
-          <span className="um__label-hint">Select a brand first to see available roles.</span>
-        )}
-        {form.brand && availableRoleNames.length === 0 && (
-          <span className="um__label-hint">No roles available for {form.brand}.</span>
+        {availableRoleNames.length === 0 && (
+          <span className="um__label-hint">No roles available. Create one from the Roles page.</span>
         )}
         {availableRoleNames.map(name => (
           <button
@@ -381,17 +372,9 @@ function EyeOffIcon() {
 }
 
 function EditUserForm({ user, roles, onClose, onSuccess }) {
-  // Derive the user's initial brand from their first assigned role
-  const initialBrand = (() => {
-    const firstId = (user.role_ids || [])[0];
-    if (!firstId) return '';
-    const match = roles.find(r => r.id === firstId);
-    return match ? (match.brand_name || match.brand?.name || '') : '';
-  })();
-
   const [form, setForm]       = useState({
     username:  user.username || '',
-    brand:     initialBrand,
+    brand:     user.brand || '',
     roleNames: user.roles || [],
     password:  '',
     isActive:  user.status === 'Active',
@@ -413,17 +396,11 @@ function EditUserForm({ user, roles, onClose, onSuccess }) {
       roleNames: p.roleNames.includes(name) ? p.roleNames.filter(x => x !== name) : [...p.roleNames, name],
     }));
 
-  const availableRoleNames = form.brand
-    ? Array.from(new Set(
-        roles
-          .filter(r => (r.brand_name || r.brand?.name) === form.brand)
-          .map(r => r.name)
-      ))
-    : [];
+  const availableRoleNames = Array.from(new Set(roles.map(r => r.name)));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.brand)                   { setErr('Please select a brand.'); return; }
+    if (!form.brand)                 { setErr('Please select a brand.'); return; }
     if (form.roleNames.length === 0) { setErr('Please select at least one role.'); return; }
     setSaving(true); setErr('');
     try {
@@ -465,7 +442,7 @@ function EditUserForm({ user, roles, onClose, onSuccess }) {
             required
             className="um__select"
             value={form.brand}
-            onChange={e => setForm(p => ({ ...p, brand: e.target.value, roleNames: [] }))}
+            onChange={e => setForm(p => ({ ...p, brand: e.target.value }))}
           >
             <option value="">— Select a brand —</option>
             {brands.map(b => (
@@ -493,11 +470,8 @@ function EditUserForm({ user, roles, onClose, onSuccess }) {
       <div className="um__form-section">Roles <span className="um__required">*</span> <span className="um__label-hint">({form.roleNames.length} selected)</span></div>
 
       <div className="um__role-pills">
-        {!form.brand && (
-          <span className="um__label-hint">Select a brand first to see available roles.</span>
-        )}
-        {form.brand && availableRoleNames.length === 0 && (
-          <span className="um__label-hint">No roles available for {form.brand}.</span>
+        {availableRoleNames.length === 0 && (
+          <span className="um__label-hint">No roles available.</span>
         )}
         {availableRoleNames.map(name => (
           <button
