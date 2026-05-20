@@ -233,17 +233,6 @@ export default function AuditLog() {
         <section className="audit-log-panel audit-log-panel--filters">
           <div className="audit-log-filters-wrap audit-log-filters-wrap--standalone">
             <div className="audit-log-filters">
-              <label className="audit-log-field audit-log-field--search">
-                <span className="audit-log-field__label">Search</span>
-                <input
-                  className="audit-log-control"
-                  type="search"
-                  value={search}
-                  onChange={(event) => resetPage(() => setSearch(event.target.value))}
-                  placeholder="Search user, module, action, target, description"
-                />
-              </label>
-
               <label className="audit-log-field">
                 <span className="audit-log-field__label">Module</span>
                 <select className="audit-log-control" value={moduleFilter} onChange={(event) => resetPage(() => setModuleFilter(event.target.value))}>
@@ -282,10 +271,16 @@ export default function AuditLog() {
 
       <section className="audit-log-panel audit-log-panel--table">
         <div className="audit-log-toolbar">
-          <div>
-            <h3 className="audit-log-toolbar__title">Audit Activity</h3>
-            <div className="audit-log-toolbar__subtitle">Track user actions, target entities, and change details.</div>
+          <div className="audit-log-toolbar__search">
+            <input
+              className="audit-log-control audit-log-control--search"
+              type="search"
+              value={search}
+              onChange={(event) => resetPage(() => setSearch(event.target.value))}
+              placeholder="Search user, module, action, target, description"
+            />
           </div>
+
           <div className="audit-log-actions">
             <select
               className="audit-log-control audit-log-control--compact"

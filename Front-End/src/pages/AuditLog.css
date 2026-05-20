@@ -30,16 +30,12 @@
   display: grid;
   gap: 16px;
   align-items: end;
-  grid-template-columns: minmax(240px, 2fr) repeat(4, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .audit-log-field {
   display: grid;
   gap: 6px;
-}
-
-.audit-log-field--search {
-  grid-column: auto;
 }
 
 .audit-log-field__label {
@@ -84,6 +80,17 @@ select.audit-log-control {
   min-width: 92px;
 }
 
+.audit-log-control--search {
+  width: 350px;
+  min-width: 260px;
+}
+
+.audit-log-toolbar__search {
+  flex: 1;
+  display: flex;
+  justify-content: flex-start;
+}
+
 .audit-log-actions {
   display: flex;
   align-items: center;
@@ -97,7 +104,7 @@ select.audit-log-control {
   border-bottom: 1px solid #e8ecf0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -325,12 +332,12 @@ select.audit-log-control {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .audit-log-field--search {
-    grid-column: 1 / -1;
-  }
-
   .audit-log-actions {
     justify-content: flex-start;
+  }
+
+  .audit-log-toolbar__search {
+    flex-basis: 100%;
   }
 }
 
@@ -352,8 +359,10 @@ select.audit-log-control {
   }
 
   .audit-log-control--compact,
+  .audit-log-control--search,
   .audit-log-btn {
     width: 100%;
+    min-width: 0;
   }
 
   .audit-log-pagination {
