@@ -307,17 +307,12 @@ function AddUserForm({ roles, onClose, onSuccess }) {
 
       <div className="um__form-group">
         <label>Brand <span className="um__required">*</span></label>
-        <select
-          required
-          className="um__select"
+        <CustomSelect
+          options={brands.map(b => ({ value: b.name, label: b.name }))}
           value={form.brand}
-          onChange={e => setForm(p => ({ ...p, brand: e.target.value }))}
-        >
-          <option value="">— Select a brand —</option>
-          {brands.map(b => (
-            <option key={b.id} value={b.name}>{b.name}</option>
-          ))}
-        </select>
+          onChange={val => setForm(p => ({ ...p, brand: val }))}
+          placeholder="— Select a brand —"
+        />
       </div>
 
       <div className="um__form-section">Role <span className="um__required">*</span></div>
@@ -432,17 +427,12 @@ function EditUserForm({ user, roles, onClose, onSuccess }) {
         </div>
         <div className="um__form-group">
           <label>Brand <span className="um__required">*</span></label>
-          <select
-            required
-            className="um__select"
+          <CustomSelect
+            options={brands.map(b => ({ value: b.name, label: b.name }))}
             value={form.brand}
-            onChange={e => setForm(p => ({ ...p, brand: e.target.value }))}
-          >
-            <option value="">— Select a brand —</option>
-            {brands.map(b => (
-              <option key={b.id} value={b.name}>{b.name}</option>
-            ))}
-          </select>
+            onChange={val => setForm(p => ({ ...p, brand: val }))}
+            placeholder="— Select a brand —"
+          />
         </div>
       </div>
 

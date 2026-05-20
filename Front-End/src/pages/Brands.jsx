@@ -11,6 +11,7 @@ export default function Brands() {
   const [showAdd, setShowAdd]     = useState(false);
   const [editBrand, setEditBrand] = useState(null);
   const [newName, setNewName]     = useState('');
+  const [newCode, setNewCode]     = useState('');
   const [creating, setCreating]   = useState(false);
 
   const fetchBrands = async () => {
@@ -32,8 +33,9 @@ export default function Brands() {
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      await createBrand({ name: newName.trim() });
+      await createBrand({ name: newName.trim(), code: newCode.trim().toUpperCase() });
       setNewName('');
+      setNewCode('');
       setShowAdd(false);
       fetchBrands();
     } catch (err) {
@@ -76,7 +78,7 @@ export default function Brands() {
               </svg>
               Refresh
             </button>
-            <button className="ph-btn ph-btn--primary" onClick={() => { setNewName(''); setShowAdd(true); }}>
+            <button className="ph-btn ph-btn--primary" onClick={() => { setNewName(''); setNewCode(''); setShowAdd(true); }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
@@ -131,7 +133,7 @@ export default function Brands() {
                       </div>
                     </div>
                   </td>
-                  <td><span className="um__role-badge" style={{ background: '#e0f5f5', color: '#004B4E', border: 'none' }}>{b.name}</span></td>
+                  <td><span className="um__role-badge" style={{ background: '#e0f5f5', color: '#004B4E', border: 'none', minWidth: 48, textAlign: 'center', display: 'inline-block' }}>{b.code || '—'}</span></td>
                   <td style={{ textAlign: 'right' }}>
                     <div className="um__actions" style={{ justifyContent: 'flex-end' }}>
                       <button className="um__action-btn um__action-btn--edit" title="Edit" onClick={() => setEditBrand(b)}>
@@ -169,9 +171,15 @@ export default function Brands() {
               <button className="um__modal-close" onClick={() => setShowAdd(false)}>✕</button>
             </div>
             <form className="um__form" onSubmit={handleCreate}>
-              <div className="um__form-group">
-                <label>Brand Name <span className="um__required">*</span></label>
-                <input required placeholder="e.g. TK" value={newName} onChange={e => setNewName(e.target.value)} />
+              <div className="um__form-row">
+                <div className="um__form-group">
+                  <label>Brand Name <span className="um__required">*</span></label>
+                  <input required placeholder="e.g. Trade Karo" value={newName} onChange={e => setNewName(e.target.value)} />
+                </div>
+                <div className="um__form-group">
+                  <label>Code <span className="um__required">*</span></label>
+                  <input required placeholder="e.g. TK" maxLength={10} value={newCode} onChange={e => setNewCode(e.target.value.toUpperCase())} />
+                </div>
               </div>
               <div className="um__form-footer">
                 <button type="button" className="um__btn-cancel" onClick={() => setShowAdd(false)}>Cancel</button>
@@ -198,15 +206,16 @@ export default function Brands() {
 
 function EditBrandModal({ brand, onClose, onSuccess }) {
   const [name, setName]       = useState(brand.name);
+  const [code, setCode]       = useState(brand.code || '');
   const [saving, setSaving]   = useState(false);
   const [err, setErr]         = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || !code.trim()) return;
     setSaving(true); setErr('');
     try {
-      await updateBrand(brand.id, { name: name.trim() });
+      await updateBrand(brand.id, { name: name.trim(), code: code.trim().toUpperCase() });
       onSuccess();
     } catch (ex) {
       setErr(ex.response?.data?.message || 'Failed to update brand.');
@@ -221,15 +230,21 @@ function EditBrandModal({ brand, onClose, onSuccess }) {
         <div className="um__modal-header um__modal-header--teal">
           <div>
             <h3>Edit Brand</h3>
-            <p className="um__modal-subtitle">Update brand name</p>
+            <p className="um__modal-subtitle">Update brand name and code</p>
           </div>
           <button className="um__modal-close" onClick={onClose}>✕</button>
         </div>
         <form className="um__form" onSubmit={handleSubmit}>
           {err && <div className="um__form-error">{err}</div>}
-          <div className="um__form-group">
-            <label>Brand Name <span className="um__required">*</span></label>
-            <input required placeholder="e.g. TK" value={name} onChange={e => setName(e.target.value)} />
+          <div className="um__form-row">
+            <div className="um__form-group">
+              <label>Brand Name <span className="um__required">*</span></label>
+              <input required placeholder="e.g. Trade Karo" value={name} onChange={e => setName(e.target.value)} />
+            </div>
+            <div className="um__form-group">
+              <label>Code <span className="um__required">*</span></label>
+              <input required placeholder="e.g. TK" maxLength={10} value={code} onChange={e => setCode(e.target.value.toUpperCase())} />
+            </div>
           </div>
           <div className="um__form-footer">
             <button type="button" className="um__btn-cancel" onClick={onClose}>Cancel</button>

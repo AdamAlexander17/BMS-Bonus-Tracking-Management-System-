@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [brands, setBrands]   = useState([]);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod]   = useState('monthly');
 
   useEffect(() => {
     let cancelled = false;
@@ -54,7 +55,7 @@ export default function Dashboard() {
               ...c,
               broker_id: broker.id,
               broker_name: broker.name,
-              brand_name: broker.brand_name || broker.brand,
+              brand_name: broker.brand?.name || broker.brand_name || null,
               rm_user: broker.rm_user_name || broker.rm_user,
             }));
           }
@@ -73,23 +74,71 @@ export default function Dashboard() {
     return () => { cancelled = true; };
   }, []);
 
+  /* ── Period filter date range ──────────────────────────────── */
+  const dateRange = useMemo(() => {
+    const now   = new Date();
+    const end   = new Date(now);
+    let   start;
+    if (period === 'weekly') {
+      start = new Date(now);
+      const day = start.getDay();                          // 0=Sun
+      start.setDate(start.getDate() - (day === 0 ? 6 : day - 1)); // back to Mon
+      start.setHours(0, 0, 0, 0);
+    } else if (period === 'monthly') {
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else {
+      start = new Date(now.getFullYear(), 0, 1);
+    }
+    return { start, end };
+  }, [period]);
+
+  const filteredClients = useMemo(() =>
+    clients.filter(c => {
+      const d = c.created_at ? new Date(c.created_at) : null;
+      return d && d >= dateRange.start && d <= dateRange.end;
+    }), [clients, dateRange]);
+
+  const filteredBrokers = useMemo(() =>
+    brokers.filter(b => {
+      const d = b.created_at ? new Date(b.created_at) : null;
+      return d && d >= dateRange.start && d <= dateRange.end;
+    }), [brokers, dateRange]);
+
+  /* ── Dynamic time axis ──────────────────────────────────────── */
+  const timeLabels = useMemo(() => {
+    if (period === 'weekly')  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    if (period === 'monthly') return ['W1', 'W2', 'W3', 'W4', 'W5'];
+    return MONTHS_SHORT;
+  }, [period]);
+
+  const timeBuckets = useMemo(() => timeLabels.length, [timeLabels]);
+
+  const getTimeBucket = (date) => {
+    if (period === 'weekly') {
+      const d = date.getDay();
+      return d === 0 ? 6 : d - 1;                         // Mon=0 … Sun=6
+    }
+    if (period === 'monthly') return Math.min(Math.floor((date.getDate() - 1) / 7), 4);
+    return date.getMonth();
+  };
+
   /* ── Stat totals ───────────────────────────────────────────── */
   const stats = useMemo(() => {
-    const totalClients   = clients.length;
-    const totalReferred  = brokers.length;
-    const totalDeposits  = clients.reduce((s, c) => s + Number(c.deposited_amount || 0), 0);
-    const totalWithdraws = clients.reduce((s, c) => s + Number(c.withdrawal_amount || 0), 0);
-    const totalBonus     = clients.reduce(
+    const totalClients   = filteredClients.length;
+    const totalReferred  = filteredBrokers.length;
+    const totalDeposits  = filteredClients.reduce((s, c) => s + Number(c.deposited_amount || 0), 0);
+    const totalWithdraws = filteredClients.reduce((s, c) => s + Number(c.withdrawal_amount || 0), 0);
+    const totalBonus     = filteredClients.reduce(
       (s, c) => s + Number(c.earned_amount || (Number(c.deposited_amount || 0) * 0.01)),
       0,
     );
     return { totalClients, totalReferred, totalBonus, totalDeposits, totalWithdraws };
-  }, [clients, brokers]);
+  }, [filteredClients, filteredBrokers]);
 
   /* ── A) Bonus distribution by brand (DONUT) ────────────────── */
   const bonusByBrand = useMemo(() => {
     const map = {};
-    clients.forEach(c => {
+    filteredClients.forEach(c => {
       const key = c.brand_name || 'Other';
       const bonus = Number(c.earned_amount || (Number(c.deposited_amount || 0) * 0.01));
       map[key] = (map[key] || 0) + bonus;
@@ -97,52 +146,52 @@ export default function Dashboard() {
     const labels = Object.keys(map);
     const series = labels.map(l => Number(map[l].toFixed(2)));
     return { labels, series };
-  }, [clients]);
+  }, [filteredClients]);
 
-  /* ── B) Monthly Deposit vs Withdrawal (BAR) ────────────────── */
+  /* ── B) Deposit vs Withdrawal over time (BAR) ──────────────── */
   const monthlyDepWith = useMemo(() => {
-    const dep = new Array(12).fill(0);
-    const wd  = new Array(12).fill(0);
-    clients.forEach(c => {
+    const dep = new Array(timeBuckets).fill(0);
+    const wd  = new Array(timeBuckets).fill(0);
+    filteredClients.forEach(c => {
       const d = c.created_at ? new Date(c.created_at) : null;
       if (!d || isNaN(d)) return;
-      const m = d.getMonth();
-      dep[m] += Number(c.deposited_amount || 0);
-      wd[m]  += Number(c.withdrawal_amount || 0);
+      const bucket = getTimeBucket(d);
+      dep[bucket] += Number(c.deposited_amount || 0);
+      wd[bucket]  += Number(c.withdrawal_amount || 0);
     });
     return { dep, wd };
-  }, [clients]);
+  }, [filteredClients, timeBuckets, period]);
 
   /* ── C) Client Growth Over Time (LINE / AREA) ──────────────── */
   const clientGrowth = useMemo(() => {
-    const monthly = new Array(12).fill(0);
-    clients.forEach(c => {
+    const monthly = new Array(timeBuckets).fill(0);
+    filteredClients.forEach(c => {
       const d = c.created_at ? new Date(c.created_at) : null;
       if (!d || isNaN(d)) return;
-      monthly[d.getMonth()] += 1;
+      monthly[getTimeBucket(d)] += 1;
     });
     const cum = [];
     let acc = 0;
     monthly.forEach(n => { acc += n; cum.push(acc); });
     return { monthly, cumulative: cum };
-  }, [clients]);
+  }, [filteredClients, timeBuckets, period]);
 
   /* ── D) Genuine vs Pending vs Rejected (DONUT) ─────────────── */
   const genuineRejected = useMemo(() => {
     let genuine = 0, pending = 0, rejected = 0;
-    clients.forEach(c => {
+    filteredClients.forEach(c => {
       const dep = Number(c.deposited_amount || 0);
       if (c.status === 'Inactive') rejected += 1;
       else if (dep <= 0) pending += 1;
       else genuine += 1;
     });
     return { genuine, pending, rejected };
-  }, [clients]);
+  }, [filteredClients]);
 
   /* ── E) Top performing brokers (HORIZONTAL BAR) ────────────── */
   const topBrokers = useMemo(() => {
     const map = {};
-    clients.forEach(c => {
+    filteredClients.forEach(c => {
       const k = c.broker_id;
       if (!map[k]) map[k] = { name: c.broker_name, total: 0, genuine: 0, bonus: 0 };
       map[k].total += 1;
@@ -150,16 +199,16 @@ export default function Dashboard() {
       if (c.status === 'Active' && dep > 0) map[k].genuine += 1;
       map[k].bonus += Number(c.earned_amount || dep * 0.01);
     });
-    brokers.forEach(b => {
+    filteredBrokers.forEach(b => {
       if (!map[b.id]) map[b.id] = { name: b.name, total: 0, genuine: 0, bonus: 0 };
     });
     return Object.values(map).sort((a, b) => b.bonus - a.bonus).slice(0, 6);
-  }, [clients, brokers]);
+  }, [filteredClients, filteredBrokers]);
 
   /* ── F) Brand wise Deposits vs Withdrawals (STACKED) ───────── */
   const brandWise = useMemo(() => {
     const dep = {}, wd = {};
-    clients.forEach(c => {
+    filteredClients.forEach(c => {
       const k = c.brand_name || 'Other';
       dep[k] = (dep[k] || 0) + Number(c.deposited_amount || 0);
       wd[k]  = (wd[k]  || 0) + Number(c.withdrawal_amount || 0);
@@ -170,15 +219,15 @@ export default function Dashboard() {
       deposit:  labels.map(l => Number((dep[l] || 0).toFixed(2))),
       withdraw: labels.map(l => Number((wd[l]  || 0).toFixed(2))),
     };
-  }, [clients]);
+  }, [filteredClients]);
 
   /* ── G) Approval workflow funnel ───────────────────────────── */
   const funnel = useMemo(() => {
-    const added    = clients.length;
-    const verified = clients.filter(c => Number(c.deposited_amount || 0) > 0).length;
+    const added    = filteredClients.length;
+    const verified = filteredClients.filter(c => Number(c.deposited_amount || 0) > 0).length;
     const fmReview = Math.round(verified * 0.9);
     const checker  = Math.round(verified * 0.8);
-    const released = clients.filter(c => c.status === 'Active' && Number(c.deposited_amount || 0) > 0).length;
+    const released = filteredClients.filter(c => c.status === 'Active' && Number(c.deposited_amount || 0) > 0).length;
     return [
       { label: 'Client Added',         value: added },
       { label: 'Trading Verified',     value: verified },
@@ -186,7 +235,7 @@ export default function Dashboard() {
       { label: 'Checker Approval',     value: checker },
       { label: 'Bonus Released',       value: released },
     ];
-  }, [clients]);
+  }, [filteredClients]);
 
   /* ── Chart common config ───────────────────────────────────── */
   const baseChart = {
@@ -194,6 +243,8 @@ export default function Dashboard() {
     tooltip: { theme: 'light' },
     grid:    { borderColor: '#eef2f6', strokeDashArray: 4 },
   };
+
+  const periodLabel = { weekly: 'This Week', monthly: 'This Month', yearly: 'This Year' }[period];
 
   return (
     <div className="dashboard">
@@ -207,8 +258,21 @@ export default function Dashboard() {
           </svg>
         }
         title="Dashboard Overview"
-        subtitle={loading ? 'Loading…' : 'Real-time insights from your business'}
+        subtitle={loading ? 'Loading…' : `Showing data for: ${periodLabel}`}
       />
+
+      {/* ─── Period filter ─── */}
+      <div className="dashboard__period-filter">
+        {['weekly', 'monthly', 'yearly'].map(p => (
+          <button
+            key={p}
+            className={`dashboard__period-btn${period === p ? ' dashboard__period-btn--active' : ''}`}
+            onClick={() => setPeriod(p)}
+          >
+            {p.charAt(0).toUpperCase() + p.slice(1)}
+          </button>
+        ))}
+      </div>
 
       {/* ─── Stat cards ─── */}
       <div className="dashboard__stats">
@@ -236,10 +300,11 @@ export default function Dashboard() {
               options={{
                 ...baseChart,
                 labels: bonusByBrand.labels,
-                colors: [TEAL, TEAL_LIGHT, AMBER, TEAL_PALE, '#7dd3c0'],
+                colors: [TEAL, '#009688', TEAL_LIGHT, TEAL_PALE, '#b2dfdb'],
                 legend: { position: 'bottom', fontSize: '13px', markers: { width: 10, height: 10 } },
                 stroke: { width: 2, colors: ['#fff'] },
                 dataLabels: { enabled: true, style: { fontSize: '12px', fontWeight: 600 } },
+                tooltip: { theme: 'dark', y: { formatter: v => formatMoney(v) } },
                 plotOptions: {
                   pie: {
                     donut: {
@@ -275,7 +340,7 @@ export default function Dashboard() {
               colors: [TEAL, AMBER],
               plotOptions: { bar: { borderRadius: 6, columnWidth: '55%' } },
               dataLabels: { enabled: false },
-              xaxis: { categories: MONTHS_SHORT, labels: { style: { colors: '#64748b' } } },
+              xaxis: { categories: timeLabels, labels: { style: { colors: '#64748b' } } },
               yaxis: { labels: { style: { colors: '#64748b' }, formatter: v => formatMoney(v) } },
               legend: { position: 'top', horizontalAlign: 'right', markers: { width: 10, height: 10 } },
               tooltip: { y: { formatter: v => formatMoney(v) } },
@@ -304,7 +369,7 @@ export default function Dashboard() {
                 gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05, stops: [0, 100] },
               },
               dataLabels: { enabled: false },
-              xaxis: { categories: MONTHS_SHORT, labels: { style: { colors: '#64748b' } } },
+              xaxis: { categories: timeLabels, labels: { style: { colors: '#64748b' } } },
               yaxis: { labels: { style: { colors: '#64748b' } } },
               legend: { position: 'top', horizontalAlign: 'right', markers: { width: 10, height: 10 } },
               markers: { size: 4, strokeWidth: 2, hover: { size: 6 } },
@@ -317,21 +382,33 @@ export default function Dashboard() {
           {clients.length === 0 ? <EmptyState /> : (
             <Chart
               type="donut"
-              height={310}
+              height={300}
               series={[genuineRejected.genuine, genuineRejected.pending, genuineRejected.rejected]}
               options={{
                 ...baseChart,
                 labels: ['Genuine', 'Pending', 'Rejected'],
-                colors: [GREEN, AMBER, RED],
-                legend: { position: 'bottom', fontSize: '13px', markers: { width: 10, height: 10 } },
+                colors: ['#004B4E', '#2ab8ac', '#a8d8d8'],
+                legend: {
+                  position: 'bottom',
+                  horizontalAlign: 'center',
+                  fontSize: '13px',
+                  markers: { width: 10, height: 10 },
+                  itemMargin: { horizontal: 10, vertical: 4 },
+                },
                 stroke: { width: 2, colors: ['#fff'] },
-                dataLabels: { enabled: true, formatter: v => `${v.toFixed(0)}%` },
+                dataLabels: {
+                  enabled: true,
+                  formatter: v => `${v.toFixed(1)}%`,
+                  style: { fontSize: '12px', fontWeight: 600 },
+                  dropShadow: { enabled: false },
+                },
                 plotOptions: {
                   pie: {
                     donut: {
                       size: '68%',
                       labels: {
                         show: true,
+                        name:  { fontSize: '13px', color: '#64748b' },
                         value: { fontSize: '22px', fontWeight: 700, color: '#0f172a' },
                         total: {
                           show: true, label: 'Total Clients', color: '#64748b',
@@ -341,6 +418,7 @@ export default function Dashboard() {
                     },
                   },
                 },
+                tooltip: { y: { formatter: v => `${v} clients` } },
               }}
             />
           )}

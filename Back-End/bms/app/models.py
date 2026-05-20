@@ -4,6 +4,7 @@ from django.db import models
 class Brand(models.Model):
     id   = models.BigAutoField(primary_key=True)
     name = models.CharField(max_length=50, unique=True)
+    code = models.CharField(max_length=10, blank=True, null=True, default=None)
 
     class Meta:
         db_table = 'brands'

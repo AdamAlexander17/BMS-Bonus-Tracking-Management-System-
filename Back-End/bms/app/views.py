@@ -718,6 +718,7 @@ def format_brand(brand):
     return {
         'id':   brand.id,
         'name': brand.name,
+        'code': brand.code,
     }
 
 
@@ -731,9 +732,15 @@ def brand_create(request):
         )
 
     name = request.data.get('name', '').strip()
+    code = request.data.get('code', '').strip().upper()
     if not name:
         return Response(
             {'success': False, 'message': 'Brand name is required.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    if not code:
+        return Response(
+            {'success': False, 'message': 'Brand code is required.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -742,8 +749,13 @@ def brand_create(request):
             {'success': False, 'message': f'Brand "{name}" already exists.'},
             status=status.HTTP_400_BAD_REQUEST
         )
+    if Brand.objects.filter(code=code).exists():
+        return Response(
+            {'success': False, 'message': f'Code "{code}" already in use.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
-    brand = Brand.objects.create(name=name)
+    brand = Brand.objects.create(name=name, code=code or None)
     log_audit_event(
         request,
         module='brand',
@@ -824,9 +836,15 @@ def brand_update(request, brand_id):
         )
 
     name = request.data.get('name', '').strip()
+    code = request.data.get('code', '').strip().upper()
     if not name:
         return Response(
             {'success': False, 'message': 'Brand name is required.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    if not code:
+        return Response(
+            {'success': False, 'message': 'Brand code is required.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -835,9 +853,15 @@ def brand_update(request, brand_id):
             {'success': False, 'message': f'Brand "{name}" already exists.'},
             status=status.HTTP_400_BAD_REQUEST
         )
+    if Brand.objects.filter(code=code).exclude(id=brand_id).exists():
+        return Response(
+            {'success': False, 'message': f'Code "{code}" already in use.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     previous_name = brand.name
     brand.name = name
+    brand.code = code or None
     brand.save()
     log_audit_event(
         request,

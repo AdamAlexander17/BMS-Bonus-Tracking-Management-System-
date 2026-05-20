@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../components/PageHeader/PageHeader';
+import CustomSelect from '../components/CustomSelect/CustomSelect';
 import { getRmJrmUsers } from '../api/users';
 import './Users.css';
 
@@ -75,32 +76,30 @@ export default function Brokers() {
         subtitle={`${users.length} broker${users.length !== 1 ? 's' : ''} • Relationship Managers & Junior Relationship Managers`}
         actions={
           <>
-            <select
-              className="um__select"
+            <CustomSelect
               value={roleFilter}
-              onChange={e => setRoleFilter(e.target.value)}
-            >
-              <option value="all">All Roles</option>
-              <option value="RM">RM</option>
-              <option value="JRM">JRM</option>
-            </select>
-            <select
-              className="um__select"
+              onChange={setRoleFilter}
+              placeholder="All Roles"
+              options={[
+                { value: 'RM',  label: 'RM'  },
+                { value: 'JRM', label: 'JRM' },
+              ]}
+            />
+            <CustomSelect
               value={brandFilter}
-              onChange={e => setBrandFilter(e.target.value)}
-            >
-              <option value="all">All Brands</option>
-              {allBrands.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-            <select
-              className="um__select"
+              onChange={setBrandFilter}
+              placeholder="All Brands"
+              options={allBrands.map(b => ({ value: b, label: b }))}
+            />
+            <CustomSelect
               value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
+              onChange={setStatusFilter}
+              placeholder="All Status"
+              options={[
+                { value: 'Active',   label: 'Active'   },
+                { value: 'Inactive', label: 'Inactive' },
+              ]}
+            />
             <button className="ph-btn ph-btn--ghost" onClick={fetchAll}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
                 <polyline points="23 4 23 10 17 10"/>
@@ -161,15 +160,12 @@ export default function Brokers() {
                   </td>
                   <td>
                     {u.brand
-                      ? <span className="um__role-badge" style={{ marginRight: 4 }}>{u.brand}</span>
+                      ? <span className="um__role-badge bk__chip--brand">{u.brand}</span>
                       : <span className="um__handle">—</span>
                     }
                   </td>
                   <td>
-                    <span
-                      className="um__role-badge"
-                      style={{ background: (u.roles || []).includes('RM') ? '#dbeafe' : '#fef3c7', color: (u.roles || []).includes('RM') ? '#1d4ed8' : '#92400e' }}
-                    >
+                    <span className="um__role-badge bk__chip--role">
                       {(u.roles || []).join('/')}
                     </span>
                   </td>
