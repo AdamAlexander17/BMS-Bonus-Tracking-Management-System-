@@ -50,6 +50,34 @@ function formatDateOnly(value) {
   });
 }
 
+function escapeCsvValue(value) {
+  const normalized = String(value ?? '');
+  if (/[",\n]/.test(normalized)) {
+    return `"${normalized.replace(/"/g, '""')}"`;
+  }
+  return normalized;
+}
+
+function exportRowsToCsv(fileName, columns, rows) {
+  const header = columns.map((column) => escapeCsvValue(column.label)).join(',');
+  const body = rows.map((row) => columns.map((column) => escapeCsvValue(column.value(row))).join(',')).join('\n');
+  const csv = [header, body].filter(Boolean).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function paginateRows(rows, page, pageSize) {
+  const start = (page - 1) * pageSize;
+  return rows.slice(start, start + pageSize);
+}
+
 function FilterField({ label, children, span = 1 }) {
   return (
     <div style={{ gridColumn: `span ${span}` }}>
@@ -71,6 +99,45 @@ function StatCard({ label, value, helper }) {
   );
 }
 
+function ReportToolbar({ title, subtitle, rowCount, pageSize, onPageSizeChange, onExport, children }) {
+  return (
+    <div className="um__toolbar">
+      <div>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{title}</h3>
+        {subtitle ? <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>{subtitle}</div> : null}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, color: '#6b7280' }}>{rowCount} record{rowCount !== 1 ? 's' : ''}</span>
+        <select style={{ ...controlStyle, width: 92, height: 36, fontSize: 13 }} value={String(pageSize)} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
+          <option value="5">5 rows</option>
+          <option value="10">10 rows</option>
+          <option value="25">25 rows</option>
+          <option value="50">50 rows</option>
+        </select>
+        <button className="ph-btn ph-btn--ghost" type="button" onClick={onExport}>Export CSV</button>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function PaginationControls({ page, pageSize, totalRows, onChange }) {
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '14px 20px', borderTop: '1px solid #e8ecf0', flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 13, color: '#6b7280' }}>
+        Showing {totalRows === 0 ? 0 : ((page - 1) * pageSize) + 1}-{Math.min(page * pageSize, totalRows)} of {totalRows}
+      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button className="ph-btn ph-btn--ghost" type="button" disabled={page <= 1} onClick={() => onChange(page - 1)}>Previous</button>
+        <span style={{ fontSize: 13, color: '#374151' }}>Page {page} of {totalPages}</span>
+        <button className="ph-btn ph-btn--ghost" type="button" disabled={page >= totalPages} onClick={() => onChange(page + 1)}>Next</button>
+      </div>
+    </div>
+  );
+}
+
 export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -87,7 +154,13 @@ export default function Reports() {
   const [transactionType, setTransactionType] = useState('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
+  const [brokerPage, setBrokerPage] = useState(1);
+  const [clientPage, setClientPage] = useState(1);
+  const [transactionPage, setTransactionPage] = useState(1);
+  const [brokerPageSize, setBrokerPageSize] = useState(10);
+  const [clientPageSize, setClientPageSize] = useState(10);
+  const [transactionPageSize, setTransactionPageSize] = useState(10);
 
   useEffect(() => {
     let active = true;
@@ -276,6 +349,49 @@ export default function Reports() {
     setToDate('');
   };
 
+  const brokerColumns = useMemo(() => [
+    { label: 'Broker', value: (row) => row.broker_name },
+    { label: 'Brand', value: (row) => row.brand_name },
+    { label: 'RM', value: (row) => row.rm_user_name },
+    { label: 'Clients', value: (row) => row.client_count },
+    { label: 'Trading OK', value: (row) => row.legitimate_count },
+    { label: 'Deposited', value: (row) => row.deposited_amount },
+    { label: 'Withdrawn', value: (row) => row.withdrawal_amount },
+    { label: 'Earned', value: (row) => row.earned_amount },
+  ], []);
+
+  const clientColumns = useMemo(() => [
+    { label: 'Client', value: (row) => row.name },
+    { label: 'ARC ID', value: (row) => row.arc_id },
+    { label: 'Broker', value: (row) => row.broker_name },
+    { label: 'Brand', value: (row) => row.brand_name },
+    { label: 'Status', value: (row) => row.status },
+    { label: 'Trading OK', value: (row) => row.is_legitimate ? 'Yes' : 'No' },
+    { label: 'Deposited', value: (row) => row.deposited_amount },
+    { label: 'Withdrawn', value: (row) => row.withdrawal_amount },
+    { label: 'Earned', value: (row) => row.earned_amount },
+    { label: 'Created', value: (row) => row.created_at },
+  ], []);
+
+  const transactionColumns = useMemo(() => [
+    { label: 'Client', value: (row) => row.client_name },
+    { label: 'ARC ID', value: (row) => row.client_arc_id },
+    { label: 'Broker', value: (row) => row.broker_name },
+    { label: 'Brand', value: (row) => row.brand_name },
+    { label: 'Type', value: (row) => row.transaction_type },
+    { label: 'Amount', value: (row) => row.amount },
+    { label: 'Entered By', value: (row) => row.entered_by || 'Unknown' },
+    { label: 'Date Time', value: (row) => row.created_at },
+  ], []);
+
+  useEffect(() => { setBrokerPage(1); }, [brokerSummary.length, brokerPageSize]);
+  useEffect(() => { setClientPage(1); }, [filteredClients.length, clientPageSize]);
+  useEffect(() => { setTransactionPage(1); }, [filteredTransactions.length, transactionPageSize]);
+
+  const pagedBrokerSummary = useMemo(() => paginateRows(brokerSummary, brokerPage, brokerPageSize), [brokerSummary, brokerPage, brokerPageSize]);
+  const pagedClients = useMemo(() => paginateRows(filteredClients, clientPage, clientPageSize), [filteredClients, clientPage, clientPageSize]);
+  const pagedTransactions = useMemo(() => paginateRows(filteredTransactions, transactionPage, transactionPageSize), [filteredTransactions, transactionPage, transactionPageSize]);
+
   if (loading) return <div className="um"><div className="um__loading">Loading reports...</div></div>;
   if (error) return <div className="um"><div className="um__error">{error}</div></div>;
 
@@ -370,10 +486,13 @@ export default function Reports() {
       </div>
 
       <div className="um__card" style={{ marginBottom: 20 }}>
-        <div className="um__toolbar">
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Broker Performance Summary</h3>
-          <span style={{ fontSize: 13, color: '#6b7280' }}>{brokerSummary.length} broker record{brokerSummary.length !== 1 ? 's' : ''}</span>
-        </div>
+        <ReportToolbar
+          title="Broker Performance Summary"
+          rowCount={brokerSummary.length}
+          pageSize={brokerPageSize}
+          onPageSizeChange={setBrokerPageSize}
+          onExport={() => exportRowsToCsv('broker-performance-summary.csv', brokerColumns, brokerSummary)}
+        />
         <table className="um__table">
           <thead>
             <tr>
@@ -388,9 +507,9 @@ export default function Reports() {
             </tr>
           </thead>
           <tbody>
-            {brokerSummary.length === 0 ? (
+            {pagedBrokerSummary.length === 0 ? (
               <tr><td colSpan="8" className="um__empty">No brokers match the current report filters.</td></tr>
-            ) : brokerSummary.map((broker) => (
+            ) : pagedBrokerSummary.map((broker) => (
               <tr key={broker.broker_id}>
                 <td>{broker.broker_name}</td>
                 <td>{broker.brand_name}</td>
@@ -404,13 +523,17 @@ export default function Reports() {
             ))}
           </tbody>
         </table>
+        <PaginationControls page={brokerPage} pageSize={brokerPageSize} totalRows={brokerSummary.length} onChange={setBrokerPage} />
       </div>
 
       <div className="um__card" style={{ marginBottom: 20 }}>
-        <div className="um__toolbar">
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Client Bonus Report</h3>
-          <span style={{ fontSize: 13, color: '#6b7280' }}>{filteredClients.length} client record{filteredClients.length !== 1 ? 's' : ''}</span>
-        </div>
+        <ReportToolbar
+          title="Client Bonus Report"
+          rowCount={filteredClients.length}
+          pageSize={clientPageSize}
+          onPageSizeChange={setClientPageSize}
+          onExport={() => exportRowsToCsv('client-bonus-report.csv', clientColumns, filteredClients)}
+        />
         <table className="um__table">
           <thead>
             <tr>
@@ -427,9 +550,9 @@ export default function Reports() {
             </tr>
           </thead>
           <tbody>
-            {filteredClients.length === 0 ? (
+            {pagedClients.length === 0 ? (
               <tr><td colSpan="10" className="um__empty">No clients match the current report filters.</td></tr>
-            ) : filteredClients.map((client) => (
+            ) : pagedClients.map((client) => (
               <tr key={client.id}>
                 <td>{client.name}</td>
                 <td>{client.arc_id}</td>
@@ -445,15 +568,18 @@ export default function Reports() {
             ))}
           </tbody>
         </table>
+        <PaginationControls page={clientPage} pageSize={clientPageSize} totalRows={filteredClients.length} onChange={setClientPage} />
       </div>
 
       <div className="um__card">
-        <div className="um__toolbar">
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Transaction Ledger</h3>
-          <span style={{ fontSize: 13, color: '#6b7280' }}>
-            {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''} · Deposits {formatMoney(summary.periodDeposits)} · Withdrawals {formatMoney(summary.periodWithdrawals)}
-          </span>
-        </div>
+        <ReportToolbar
+          title="Transaction Ledger"
+          subtitle={`Deposits ${formatMoney(summary.periodDeposits)} · Withdrawals ${formatMoney(summary.periodWithdrawals)}`}
+          rowCount={filteredTransactions.length}
+          pageSize={transactionPageSize}
+          onPageSizeChange={setTransactionPageSize}
+          onExport={() => exportRowsToCsv('transaction-ledger.csv', transactionColumns, filteredTransactions)}
+        />
         <table className="um__table">
           <thead>
             <tr>
@@ -468,9 +594,9 @@ export default function Reports() {
             </tr>
           </thead>
           <tbody>
-            {filteredTransactions.length === 0 ? (
+            {pagedTransactions.length === 0 ? (
               <tr><td colSpan="8" className="um__empty">No transactions match the current report filters.</td></tr>
-            ) : filteredTransactions.map((transaction) => (
+            ) : pagedTransactions.map((transaction) => (
               <tr key={transaction.id}>
                 <td>{transaction.client_name}</td>
                 <td>{transaction.client_arc_id}</td>
@@ -484,6 +610,7 @@ export default function Reports() {
             ))}
           </tbody>
         </table>
+        <PaginationControls page={transactionPage} pageSize={transactionPageSize} totalRows={filteredTransactions.length} onChange={setTransactionPage} />
       </div>
     </div>
   );
