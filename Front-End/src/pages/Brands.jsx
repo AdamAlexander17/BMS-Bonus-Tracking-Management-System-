@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getBrands, deleteBrand, createBrand, updateBrand } from '../api/brands';
+import CustomSelect from '../components/CustomSelect/CustomSelect';
 
 function ConfirmDialog({ title, message, onConfirm, onCancel }) {
   return (
@@ -69,6 +70,8 @@ export default function Brands() {
   const [newName, setNewName]     = useState('');
   const [newCode, setNewCode]     = useState('');
   const [creating, setCreating]   = useState(false);
+  const [pageSize, setPageSize]   = useState(10);
+  const [page, setPage]           = useState(1);
 
   const fetchBrands = async () => {
     setLoading(true);
@@ -119,6 +122,9 @@ export default function Brands() {
 
   const filtered = brands.filter(b => b.name.toLowerCase().includes(search.toLowerCase()));
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged      = filtered.slice((page - 1) * pageSize, page * pageSize);
+
   return (
     <div className="um">
       <PageHeader
@@ -159,10 +165,15 @@ export default function Brands() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            <input placeholder="Search brands by name" value={search} onChange={e => setSearch(e.target.value)} />
+            <input placeholder="Search brands by name" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
           </div>
           <div className="um__entries">
-            Show <select defaultValue="10"><option>10</option><option>25</option><option>50</option></select> entries
+            Show <CustomSelect
+              variant="form"
+              value={String(pageSize)}
+              onChange={v => { setPageSize(Number(v)); setPage(1); }}
+              options={[{value:'10',label:'10'},{value:'25',label:'25'},{value:'50',label:'50'}]}
+            /> entries
           </div>
         </div>
 
@@ -179,14 +190,14 @@ export default function Brands() {
             <thead>
               <tr>
                 <th>BRAND</th>
-                <th>CODE</th>
+                <th style={{ textAlign: 'center' }}>CODE</th>
                 {canActions && <th style={{ textAlign: 'right' }}>ACTIONS</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr><td colSpan={canActions ? 3 : 2} className="um__empty">No brands found.</td></tr>
-              ) : filtered.map(b => (
+              ) : paged.map(b => (
                 <tr key={b.id}>
                   <td>
                     <div className="um__user-cell">
@@ -197,7 +208,7 @@ export default function Brands() {
                       </div>
                     </div>
                   </td>
-                  <td><span className="um__role-badge" style={{ background: '#e0f5f5', color: '#004B4E', border: 'none', minWidth: 48, textAlign: 'center', display: 'inline-block' }}>{b.code || '—'}</span></td>
+                  <td style={{ textAlign: 'center' }}><span className="um__role-badge" style={{ background: '#e0f5f5', color: '#004B4E', border: 'none', minWidth: 48, textAlign: 'center', display: 'inline-block' }}>{b.code || '—'}</span></td>
                   {canActions && (
                     <td style={{ textAlign: 'right' }}>
                       <div className="um__actions" style={{ justifyContent: 'flex-end' }}>
@@ -226,6 +237,20 @@ export default function Brands() {
               ))}
             </tbody>
           </table>
+        )}
+        {!loading && !error && (
+          <div className="um__footer">
+            <span className="um__footer-info">
+              {filtered.length === 0
+                ? 'No results'
+                : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filtered.length)} of ${filtered.length}`}
+            </span>
+            <div className="um__footer-nav">
+              <button className="ph-btn ph-btn--ghost" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
+              <span className="um__footer-page">{page} / {totalPages}</span>
+              <button className="ph-btn ph-btn--ghost" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
+            </div>
+          </div>
         )}
       </div>
 

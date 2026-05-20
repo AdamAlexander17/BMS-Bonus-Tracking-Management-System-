@@ -33,6 +33,8 @@ export default function Brokers() {
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [brandFilter, setBrandFilter] = useState('all');
+  const [pageSize, setPageSize]        = useState(10);
+  const [page, setPage]                = useState(1);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -62,6 +64,9 @@ export default function Brokers() {
     const matchBrand  = brandFilter  === 'all' || u.brand === brandFilter;
     return matchSearch && matchRole && matchStatus && matchBrand;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged      = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const formatDate = (str) => {
     if (!str) return '—';
@@ -121,11 +126,16 @@ export default function Brokers() {
             <input
               placeholder="Search by name, role or brand"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
           </div>
           <div className="um__entries">
-            Show <select defaultValue="10"><option>10</option><option>25</option><option>50</option></select> entries
+            Show <CustomSelect
+              variant="form"
+              value={String(pageSize)}
+              onChange={v => { setPageSize(Number(v)); setPage(1); }}
+              options={[{value:'10',label:'10'},{value:'25',label:'25'},{value:'50',label:'50'}]}
+            /> entries
           </div>
         </div>
 
@@ -134,20 +144,28 @@ export default function Brokers() {
 
         {!loading && !error && (
           <table className="um__table">
+            <colgroup>
+              <col style={{ width: '24%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '12%' }} />
+              <col />
+            </colgroup>
             <thead>
               <tr>
                 <th>USER</th>
-                <th>BRANDS</th>
-                <th>ROLE</th>
-                <th>BROKER MANAGED</th>
-                <th>STATUS</th>
+                <th style={{ textAlign: 'center' }}>BRANDS</th>
+                <th style={{ textAlign: 'center' }}>ROLE</th>
+                <th style={{ textAlign: 'center' }}>BROKER MANAGED</th>
+                <th style={{ textAlign: 'center' }}>STATUS</th>
                 <th>CREATED ↓</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr><td colSpan="6" className="um__empty">No RM / JRM users found.</td></tr>
-              ) : filtered.map(u => (
+              ) : paged.map(u => (
                 <tr key={u.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/brokers/rm/${u.id}`)}>
                   <td>
                     <div className="um__user-cell">
@@ -158,21 +176,21 @@ export default function Brokers() {
                       </div>
                     </div>
                   </td>
-                  <td>
+                  <td style={{ textAlign: 'center' }}>
                     {u.brand
                       ? <span className="um__role-badge bk__chip--brand">{u.brand}</span>
                       : <span className="um__handle">—</span>
                     }
                   </td>
-                  <td>
+                  <td style={{ textAlign: 'center' }}>
                     <span className="um__role-badge bk__chip--role">
                       {(u.roles || []).join('/')}
                     </span>
                   </td>
-                  <td>
+                  <td style={{ textAlign: 'center' }}>
                     <span style={{ fontWeight: 600 }}>{u.broker_count ?? 0}</span>
                   </td>
-                  <td>
+                  <td style={{ textAlign: 'center' }}>
                     <span className={`um__status-badge ${u.status === 'Active' ? 'um__status-badge--active' : 'um__status-badge--inactive'}`}>
                       {u.status}
                     </span>
@@ -192,6 +210,20 @@ export default function Brokers() {
               ))}
             </tbody>
           </table>
+        )}
+        {!loading && !error && (
+          <div className="um__footer">
+            <span className="um__footer-info">
+              {filtered.length === 0
+                ? 'No results'
+                : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filtered.length)} of ${filtered.length}`}
+            </span>
+            <div className="um__footer-nav">
+              <button className="ph-btn ph-btn--ghost" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
+              <span className="um__footer-page">{page} / {totalPages}</span>
+              <button className="ph-btn ph-btn--ghost" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
+            </div>
+          </div>
         )}
       </div>
     </div>

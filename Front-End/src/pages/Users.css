@@ -125,9 +125,20 @@
   display: flex; align-items: center; gap: 8px;
   font-size: 0.82rem; color: #5a6478;
 }
-.um__entries select {
-  border: 1px solid #dde2eb; border-radius: 6px;
-  padding: 4px 6px; font-size: 0.82rem; outline: none;
+
+/* Pagination footer */
+.um__footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 20px; border-top: 1px solid #e8ecf0;
+  font-size: 0.78rem; color: #5a6478; flex-wrap: wrap; gap: 6px;
+}
+.um__footer-nav { display: flex; align-items: center; gap: 6px; }
+.um__footer-page { font-size: 0.78rem; color: #374151; font-weight: 500; }
+.um__footer .ph-btn {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 0.75rem;
+  border-radius: 6px;
 }
 
 /* Table */
@@ -173,7 +184,9 @@
 /* Role badge */
 .um__role-badge {
   display: inline-block;
-  padding: 3px 10px;
+  width: 80px;
+  text-align: center;
+  padding: 3px 0;
   background: #e0f5f5;
   color: #004B4E;
   border: none;
@@ -415,6 +428,7 @@
   border-color: #004B4E;
   color: #fff;
 }
+.um__role-pill--active:hover { background: #006467; border-color: #006467; color: #fff; }
 .um__pill-check { font-size: 0.75rem; font-weight: 700; }
 
 /* Active checkbox */
@@ -462,15 +476,6 @@
 }
 .um__btn-save:hover:not(:disabled) { background: #006467; }
 .um__btn-save:disabled { opacity: 0.55; cursor: not-allowed; }
-  background: #004B4E;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #fff;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.um__btn-save:hover:not(:disabled) { background: #006467; }
-.um__btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* ── Brand multi-select chip picker ──────────────────────────────────── */
 .um__brand-picker {

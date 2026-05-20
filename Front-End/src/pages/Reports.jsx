@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
+import CustomSelect from '../components/CustomSelect/CustomSelect';
 import { getBrokers } from '../api/brokers';
 import { getBrands } from '../api/brands';
 import { getClientsByBroker, getClientTransactions } from '../api/clients';
@@ -115,14 +116,14 @@ function ReportToolbar({ title, subtitle, rowCount, pageSize, onPageSizeChange, 
         <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{title}</h3>
         {subtitle ? <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>{subtitle}</div> : null}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'nowrap' }}>
         <span style={{ fontSize: 13, color: '#6b7280' }}>{rowCount} record{rowCount !== 1 ? 's' : ''}</span>
-        <select className="app-report-select" style={{ ...selectControlStyle, width: 92, height: 36, fontSize: 13 }} value={String(pageSize)} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
-          <option value="5">5 rows</option>
-          <option value="10">10 rows</option>
-          <option value="25">25 rows</option>
-          <option value="50">50 rows</option>
-        </select>
+        <CustomSelect
+          variant="form"
+          value={String(pageSize)}
+          onChange={(v) => onPageSizeChange(Number(v))}
+          options={[{value:'5',label:'5 rows'},{value:'10',label:'10 rows'},{value:'25',label:'25 rows'},{value:'50',label:'50 rows'}]}
+        />
         {onExport && <button className="ph-btn ph-btn--ghost" type="button" onClick={onExport}>Export CSV</button>}
         {children}
       </div>

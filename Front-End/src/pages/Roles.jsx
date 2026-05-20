@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getRoles, deleteRole } from '../api/roles';
+import CustomSelect from '../components/CustomSelect/CustomSelect';
 
 function ConfirmDialog({ title, message, onConfirm, onCancel }) {
   return (
@@ -67,6 +68,8 @@ export default function Roles() {
   const [showModal, setShowModal] = useState(false);
   const [editRole, setEditRole]   = useState(null);
   const [confirmState, setConfirmState] = useState(null);
+  const [pageSize, setPageSize]         = useState(10);
+  const [page, setPage]                 = useState(1);
 
   const fetchRoles = async () => {
     setLoading(true);
@@ -99,6 +102,9 @@ export default function Roles() {
   };
 
   const filtered = roles.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged      = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="um">
@@ -152,10 +158,15 @@ export default function Roles() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            <input placeholder="Search roles by name" value={search} onChange={e => setSearch(e.target.value)} />
+            <input placeholder="Search roles by name" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
           </div>
           <div className="um__entries">
-            Show <select defaultValue="10"><option>10</option><option>25</option><option>50</option></select> entries
+            Show <CustomSelect
+              variant="form"
+              value={String(pageSize)}
+              onChange={v => { setPageSize(Number(v)); setPage(1); }}
+              options={[{value:'10',label:'10'},{value:'25',label:'25'},{value:'50',label:'50'}]}
+            /> entries
           </div>
         </div>
 
@@ -175,15 +186,15 @@ export default function Roles() {
               <tr>
                 <th>ROLE</th>
                 <th>DESCRIPTION</th>
-                <th>PERMISSIONS</th>
-                <th>STATUS</th>
+                <th style={{ textAlign: 'center' }}>PERMISSIONS</th>
+                <th style={{ textAlign: 'center' }}>STATUS</th>
                 {canActions && <th style={{ textAlign: 'right' }}>ACTIONS</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr><td colSpan={canActions ? 5 : 4} className="um__empty">No roles found.</td></tr>
-              ) : filtered.map(r => (
+              ) : paged.map(r => (
                 <tr key={r.id}>
                   <td>
                     <div className="um__user-cell">
@@ -192,12 +203,12 @@ export default function Roles() {
                     </div>
                   </td>
                   <td className="um__desc-cell">{r.description || <span style={{ color: '#c0c8d8' }}>—</span>}</td>
-                  <td>
+                  <td style={{ textAlign: 'center' }}>
                     <span className="um__perm-count-badge">
                       {r.permission_count ?? r.permissions?.length ?? 0} permissions
                     </span>
                   </td>
-                  <td>
+                  <td style={{ textAlign: 'center' }}>
                     <span className={`um__status-badge ${r.status === 'Active' ? 'um__status-badge--active' : 'um__status-badge--inactive'}`}>
                       {r.status || 'Active'}
                     </span>
@@ -231,8 +242,21 @@ export default function Roles() {
             </tbody>
           </table>
         )}
+        {!loading && !error && (
+          <div className="um__footer">
+            <span className="um__footer-info">
+              {filtered.length === 0
+                ? 'No results'
+                : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filtered.length)} of ${filtered.length}`}
+            </span>
+            <div className="um__footer-nav">
+              <button className="ph-btn ph-btn--ghost" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
+              <span className="um__footer-page">{page} / {totalPages}</span>
+              <button className="ph-btn ph-btn--ghost" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
+            </div>
+          </div>
+        )}
       </div>
-
       {confirmState && (
         <ConfirmDialog
           title={confirmState.title}
