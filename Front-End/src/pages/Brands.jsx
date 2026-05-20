@@ -141,20 +141,22 @@ export default function Brands() {
         {!loading && !error && (
           <table className="um__table">
             <colgroup>
-              <col style={{ width: '45%' }} />
-              <col />
-              {canActions && <col style={{ width: '20%' }} />}
+              <col style={{ width: '40%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '20%' }} />
+              {canActions && <col style={{ width: '18%' }} />}
             </colgroup>
             <thead>
               <tr>
                 <th>BRAND</th>
                 <th style={{ textAlign: 'center' }}>CODE</th>
+                <th style={{ textAlign: 'center' }}>CREATED AT</th>
                 {canActions && <th style={{ textAlign: 'right' }}>ACTIONS</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={canActions ? 3 : 2} className="um__empty">No brands found.</td></tr>
+                <tr><td colSpan={canActions ? 4 : 3} className="um__empty">No brands found.</td></tr>
               ) : paged.map(b => (
                 <tr key={b.id}>
                   <td>
@@ -167,6 +169,7 @@ export default function Brands() {
                     </div>
                   </td>
                   <td style={{ textAlign: 'center' }}><span className="um__role-badge" style={{ background: '#e0f5f5', color: '#004B4E', border: 'none', minWidth: 48, textAlign: 'center', display: 'inline-block' }}>{b.code || '—'}</span></td>
+                  <td style={{ textAlign: 'center', fontSize: 13, color: '#6b7280' }}>{b.created_at || '—'}</td>
                   {canActions && (
                     <td style={{ textAlign: 'right' }}>
                       <div className="um__actions" style={{ justifyContent: 'flex-end' }}>

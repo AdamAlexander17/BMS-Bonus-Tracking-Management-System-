@@ -831,9 +831,10 @@ def rm_jrm_users(request):
 
 def format_brand(brand):
     return {
-        'id':   brand.id,
-        'name': brand.name,
-        'code': brand.code,
+        'id':         brand.id,
+        'name':       brand.name,
+        'code':       brand.code,
+        'created_at': brand.created_at.strftime('%b %d, %Y') if brand.created_at else '—',
     }
 
 
