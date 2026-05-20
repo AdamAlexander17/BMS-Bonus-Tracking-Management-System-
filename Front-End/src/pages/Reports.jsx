@@ -5,7 +5,7 @@ import { getBrands } from '../api/brands';
 import { getClientsByBroker, getClientTransactions } from '../api/clients';
 import './Users.css';
 
-const controlStyle = {
+const inputControlStyle = {
   width: '100%',
   height: 40,
   padding: '0 12px',
@@ -14,6 +14,14 @@ const controlStyle = {
   fontSize: 14,
   color: '#111827',
   background: '#fff',
+  outline: 'none',
+  boxSizing: 'border-box',
+};
+
+const selectControlStyle = {
+  width: '100%',
+  height: 40,
+  padding: '0 12px',
   outline: 'none',
   boxSizing: 'border-box',
 };
@@ -108,7 +116,7 @@ function ReportToolbar({ title, subtitle, rowCount, pageSize, onPageSizeChange, 
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 13, color: '#6b7280' }}>{rowCount} record{rowCount !== 1 ? 's' : ''}</span>
-        <select style={{ ...controlStyle, width: 92, height: 36, fontSize: 13 }} value={String(pageSize)} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
+        <select className="app-report-select" style={{ ...selectControlStyle, width: 92, height: 36, fontSize: 13 }} value={String(pageSize)} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
           <option value="5">5 rows</option>
           <option value="10">10 rows</option>
           <option value="25">25 rows</option>
@@ -423,50 +431,50 @@ export default function Reports() {
           <div style={{ padding: '0 20px 20px', borderTop: '1px solid #e8ecf0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, alignItems: 'end' }}>
             <FilterField label="Search" span={2}>
               <input
-                style={controlStyle}
+                style={inputControlStyle}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search broker, client, ARC ID, user, type, or amount"
               />
             </FilterField>
             <FilterField label="Brand">
-              <select style={controlStyle} value={brandId} onChange={(event) => setBrandId(event.target.value)}>
+              <select className="app-report-select" style={selectControlStyle} value={brandId} onChange={(event) => setBrandId(event.target.value)}>
                 <option value="all">All brands</option>
                 {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
               </select>
             </FilterField>
             <FilterField label="Broker">
-              <select style={controlStyle} value={brokerId} onChange={(event) => setBrokerId(event.target.value)}>
+              <select className="app-report-select" style={selectControlStyle} value={brokerId} onChange={(event) => setBrokerId(event.target.value)}>
                 <option value="all">All brokers</option>
                 {brokers.map((broker) => <option key={broker.id} value={broker.id}>{broker.name}</option>)}
               </select>
             </FilterField>
             <FilterField label="Client Status">
-              <select style={controlStyle} value={status} onChange={(event) => setStatus(event.target.value)}>
+              <select className="app-report-select" style={selectControlStyle} value={status} onChange={(event) => setStatus(event.target.value)}>
                 <option value="all">All statuses</option>
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
               </select>
             </FilterField>
             <FilterField label="Trading OK">
-              <select style={controlStyle} value={tradingState} onChange={(event) => setTradingState(event.target.value)}>
+              <select className="app-report-select" style={selectControlStyle} value={tradingState} onChange={(event) => setTradingState(event.target.value)}>
                 <option value="all">All clients</option>
                 <option value="yes">Checked only</option>
                 <option value="no">Unchecked only</option>
               </select>
             </FilterField>
             <FilterField label="Transaction Type">
-              <select style={controlStyle} value={transactionType} onChange={(event) => setTransactionType(event.target.value)}>
+              <select className="app-report-select" style={selectControlStyle} value={transactionType} onChange={(event) => setTransactionType(event.target.value)}>
                 <option value="all">All types</option>
                 <option value="deposit">Deposit</option>
                 <option value="withdrawal">Withdrawal</option>
               </select>
             </FilterField>
             <FilterField label="From Date">
-              <input type="date" style={controlStyle} value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+              <input type="date" style={inputControlStyle} value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
             </FilterField>
             <FilterField label="To Date">
-              <input type="date" style={controlStyle} value={toDate} onChange={(event) => setToDate(event.target.value)} />
+              <input type="date" style={inputControlStyle} value={toDate} onChange={(event) => setToDate(event.target.value)} />
             </FilterField>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, minHeight: 40 }}>
               <button className="ph-btn ph-btn--ghost" type="button" onClick={resetFilters}>Reset Filters</button>

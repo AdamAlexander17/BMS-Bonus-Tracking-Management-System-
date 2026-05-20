@@ -115,18 +115,19 @@
 
 /* Status select */
 .rm__select {
-  border: 1px solid #e2e8f0;
+  border: 1.5px solid var(--app-select-border);
   border-radius: 8px;
   padding: 9px 12px;
-  font-size: 0.875rem;
-  color: #0f172a;
-  background: #f8fafc;
+  font-size: 0.83rem;
+  color: var(--app-select-text);
+  background: var(--app-select-bg);
   outline: none;
   transition: border 0.15s, box-shadow 0.15s;
   cursor: pointer;
   width: 100%;
+  font-weight: 500;
 }
-.rm__select:focus { border-color: #004B4E; background: #fff; box-shadow: 0 0 0 3px rgba(0,75,78,0.1); }
+.rm__select:focus { border-color: var(--app-select-border); background: var(--app-select-bg); box-shadow: 0 0 0 3px var(--app-select-focus); }
 
 .rm__perms-header {
   display: flex;

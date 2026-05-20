@@ -1,5 +1,31 @@
 *, *::before, *::after { box-sizing: border-box; }
 
+:root {
+  --app-select-border: #004b4e;
+  --app-select-text: #004b4e;
+  --app-select-bg: #ffffff;
+  --app-select-focus: rgba(0, 75, 78, 0.12);
+}
+
+select:not([multiple]) {
+  border: 1.5px solid var(--app-select-border) !important;
+  border-radius: 8px !important;
+  background: var(--app-select-bg) !important;
+  color: var(--app-select-text) !important;
+  font-weight: 500 !important;
+  appearance: auto;
+}
+
+select:not([multiple]):focus {
+  border-color: var(--app-select-border) !important;
+  box-shadow: 0 0 0 3px var(--app-select-focus) !important;
+}
+
+select:not([multiple]) option {
+  background: #fff;
+  color: #1a1f36;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;

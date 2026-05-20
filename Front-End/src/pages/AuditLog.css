@@ -81,6 +81,15 @@
   box-sizing: border-box;
 }
 
+select.audit-log-control {
+  border-width: 1.5px;
+  border-color: var(--app-select-border);
+  color: var(--app-select-text);
+  background: var(--app-select-bg);
+  font-size: 0.83rem;
+  font-weight: 500;
+}
+
 .audit-log-control:focus {
   border-color: #0f766e;
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);

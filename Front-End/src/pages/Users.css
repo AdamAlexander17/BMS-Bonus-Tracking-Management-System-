@@ -33,28 +33,23 @@
 .um__select {
   height: 38px;
   padding: 0 12px;
-  border: 1.5px solid #004B4E;
+  border: 1.5px solid var(--app-select-border);
   border-radius: 8px;
   font-size: 0.83rem;
-  color: #004B4E;
-  background: transparent;
+  color: var(--app-select-text);
+  background: var(--app-select-bg);
   outline: none;
   cursor: pointer;
   appearance: auto;
   font-weight: 500;
-  transition: background 0.15s, color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.um__select:focus { box-shadow: 0 0 0 3px rgba(0,75,78,0.12); }
+.um__select:focus { box-shadow: 0 0 0 3px var(--app-select-focus); }
 .um__select option {
   background: #fff;
   color: #1a1f36;
   padding: 8px 12px;
   font-size: 0.83rem;
-}
-.um__select option:checked,
-.um__select option:hover {
-  background: #004B4E linear-gradient(0deg, #004B4E 0%, #004B4E 100%);
-  color: #fff;
 }
 
 .um__btn-refresh {
