@@ -103,7 +103,7 @@ function StatCard({ label, value, helper }) {
   return (
     <div className="um__card" style={{ padding: '10px 12px', minHeight: 78, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
       <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', lineHeight: 1.2, wordBreak: 'break-word', margin: '5px 0 4px' }}>{value}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', lineHeight: 1.2, wordBreak: 'break-word', margin: '5px 0 4px' }}>{value}</div>
       {helper ? <div style={{ fontSize: 10, color: '#6b7280', lineHeight: 1.3 }}>{helper}</div> : null}
     </div>
   );
@@ -153,6 +153,7 @@ export default function Reports() {
   const canExport = !user?.permissions || user.permissions.includes('report:export');
 
   const [loading, setLoading] = useState(true);
+  const [transactionsLoading, setTransactionsLoading] = useState(true);
   const [error, setError] = useState('');
   const [brokers, setBrokers] = useState([]);
   const [brands, setBrands] = useState([]);
@@ -180,6 +181,7 @@ export default function Reports() {
 
     const load = async () => {
       setLoading(true);
+      setTransactionsLoading(true);
       setError('');
       try {
         const [brokersRes, brandsRes] = await Promise.all([getBrokers(), getBrands()]);
@@ -208,6 +210,13 @@ export default function Reports() {
           });
         });
 
+        if (!active) return;
+        setBrokers(brokersList);
+        setBrands(brandsList);
+        setClients(allClients);
+
+        setLoading(false);
+
         const transactionResponses = await Promise.allSettled(
           allClients.map((client) => getClientTransactions(client.id))
         );
@@ -234,15 +243,15 @@ export default function Reports() {
         });
 
         if (!active) return;
-        setBrokers(brokersList);
-        setBrands(brandsList);
-        setClients(allClients);
         setTransactions(allTransactions);
       } catch (err) {
         if (!active) return;
         setError(err.response?.data?.message || 'Failed to load reports data.');
       } finally {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+          setTransactionsLoading(false);
+        }
       }
     };
 
@@ -405,9 +414,6 @@ export default function Reports() {
   const pagedClients = useMemo(() => paginateRows(filteredClients, clientPage, clientPageSize), [filteredClients, clientPage, clientPageSize]);
   const pagedTransactions = useMemo(() => paginateRows(filteredTransactions, transactionPage, transactionPageSize), [filteredTransactions, transactionPage, transactionPageSize]);
 
-  if (loading) return <div className="um"><div className="um__loading">Loading reports...</div></div>;
-  if (error) return <div className="um"><div className="um__error">{error}</div></div>;
-
   return (
     <div className="um">
       <PageHeader
@@ -426,6 +432,23 @@ export default function Reports() {
           </button>
         )}
       />
+
+      {error ? <div className="um__error" style={{ marginBottom: 20 }}>{error}</div> : null}
+
+      {loading ? (
+        <div className="um__card">
+          <div className="um__toolbar">
+            <div>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Report Overview</h3>
+              <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>
+                Fetching brokers, clients, and transaction data.
+              </div>
+            </div>
+          </div>
+          <div className="um__loading">Loading...</div>
+        </div>
+      ) : (
+        <>
 
       {showFilters && (
         <div className="um__card" style={{ marginBottom: 20 }}>
@@ -583,7 +606,9 @@ export default function Reports() {
       <div className="um__card">
         <ReportToolbar
           title="Transaction Ledger"
-          subtitle={`Deposits ${formatMoney(summary.periodDeposits)} · Withdrawals ${formatMoney(summary.periodWithdrawals)}`}
+          subtitle={transactionsLoading
+            ? 'Loading transaction history...'
+            : `Deposits ${formatMoney(summary.periodDeposits)} · Withdrawals ${formatMoney(summary.periodWithdrawals)}`}
           rowCount={filteredTransactions.length}
           pageSize={transactionPageSize}
           onPageSizeChange={setTransactionPageSize}
@@ -603,7 +628,9 @@ export default function Reports() {
             </tr>
           </thead>
           <tbody>
-            {pagedTransactions.length === 0 ? (
+            {transactionsLoading ? (
+              <tr><td colSpan="8" className="um__empty">Loading transaction ledger...</td></tr>
+            ) : pagedTransactions.length === 0 ? (
               <tr><td colSpan="8" className="um__empty">No transactions match the current report filters.</td></tr>
             ) : pagedTransactions.map((transaction) => (
               <tr key={transaction.id}>
@@ -621,6 +648,8 @@ export default function Reports() {
         </table>
         <PaginationControls page={transactionPage} pageSize={transactionPageSize} totalRows={filteredTransactions.length} onChange={setTransactionPage} />
       </div>
+        </>
+      )}
     </div>
   );
 }
