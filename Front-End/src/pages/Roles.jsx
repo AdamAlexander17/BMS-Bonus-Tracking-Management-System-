@@ -3,52 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { getRoles, deleteRole } from '../api/roles';
 import CustomSelect from '../components/CustomSelect/CustomSelect';
 
-function ConfirmDialog({ title, message, onConfirm, onCancel }) {
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 2000,
-      background: 'rgba(15,23,42,0.5)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 24,
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 400,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden',
-      }}>
-        <div style={{ padding: '28px 24px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: '50%',
-              background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" width="22" height="22">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-            </div>
-            <div>
-              <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: '#111827' }}>{title}</h3>
-              <p style={{ margin: 0, fontSize: 14, color: '#6b7280', lineHeight: 1.6 }}>{message}</p>
-            </div>
-          </div>
-        </div>
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', gap: 10,
-          padding: '16px 24px', borderTop: '1px solid #f1f5f9',
-        }}>
-          <button className="ph-btn ph-btn--ghost" onClick={onCancel}>No, Keep It</button>
-          <button
-            style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-            onClick={onConfirm}
-          >
-            Yes, Delete
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
 import PageHeader from '../components/PageHeader/PageHeader';
 import RoleModal from '../components/RoleModal/RoleModal';
 import './Users.css';
@@ -87,8 +42,9 @@ export default function Roles() {
 
   const handleDelete = (id, name) => {
     setConfirmState({
-      title: 'Delete Role',
-      message: `You are about to permanently delete "${name}" and all its associated data. This action cannot be undone.`,
+      title: 'Delete Role?',
+      itemName: name,
+      bullets: ['Role record & permission set', 'Role assignments from all users'],
       onConfirm: async () => {
         setConfirmState(null);
         try {
@@ -260,7 +216,8 @@ export default function Roles() {
       {confirmState && (
         <ConfirmDialog
           title={confirmState.title}
-          message={confirmState.message}
+          itemName={confirmState.itemName}
+          bullets={confirmState.bullets}
           onConfirm={confirmState.onConfirm}
           onCancel={() => setConfirmState(null)}
         />
