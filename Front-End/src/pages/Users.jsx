@@ -71,6 +71,8 @@ export default function Users() {
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [editUser, setEditUser]           = useState(null);
   const [confirmState, setConfirmState] = useState(null);
+  const [pageSize, setPageSize]         = useState(10);
+  const [page, setPage]                 = useState(1);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -114,10 +116,15 @@ export default function Users() {
   };
 
   const filtered = users.filter(u => {
-    const matchSearch = u.username.toLowerCase().includes(search.toLowerCase());
+    const q = search.toLowerCase();
+    const matchSearch = u.username.toLowerCase().includes(q)
+      || (u.roles || []).some(r => r.toLowerCase().includes(q));
     const matchRole   = roleFilter === 'all' || (u.roles || []).includes(roleFilter);
     return matchSearch && matchRole;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paged      = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const formatDate = (str) => {
     if (!str) return '—';
@@ -138,7 +145,7 @@ export default function Users() {
           <>
             <CustomSelect
               value={roleFilter}
-              onChange={setRoleFilter}
+              onChange={v => { setRoleFilter(v); setPage(1); }}
               options={roles.map(r => ({ value: r.name, label: r.name }))}
             />
             <button className="ph-btn ph-btn--ghost" onClick={fetchAll}>
@@ -183,11 +190,16 @@ export default function Users() {
             <input
               placeholder="Search users by name or role"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
           </div>
           <div className="um__entries">
-            Show <select defaultValue="10"><option>10</option><option>25</option><option>50</option></select> entries
+            Show <CustomSelect
+              variant="form"
+              value={String(pageSize)}
+              onChange={v => { setPageSize(Number(v)); setPage(1); }}
+              options={[{value:'10',label:'10'},{value:'25',label:'25'},{value:'50',label:'50'}]}
+            /> entries
           </div>
         </div>
 
@@ -208,8 +220,8 @@ export default function Users() {
               <tr>
                 <th>USER</th>
                 <th>BRAND</th>
-                <th>ROLES</th>
-                <th>STATUS</th>
+                <th style={{ textAlign: 'center' }}>ROLES</th>
+                <th style={{ textAlign: 'center' }}>STATUS</th>
                 <th>CREATED ↓</th>
                 {canActions && <th style={{ textAlign: 'right' }}>ACTIONS</th>}
               </tr>
@@ -217,7 +229,7 @@ export default function Users() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr><td colSpan={canActions ? 6 : 5} className="um__empty">No users found.</td></tr>
-              ) : filtered.map(u => (
+              ) : paged.map(u => (
                 <tr key={u.id}>
                   <td>
                     <div className="um__user-cell">
@@ -229,7 +241,7 @@ export default function Users() {
                     </div>
                   </td>
                   <td className="um__brands">{u.brand || '—'}</td>
-                  <td>
+                  <td style={{ textAlign: 'center' }}>
                     <div className="um__role-badges">
                       {(u.roles || []).length === 0
                         ? <span className="um__role-badge">—</span>
@@ -238,7 +250,7 @@ export default function Users() {
                           ))}
                     </div>
                   </td>
-                  <td>
+                  <td style={{ textAlign: 'center' }}>
                     {canUpdate ? (
                       <button
                         className={`um__toggle ${u.status === 'Active' ? 'um__toggle--on' : ''}`}
@@ -296,6 +308,20 @@ export default function Users() {
               ))}
             </tbody>
           </table>
+        )}
+        {!loading && !error && (
+          <div className="um__footer">
+            <span className="um__footer-info">
+              {filtered.length === 0
+                ? 'No results'
+                : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filtered.length)} of ${filtered.length}`}
+            </span>
+            <div className="um__footer-nav">
+              <button className="ph-btn ph-btn--ghost" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
+              <span className="um__footer-page">{page} / {totalPages}</span>
+              <button className="ph-btn ph-btn--ghost" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next →</button>
+            </div>
+          </div>
         )}
       </div>
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader/PageHeader';
 import { getAuditLogs } from '../api/auditLogs';
+import CustomSelect from '../components/CustomSelect/CustomSelect';
 import './AuditLog.css';
 
 const moduleOptions = [
@@ -282,20 +283,12 @@ export default function AuditLog() {
           </div>
 
           <div className="audit-log-actions">
-            <select
-              className="audit-log-control audit-log-control--compact"
-              value={pageSize}
-              onChange={(event) => {
-                setPage(1);
-                setPageSize(Number(event.target.value));
-              }}
-            >
-              {pageSizeOptions.map((size) => (
-                <option key={size} value={size}>
-                  {size} rows
-                </option>
-              ))}
-            </select>
+            <CustomSelect
+              variant="form"
+              value={String(pageSize)}
+              onChange={v => { setPage(1); setPageSize(Number(v)); }}
+              options={pageSizeOptions.map(s => ({ value: String(s), label: `${s} rows` }))}
+            />
             <button type="button" className="ph-btn ph-btn--ghost" onClick={handleExport} disabled={!rows.length}>
               Export CSV
             </button>

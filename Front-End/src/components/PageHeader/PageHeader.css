@@ -68,6 +68,7 @@
   border: 1.5px solid #004B4E;
   color: #004B4E;
   font-weight: 500;
+  white-space: nowrap;
 }
 .ph-btn--ghost:hover { background: #004B4E; color: #fff; }
 .ph-btn--primary {
