@@ -238,3 +238,27 @@ class ClientTransaction(models.Model):
         return f'{self.client.arc_id} {self.transaction_type} {self.amount}'
 
 
+class AuditLog(models.Model):
+    id           = models.BigAutoField(primary_key=True)
+    actor        = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_logs'
+    )
+    username     = models.CharField(max_length=150, blank=True, default='')
+    module       = models.CharField(max_length=50)
+    action       = models.CharField(max_length=50)
+    entity_type  = models.CharField(max_length=50, blank=True, default='')
+    entity_id    = models.CharField(max_length=50, blank=True, default='')
+    entity_label = models.CharField(max_length=255, blank=True, default='')
+    description  = models.CharField(max_length=255)
+    details      = models.JSONField(default=dict, blank=True)
+    ip_address   = models.CharField(max_length=64, blank=True, default='')
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'audit_logs'
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'{self.module}:{self.action} by {self.username or "Unknown"}'
+
+

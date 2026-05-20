@@ -93,7 +93,7 @@ function StatCard({ label, value, helper }) {
   return (
     <div className="um__card" style={{ padding: '10px 12px', minHeight: 78, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
       <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>{label}</div>
-      <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', lineHeight: 1.2, wordBreak: 'break-word', margin: '5px 0 4px' }}>{value}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', lineHeight: 1.2, wordBreak: 'break-word', margin: '5px 0 4px' }}>{value}</div>
       {helper ? <div style={{ fontSize: 10, color: '#6b7280', lineHeight: 1.3 }}>{helper}</div> : null}
     </div>
   );

@@ -1,18 +1,83 @@
 import jwt
 from django.db import transaction as db_transaction
 from decimal import Decimal, InvalidOperation
+from django.core.paginator import Paginator
 
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from django.db.models import Count
+from django.db.models import Count, Q
 
-from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, Client, ClientTransaction
+from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, Client, ClientTransaction, AuditLog
 from app.utils import verify_password, generate_access_token, generate_refresh_token, decode_token
+
+
+def _extract_ip(request):
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', '')
+
+
+def _normalize_audit_value(value):
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): _normalize_audit_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_normalize_audit_value(item) for item in value]
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
+def log_audit_event(
+    request,
+    module,
+    action,
+    description,
+    entity_type='',
+    entity_id='',
+    entity_label='',
+    details=None,
+    actor=None,
+    username='',
+):
+    actor_obj = actor if actor is not None else getattr(request, 'user', None)
+    actor_id = getattr(actor_obj, 'id', None)
+    AuditLog.objects.create(
+        actor=actor_obj if actor_id else None,
+        username=username or (getattr(actor_obj, 'username', '') if actor_id else ''),
+        module=module,
+        action=action,
+        entity_type=entity_type,
+        entity_id=str(entity_id or ''),
+        entity_label=entity_label or '',
+        description=description,
+        details=_normalize_audit_value(details or {}),
+        ip_address=_extract_ip(request) if request is not None else '',
+    )
+
+
+def format_audit_log(entry):
+    return {
+        'id': entry.id,
+        'username': entry.username,
+        'module': entry.module,
+        'action': entry.action,
+        'entity_type': entry.entity_type,
+        'entity_id': entry.entity_id,
+        'entity_label': entry.entity_label,
+        'description': entry.description,
+        'details': entry.details or {},
+        'ip_address': entry.ip_address,
+        'created_at': entry.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+    }
 
 
 @api_view(['POST'])
@@ -58,6 +123,18 @@ def login(request):
         user=user,
         refresh_token=refresh_token,
         expires_at=expires_at
+    )
+
+    log_audit_event(
+        request,
+        module='auth',
+        action='login',
+        description=f'User "{user.username}" logged in.',
+        entity_type='user',
+        entity_id=user.id,
+        entity_label=user.username,
+        details={'roles': user.role_names, 'brand': user.brand_name},
+        actor=user,
     )
 
     return Response({
@@ -161,6 +238,16 @@ def logout(request):
             status=status.HTTP_404_NOT_FOUND
         )
 
+    log_audit_event(
+        request,
+        module='auth',
+        action='logout',
+        description=f'User "{request.user.username}" logged out.',
+        entity_type='user',
+        entity_id=request.user.id,
+        entity_label=request.user.username,
+    )
+
     return Response({
         'success': True,
         'message': 'Logged out successfully.'
@@ -186,6 +273,67 @@ def format_user(user):
         'created_by':   user.created_by.username if user.created_by else None,
         'created_at':   user.created_at.strftime('%Y-%m-%d %H:%M:%S'),
     }
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def audit_log_list(request):
+    if not has_perm(request, 'report:view'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    logs = AuditLog.objects.select_related('actor').all().order_by('-created_at', '-id')
+
+    search = (request.query_params.get('search') or '').strip()
+    module = (request.query_params.get('module') or '').strip()
+    action = (request.query_params.get('action') or '').strip()
+    from_date = parse_date((request.query_params.get('from_date') or '').strip())
+    to_date = parse_date((request.query_params.get('to_date') or '').strip())
+
+    if search:
+        logs = logs.filter(
+            Q(username__icontains=search)
+            | Q(module__icontains=search)
+            | Q(action__icontains=search)
+            | Q(entity_type__icontains=search)
+            | Q(entity_label__icontains=search)
+            | Q(description__icontains=search)
+            | Q(ip_address__icontains=search)
+        )
+    if module:
+        logs = logs.filter(module=module)
+    if action:
+        logs = logs.filter(action=action)
+    if from_date:
+        logs = logs.filter(created_at__date__gte=from_date)
+    if to_date:
+        logs = logs.filter(created_at__date__lte=to_date)
+
+    try:
+        page = max(int(request.query_params.get('page', 1) or 1), 1)
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        page_size = int(request.query_params.get('page_size', 20) or 20)
+    except (TypeError, ValueError):
+        page_size = 20
+    page_size = min(max(page_size, 1), 100)
+
+    paginator = Paginator(logs, page_size)
+    current_page = paginator.get_page(page)
+
+    return Response({
+        'success': True,
+        'data': [format_audit_log(log) for log in current_page.object_list],
+        'pagination': {
+            'page': current_page.number,
+            'page_size': page_size,
+            'total_rows': paginator.count,
+            'total_pages': paginator.num_pages,
+        },
+    }, status=status.HTTP_200_OK)
 
 
 # ─── User CRUD ────────────────────────────────────────────────────────────────
@@ -266,6 +414,21 @@ def create_user(request):
     for role in roles:
         UserRole.objects.create(user=new_user, role=role)
 
+    log_audit_event(
+        request,
+        module='user',
+        action='create',
+        description=f'User "{new_user.username}" created.',
+        entity_type='user',
+        entity_id=new_user.id,
+        entity_label=new_user.username,
+        details={
+            'brand': new_user.brand_name,
+            'roles': [role.name for role in roles],
+            'status': new_user.status,
+        },
+    )
+
     return Response({
         'success': True,
         'message': 'User created successfully.',
@@ -322,6 +485,13 @@ def update_user(request, user_id):
             {'success': False, 'message': 'User not found.'},
             status=status.HTTP_404_NOT_FOUND
         )
+
+    previous_user = {
+        'username': user.username,
+        'brand': user.brand_name,
+        'roles': list(user.roles.values_list('name', flat=True)),
+        'status': user.status,
+    }
 
     new_username = request.data.get('username')
     brand_name   = request.data.get('brand')
@@ -409,6 +579,26 @@ def update_user(request, user_id):
 
     user.save()
 
+    log_audit_event(
+        request,
+        module='user',
+        action='update',
+        description=f'User "{user.username}" updated.',
+        entity_type='user',
+        entity_id=user.id,
+        entity_label=user.username,
+        details={
+            'previous_username': previous_user['username'],
+            'previous_brand': previous_user['brand'],
+            'previous_roles': previous_user['roles'],
+            'previous_status': previous_user['status'],
+            'current_brand': user.brand_name,
+            'current_roles': list(user.roles.values_list('name', flat=True)),
+            'current_status': user.status,
+            'password_changed': bool(new_password),
+        },
+    )
+
     return Response({
         'success': True,
         'message': 'User updated successfully.',
@@ -437,7 +627,17 @@ def delete_user(request, user_id):
             status=status.HTTP_404_NOT_FOUND
         )
 
+    deleted_username = user.username
     user.delete()
+    log_audit_event(
+        request,
+        module='user',
+        action='delete',
+        description=f'User "{deleted_username}" deleted.',
+        entity_type='user',
+        entity_id=user_id,
+        entity_label=deleted_username,
+    )
     return Response({
         'success': True,
         'message': 'User deleted successfully.'
@@ -544,6 +744,15 @@ def brand_create(request):
         )
 
     brand = Brand.objects.create(name=name)
+    log_audit_event(
+        request,
+        module='brand',
+        action='create',
+        description=f'Brand "{brand.name}" created.',
+        entity_type='brand',
+        entity_id=brand.id,
+        entity_label=brand.name,
+    )
     return Response(
         {'success': True, 'message': 'Brand created successfully.', 'data': format_brand(brand)},
         status=status.HTTP_201_CREATED
@@ -627,8 +836,19 @@ def brand_update(request, brand_id):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    previous_name = brand.name
     brand.name = name
     brand.save()
+    log_audit_event(
+        request,
+        module='brand',
+        action='update',
+        description=f'Brand "{previous_name}" updated.',
+        entity_type='brand',
+        entity_id=brand.id,
+        entity_label=brand.name,
+        details={'previous_name': previous_name, 'new_name': brand.name},
+    )
     return Response(
         {'success': True, 'message': 'Brand updated successfully.', 'data': format_brand(brand)},
         status=status.HTTP_200_OK
@@ -652,7 +872,17 @@ def brand_delete(request, brand_id):
             status=status.HTTP_404_NOT_FOUND
         )
 
+    deleted_brand_name = brand.name
     brand.delete()
+    log_audit_event(
+        request,
+        module='brand',
+        action='delete',
+        description=f'Brand "{deleted_brand_name}" deleted.',
+        entity_type='brand',
+        entity_id=brand_id,
+        entity_label=deleted_brand_name,
+    )
     return Response(
         {'success': True, 'message': 'Brand deleted successfully.'},
         status=status.HTTP_200_OK
@@ -768,6 +998,17 @@ def role_create(request):
         for perm in perms:
             RolePermission.objects.get_or_create(role=role, permission=perm)
 
+    log_audit_event(
+        request,
+        module='role',
+        action='create',
+        description=f'Role "{role.name}" created.',
+        entity_type='role',
+        entity_id=role.id,
+        entity_label=role.name,
+        details={'status': role.status, 'permission_ids': permission_ids or []},
+    )
+
     return Response(
         {'success': True, 'message': 'Role created successfully.', 'data': format_role(role)},
         status=status.HTTP_201_CREATED
@@ -846,6 +1087,7 @@ def role_update(request, role_id):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    previous_name = role.name
     role.name = name
     if description is not None:
         role.description = description.strip()
@@ -868,6 +1110,17 @@ def role_update(request, role_id):
         RolePermission.objects.filter(role=role).delete()
         for perm in Permission.objects.filter(id__in=permission_ids):
             RolePermission.objects.create(role=role, permission=perm)
+
+    log_audit_event(
+        request,
+        module='role',
+        action='update',
+        description=f'Role "{previous_name}" updated.',
+        entity_type='role',
+        entity_id=role.id,
+        entity_label=role.name,
+        details={'previous_name': previous_name, 'status': role.status, 'permission_ids': permission_ids},
+    )
 
     return Response(
         {'success': True, 'message': 'Role updated successfully.', 'data': format_role(role)},
@@ -898,7 +1151,17 @@ def role_delete(request, role_id):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    deleted_role_name = role.name
     role.delete()
+    log_audit_event(
+        request,
+        module='role',
+        action='delete',
+        description=f'Role "{deleted_role_name}" deleted.',
+        entity_type='role',
+        entity_id=role_id,
+        entity_label=deleted_role_name,
+    )
     return Response(
         {'success': True, 'message': 'Role deleted successfully.'},
         status=status.HTTP_200_OK
@@ -950,6 +1213,17 @@ def role_assign_permissions(request, role_id):
         else:
             already_exists.append(format_permission(perm))
 
+    log_audit_event(
+        request,
+        module='role',
+        action='assign_permissions',
+        description=f'Permissions assigned to role "{role.name}".',
+        entity_type='role',
+        entity_id=role.id,
+        entity_label=role.name,
+        details={'permission_ids': permission_ids, 'new_assignments': len(assigned), 'already_existed': len(already_exists)},
+    )
+
     return Response({
         'success': True,
         'message': f'{len(assigned)} permission(s) assigned.',
@@ -987,6 +1261,17 @@ def role_remove_permissions(request, role_id):
     deleted_count, _ = RolePermission.objects.filter(
         role=role, permission_id__in=permission_ids
     ).delete()
+
+    log_audit_event(
+        request,
+        module='role',
+        action='remove_permissions',
+        description=f'Permissions removed from role "{role.name}".',
+        entity_type='role',
+        entity_id=role.id,
+        entity_label=role.name,
+        details={'permission_ids': permission_ids, 'removed_count': deleted_count},
+    )
 
     return Response({
         'success': True,
@@ -1033,6 +1318,17 @@ def role_set_permissions(request, role_id):
     RolePermission.objects.filter(role=role).delete()
     for perm in permissions:
         RolePermission.objects.create(role=role, permission=perm)
+
+    log_audit_event(
+        request,
+        module='role',
+        action='set_permissions',
+        description=f'Role permissions replaced for "{role.name}".',
+        entity_type='role',
+        entity_id=role.id,
+        entity_label=role.name,
+        details={'permission_ids': permission_ids},
+    )
 
     return Response({
         'success': True,
@@ -1220,6 +1516,20 @@ def broker_create(request):
         status='Active',
         created_by=request.user,
     )
+    log_audit_event(
+        request,
+        module='broker',
+        action='create',
+        description=f'Broker "{broker.name}" created.',
+        entity_type='broker',
+        entity_id=broker.id,
+        entity_label=broker.name,
+        details={
+            'arc_id': broker.arc_id,
+            'brand': broker.brand.name,
+            'rm_user': broker.rm_user.username if broker.rm_user else None,
+        },
+    )
     return Response(
         {'success': True, 'message': 'Broker created successfully.', 'data': format_broker(broker)},
         status=status.HTTP_201_CREATED
@@ -1313,6 +1623,13 @@ def broker_update(request, broker_id):
     new_brand_name = request.data.get('brand')
     new_status     = request.data.get('status')
     new_rm_user_id = request.data.get('rm_user_id')
+    previous_broker = {
+        'name': broker.name,
+        'arc_id': broker.arc_id,
+        'brand': broker.brand.name if broker.brand_id else None,
+        'status': broker.status,
+        'rm_user': broker.rm_user.username if broker.rm_user_id else None,
+    }
 
     if new_arc_id is not None:
         new_arc_id = new_arc_id.strip()
@@ -1363,6 +1680,26 @@ def broker_update(request, broker_id):
         broker.status = normalized
 
     broker.save()
+    log_audit_event(
+        request,
+        module='broker',
+        action='update',
+        description=f'Broker "{broker.name}" updated.',
+        entity_type='broker',
+        entity_id=broker.id,
+        entity_label=broker.name,
+        details={
+            'previous_name': previous_broker['name'],
+            'previous_arc_id': previous_broker['arc_id'],
+            'previous_brand': previous_broker['brand'],
+            'previous_status': previous_broker['status'],
+            'previous_rm_user': previous_broker['rm_user'],
+            'current_arc_id': broker.arc_id,
+            'current_brand': broker.brand.name if broker.brand_id else None,
+            'current_status': broker.status,
+            'current_rm_user': broker.rm_user.username if broker.rm_user_id else None,
+        },
+    )
     return Response(
         {'success': True, 'message': 'Broker updated successfully.', 'data': format_broker(broker)},
         status=status.HTTP_200_OK
@@ -1399,7 +1736,19 @@ def broker_delete(request, broker_id):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    deleted_broker_name = broker.name
+    deleted_broker_arc_id = broker.arc_id
     broker.delete()
+    log_audit_event(
+        request,
+        module='broker',
+        action='delete',
+        description=f'Broker "{deleted_broker_name}" deleted.',
+        entity_type='broker',
+        entity_id=broker_id,
+        entity_label=deleted_broker_name,
+        details={'arc_id': deleted_broker_arc_id},
+    )
     return Response(
         {'success': True, 'message': 'Broker deleted successfully.'},
         status=status.HTTP_200_OK
@@ -1550,6 +1899,23 @@ def client_create(request, broker_id):
             entered_by=request.user,
         )
 
+    log_audit_event(
+        request,
+        module='client',
+        action='create',
+        description=f'Client "{client.name}" created.',
+        entity_type='client',
+        entity_id=client.id,
+        entity_label=client.name,
+        details={
+            'arc_id': client.arc_id,
+            'broker': broker.name,
+            'deposited_amount': deposited_amount,
+            'withdrawal_amount': withdrawal_amount,
+            'is_legitimate': client.is_legitimate,
+        },
+    )
+
     return Response(
         {'success': True, 'message': 'Client created successfully.', 'data': format_client(client)},
         status=status.HTTP_201_CREATED
@@ -1647,6 +2013,12 @@ def client_update(request, client_id):
     new_arc_id            = request.data.get('arc_id')
     new_is_legitimate     = request.data.get('is_legitimate')
     new_status            = request.data.get('status')
+    previous_client = {
+        'name': client.name,
+        'arc_id': client.arc_id,
+        'status': client.status,
+        'is_legitimate': client.is_legitimate,
+    }
 
     if new_name is not None:
         new_name = new_name.strip()
@@ -1696,6 +2068,24 @@ def client_update(request, client_id):
         client.status = normalized
 
     client.save()
+    log_audit_event(
+        request,
+        module='client',
+        action='update',
+        description=f'Client "{client.name}" updated.',
+        entity_type='client',
+        entity_id=client.id,
+        entity_label=client.name,
+        details={
+            'previous_name': previous_client['name'],
+            'previous_arc_id': previous_client['arc_id'],
+            'previous_status': previous_client['status'],
+            'previous_is_legitimate': previous_client['is_legitimate'],
+            'current_arc_id': client.arc_id,
+            'current_status': client.status,
+            'current_is_legitimate': client.is_legitimate,
+        },
+    )
     return Response(
         {'success': True, 'message': 'Client updated successfully.', 'data': format_client(client)},
         status=status.HTTP_200_OK
@@ -1798,6 +2188,22 @@ def client_transaction_create(request, client_id):
             entered_by=request.user,
         )
 
+    log_audit_event(
+        request,
+        module='client',
+        action='transaction',
+        description=f'{transaction_type.capitalize()} recorded for client "{client.name}".',
+        entity_type='client_transaction',
+        entity_id=transaction.id,
+        entity_label=client.name,
+        details={
+            'client_id': client.id,
+            'client_arc_id': client.arc_id,
+            'transaction_type': transaction_type,
+            'amount': amount,
+        },
+    )
+
     return Response(
         {
             'success': True,
@@ -1834,7 +2240,19 @@ def client_delete(request, client_id):
             status=status.HTTP_403_FORBIDDEN
         )
 
+    deleted_client_name = client.name
+    deleted_client_arc_id = client.arc_id
     client.delete()
+    log_audit_event(
+        request,
+        module='client',
+        action='delete',
+        description=f'Client "{deleted_client_name}" deleted.',
+        entity_type='client',
+        entity_id=client_id,
+        entity_label=deleted_client_name,
+        details={'arc_id': deleted_client_arc_id},
+    )
     return Response(
         {'success': True, 'message': 'Client deleted successfully.'},
         status=status.HTTP_200_OK
