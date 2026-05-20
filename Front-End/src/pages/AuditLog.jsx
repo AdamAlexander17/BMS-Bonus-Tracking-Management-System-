@@ -222,21 +222,16 @@ export default function AuditLog() {
         }
         title="Audit Log"
         subtitle="Track application activity across logins, data changes, and financial transactions"
-      />
-
-      <section className="audit-log-panel audit-log-panel--filters">
-        <div className="audit-log-panel__header">
-          <div>
-            <div className="audit-log-panel__title">Audit Filters</div>
-            <div className="audit-log-panel__subtitle">Narrow the audit log by user activity, module, action type, and date range.</div>
-          </div>
-          <button type="button" className="audit-log-btn audit-log-btn--secondary" onClick={() => setShowFilters((current) => !current)}>
+        actions={(
+          <button type="button" className="ph-btn ph-btn--ghost" onClick={() => setShowFilters((current) => !current)}>
             {showFilters ? 'Hide Filters' : 'Show Filters'}
           </button>
-        </div>
+        )}
+      />
 
-        {showFilters ? (
-          <div className="audit-log-filters-wrap">
+      {showFilters ? (
+        <section className="audit-log-panel audit-log-panel--filters">
+          <div className="audit-log-filters-wrap audit-log-filters-wrap--standalone">
             <div className="audit-log-filters">
               <label className="audit-log-field audit-log-field--search">
                 <span className="audit-log-field__label">Search</span>
@@ -282,8 +277,8 @@ export default function AuditLog() {
               </label>
             </div>
           </div>
-        ) : null}
-      </section>
+        </section>
+      ) : null}
 
       <section className="audit-log-panel audit-log-panel--table">
         <div className="audit-log-toolbar">
@@ -292,8 +287,6 @@ export default function AuditLog() {
             <div className="audit-log-toolbar__subtitle">Track user actions, target entities, and change details.</div>
           </div>
           <div className="audit-log-actions">
-            <span className="audit-log-toolbar__count">{totalRows} record{totalRows !== 1 ? 's' : ''}</span>
-            <span className="audit-log-toolbar__count">{activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''}</span>
             <select
               className="audit-log-control audit-log-control--compact"
               value={pageSize}
@@ -308,7 +301,7 @@ export default function AuditLog() {
                 </option>
               ))}
             </select>
-            <button type="button" className="audit-log-btn audit-log-btn--secondary" onClick={handleExport} disabled={!rows.length}>
+            <button type="button" className="ph-btn ph-btn--ghost" onClick={handleExport} disabled={!rows.length}>
               Export CSV
             </button>
           </div>
@@ -386,7 +379,7 @@ export default function AuditLog() {
           <div className="audit-log-pagination__controls">
           <button
             type="button"
-            className="audit-log-btn audit-log-btn--secondary"
+            className="ph-btn ph-btn--ghost"
             disabled={pagination.page <= 1 || loading}
             onClick={() => setPage((current) => Math.max(current - 1, 1))}
           >

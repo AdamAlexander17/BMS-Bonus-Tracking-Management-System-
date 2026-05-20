@@ -415,20 +415,16 @@ export default function Reports() {
         }
         title="Reports"
         subtitle="Operational reporting across brokers, clients, trading status, and transaction history"
-      />
-
-      <div className="um__card" style={{ marginBottom: 20 }}>
-        <div style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Report Filters</div>
-            <div style={{ fontSize: 13, color: '#6b7280' }}>Narrow the report by broker, client state, transaction type, and date range.</div>
-          </div>
+        actions={(
           <button className="ph-btn ph-btn--ghost" type="button" onClick={() => setShowFilters((current) => !current)}>
             {showFilters ? 'Hide Filters' : 'Show Filters'}
           </button>
-        </div>
-        {showFilters && (
-          <div style={{ padding: '0 20px 20px', borderTop: '1px solid #e8ecf0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, alignItems: 'end' }}>
+        )}
+      />
+
+      {showFilters && (
+        <div className="um__card" style={{ marginBottom: 20 }}>
+          <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, alignItems: 'end' }}>
             <FilterField label="Search" span={2}>
               <input
                 style={inputControlStyle}
@@ -480,8 +476,8 @@ export default function Reports() {
               <button className="ph-btn ph-btn--ghost" type="button" onClick={resetFilters}>Reset Filters</button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <div style={{ marginBottom: 12, fontSize: 15, fontWeight: 700, color: '#111827' }}>Key Metrics</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 12, marginBottom: 20 }}>
