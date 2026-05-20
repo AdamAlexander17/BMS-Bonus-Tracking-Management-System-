@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getUsers, deleteUser, updateUser } from '../api/users';
+import { getUsers, deleteUser, updateUser, bulkUploadUsers } from '../api/users';
 
 function ConfirmDialog({ title, message, onConfirm, onCancel }) {
   return (
@@ -67,8 +67,9 @@ export default function Users() {
   const [error, setError]         = useState('');
   const [search, setSearch]       = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [showAdd, setShowAdd]     = useState(false);
-  const [editUser, setEditUser]   = useState(null);
+  const [showAdd, setShowAdd]             = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
+  const [editUser, setEditUser]           = useState(null);
   const [confirmState, setConfirmState] = useState(null);
 
   const fetchAll = async () => {
@@ -148,6 +149,16 @@ export default function Users() {
               </svg>
               Refresh
             </button>
+            {canCreate && (
+              <button className="ph-btn ph-btn--ghost" onClick={() => setShowBulkUpload(true)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Bulk Upload
+              </button>
+            )}
             {canCreate && (
               <button className="ph-btn ph-btn--primary" onClick={() => setShowAdd(true)}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
@@ -287,6 +298,14 @@ export default function Users() {
           </table>
         )}
       </div>
+
+      {/* Bulk Upload Modal */}
+      {showBulkUpload && (
+        <BulkUploadModal
+          onClose={() => setShowBulkUpload(false)}
+          onSuccess={() => { setShowBulkUpload(false); fetchAll(); }}
+        />
+      )}
 
       {/* Add User Modal */}
       {showAdd && (
@@ -571,6 +590,194 @@ function EditUserForm({ user, roles, onClose, onSuccess }) {
         </button>
       </div>
     </form>
+  );
+}
+
+function BulkUploadModal({ onClose, onSuccess }) {
+  const [file, setFile]       = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult]   = useState(null); // { created, failed, message }
+  const [err, setErr]         = useState('');
+
+  const downloadTemplate = () => {
+    const csv = 'username,password,brand,role\njohn_doe,Pass123!,BrandA,RM\njane_doe,Pass456!,BrandB,JRM\n';
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'users_template.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!file) { setErr('Please select a CSV file.'); return; }
+    setErr(''); setResult(null); setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await bulkUploadUsers(fd);
+      setResult(res.data);
+      if (res.data.created > 0) onSuccess();
+    } catch (ex) {
+      setErr(ex.response?.data?.message || 'Upload failed.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 2000,
+      background: 'rgba(15,23,42,0.5)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div style={{
+          background: '#004B4E',
+          padding: '22px 24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+        }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#fff' }}>Bulk Upload Users</h3>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>
+              Upload a CSV file to create multiple users at once
+            </p>
+          </div>
+          <button onClick={onClose} style={{
+            background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
+            borderRadius: 8, width: 32, height: 32, cursor: 'pointer', fontSize: 16,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>✕</button>
+        </div>
+
+        <div style={{ padding: '24px' }}>
+          {/* Format guide */}
+          <div style={{
+            background: '#e0f5f5', border: '1px solid #b2dfdf', borderRadius: 10,
+            padding: '14px 16px', marginBottom: 20,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#004B4E' }}>Required CSV Format</span>
+              <button
+                type="button"
+                onClick={downloadTemplate}
+                style={{
+                  background: '#004B4E', color: '#fff', border: 'none', borderRadius: 6,
+                  padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 5,
+                }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download Template
+              </button>
+            </div>
+            <code style={{
+              display: 'block', fontSize: 12, color: '#004B4E',
+              background: 'rgba(0,75,78,0.08)', borderRadius: 6, padding: '8px 12px', lineHeight: 1.7,
+            }}>
+              username, password, brand, role<br/>
+              john_doe, Pass123!, BrandA, RM<br/>
+              jane_doe, Pass456!, BrandB, JRM
+            </code>
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: '#006467' }}>
+              Max 500 rows per file. Brand and role names must match exactly.
+            </p>
+          </div>
+
+          {/* File input */}
+          <form onSubmit={handleSubmit}>
+            {err && (
+              <div style={{
+                background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8,
+                padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#dc2626',
+              }}>{err}</div>
+            )}
+
+            <div style={{
+              border: `2px dashed ${file ? '#004B4E' : '#e2e8f0'}`,
+              borderRadius: 10, padding: '28px 20px',
+              textAlign: 'center', marginBottom: 16, cursor: 'pointer',
+              background: file ? '#e0f5f5' : '#fafafa',
+              transition: 'all 0.2s',
+            }}
+              onClick={() => document.getElementById('bulk-csv-input').click()}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke={file ? '#004B4E' : '#94a3b8'} strokeWidth="1.8" width="36" height="36" style={{ margin: '0 auto 10px', display: 'block' }}>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="12" y1="18" x2="12" y2="12"/>
+                <line x1="9" y1="15" x2="15" y2="15"/>
+              </svg>
+              {file
+                ? <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#004B4E' }}>{file.name}</p>
+                : <>
+                    <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 600, color: '#374151' }}>Click to select CSV file</p>
+                    <p style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>Only .csv files accepted</p>
+                  </>
+              }
+              <input
+                id="bulk-csv-input"
+                type="file"
+                accept=".csv"
+                style={{ display: 'none' }}
+                onChange={e => { setFile(e.target.files[0] || null); setResult(null); setErr(''); }}
+              />
+            </div>
+
+            {/* Result */}
+            {result && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{
+                  background: result.created > 0 ? '#f0fdf4' : '#fef2f2',
+                  border: `1px solid ${result.created > 0 ? '#bbf7d0' : '#fecaca'}`,
+                  borderRadius: 8, padding: '10px 14px', fontSize: 13,
+                  color: result.created > 0 ? '#166534' : '#dc2626', fontWeight: 600,
+                  marginBottom: result.failed?.length ? 10 : 0,
+                }}>
+                  {result.message}
+                </div>
+                {result.failed?.length > 0 && (
+                  <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid #fee2e2', borderRadius: 8 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ background: '#fef2f2' }}>
+                          <th style={{ padding: '6px 10px', textAlign: 'left', color: '#7f1d1d', fontWeight: 600 }}>Row</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left', color: '#7f1d1d', fontWeight: 600 }}>Username</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left', color: '#7f1d1d', fontWeight: 600 }}>Reason</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {result.failed.map((f, i) => (
+                          <tr key={i} style={{ borderTop: '1px solid #fee2e2' }}>
+                            <td style={{ padding: '6px 10px', color: '#991b1b' }}>{f.row}</td>
+                            <td style={{ padding: '6px 10px', color: '#991b1b' }}>{f.username}</td>
+                            <td style={{ padding: '6px 10px', color: '#6b7280' }}>{f.reason}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+              <button type="button" className="um__btn-cancel" onClick={onClose}>Close</button>
+              <button type="submit" className="um__btn-save" disabled={uploading || !file}>
+                {uploading ? 'Uploading...' : 'Upload & Create Users'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   );
 }
 

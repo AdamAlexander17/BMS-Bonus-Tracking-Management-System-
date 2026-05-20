@@ -1,15 +1,19 @@
 /* Shared page header card - transparent + bordered, consistent across all modules */
 .page-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 18px;
   flex-wrap: wrap;
   gap: 16px;
-  background: transparent;
+  background: #fff;
   padding: 18px 22px;
   border-radius: 12px;
   border: 1px solid #dde2eb;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
 }
 .page-header__left {
   display: flex;

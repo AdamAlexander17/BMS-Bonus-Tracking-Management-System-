@@ -3,11 +3,26 @@
 .dashboard__heading { font-size: 1.4rem; font-weight: 700; color: #0f172a; margin: 0 0 4px; }
 .dashboard__sub { color: #64748b; font-size: 0.875rem; margin: 0; }
 
+/* Sticky top zone (PageHeader + period filter) */
+.dashboard__sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: #fff;
+  padding-bottom: 4px;
+  margin-bottom: 16px;
+}
+.dashboard__sticky-top .page-header {
+  position: static;
+  box-shadow: none;
+  margin-bottom: 12px;
+}
+
 /* Period filter */
 .dashboard__period-filter {
   display: flex;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 .dashboard__period-btn {
   padding: 7px 20px;
@@ -50,17 +65,17 @@
 }
 .stat-card:hover { box-shadow: 0 4px 16px rgba(0,75,78,0.12); border-color: #c8e6e6; }
 .stat-card__label { font-size: 0.78rem; color: #64748b; font-weight: 500; margin: 0 0 6px; }
-.stat-card__value { font-size: 1.2rem; font-weight: 800; color: #0f172a; margin: 0 0 6px; line-height: 1; }
+.stat-card__value { font-size: 1.05rem; font-weight: 700; color: #0f172a; margin: 0 0 6px; line-height: 1; }
 .stat-card__change { font-size: 0.75rem; font-weight: 600; }
 .stat-card__change--up   { color: #10b981; }
 .stat-card__change--down { color: #ef4444; }
 .stat-card__icon {
-  width: 52px; height: 52px;
-  border-radius: 12px;
+  width: 44px; height: 44px;
+  border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.stat-card__icon svg { width: 26px; height: 26px; }
+.stat-card__icon svg { width: 22px; height: 22px; }
 
 /* Chart grid */
 .dashboard__grid {

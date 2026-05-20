@@ -663,6 +663,110 @@ def user_create(request):
     return create_user(request)
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def user_bulk_upload(request):
+    import csv, io
+    from app.utils import hash_password
+
+    if not has_perm(request, 'user:create'):
+        return Response({'success': False, 'message': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+    uploaded = request.FILES.get('file')
+    if not uploaded:
+        return Response({'success': False, 'message': 'No file uploaded. Send a CSV as form-data field "file".'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not uploaded.name.lower().endswith('.csv'):
+        return Response({'success': False, 'message': 'Only .csv files are accepted.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        text = uploaded.read().decode('utf-8-sig')
+    except UnicodeDecodeError:
+        return Response({'success': False, 'message': 'File must be UTF-8 encoded.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    reader = csv.DictReader(io.StringIO(text))
+    required_cols = {'username', 'password', 'brand', 'role'}
+    if not required_cols.issubset({c.strip().lower() for c in (reader.fieldnames or [])}):
+        return Response(
+            {'success': False, 'message': f'CSV must have columns: username, password, brand, role'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    rows = list(reader)
+    if not rows:
+        return Response({'success': False, 'message': 'CSV file is empty.'}, status=status.HTTP_400_BAD_REQUEST)
+    if len(rows) > 500:
+        return Response({'success': False, 'message': 'Maximum 500 rows per upload.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Pre-load brands and roles into dicts for fast lookup
+    brand_map = {b.name.lower(): b for b in Brand.objects.all()}
+    role_map  = {r.name.lower(): r for r in Role.objects.all()}
+
+    created_count = 0
+    failed = []
+    seen_usernames = set()
+
+    for idx, row in enumerate(rows, start=2):  # row 1 = header
+        username   = (row.get('username') or '').strip()
+        password   = (row.get('password') or '').strip()
+        brand_name = (row.get('brand')    or '').strip()
+        role_name  = (row.get('role')     or '').strip()
+
+        def fail(reason):
+            failed.append({'row': idx, 'username': username or f'(row {idx})', 'reason': reason})
+
+        if not username:
+            fail('username is required'); continue
+        if not password:
+            fail('password is required'); continue
+        if not brand_name:
+            fail('brand is required'); continue
+        if not role_name:
+            fail('role is required'); continue
+        if username.lower() in seen_usernames:
+            fail('duplicate username in this file'); continue
+        if User.objects.filter(username=username).exists():
+            fail('username already exists'); continue
+        if brand_name.lower() not in brand_map:
+            fail(f'brand "{brand_name}" not found'); continue
+        if role_name.lower() not in role_map:
+            fail(f'role "{role_name}" not found'); continue
+
+        seen_usernames.add(username.lower())
+        brand_obj = brand_map[brand_name.lower()]
+        role_obj  = role_map[role_name.lower()]
+
+        try:
+            with db_transaction.atomic():
+                new_user = User.objects.create(
+                    username=username,
+                    password=hash_password(password),
+                    brand=brand_obj,
+                    status='Active',
+                    created_by=request.user,
+                )
+                UserRole.objects.create(user=new_user, role=role_obj)
+            created_count += 1
+        except Exception as exc:
+            fail(str(exc))
+
+    if created_count:
+        log_audit_event(
+            request,
+            module='user',
+            action='bulk_create',
+            description=f'Bulk uploaded {created_count} user(s)',
+            details={'created': created_count, 'failed_count': len(failed)},
+        )
+
+    return Response({
+        'success': True,
+        'created': created_count,
+        'failed':  failed,
+        'message': f'{created_count} user(s) created, {len(failed)} failed.',
+    }, status=status.HTTP_200_OK)
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_list(request):
