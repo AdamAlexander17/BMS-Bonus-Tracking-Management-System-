@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getUsers, deleteUser, updateUser, bulkUploadUsers } from '../api/users';
 import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
+import Toast from '../components/Toast/Toast';
 import { getRoles } from '../api/roles';
 import PageHeader from '../components/PageHeader/PageHeader';
 import CustomSelect from '../components/CustomSelect/CustomSelect';
@@ -25,6 +26,7 @@ export default function Users() {
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [editUser, setEditUser]           = useState(null);
   const [confirmState, setConfirmState] = useState(null);
+  const [toast, setToast] = useState(null);
   const [pageSize, setPageSize]         = useState(10);
   const [page, setPage]                 = useState(1);
 
@@ -49,7 +51,7 @@ export default function Users() {
       await updateUser(u.id, { status: newStatus });
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, status: newStatus } : x));
     } catch (err) {
-      alert(err.response?.data?.message || 'Update failed.');
+      setToast(err.response?.data?.message || 'Update failed.');
     }
   };
 
@@ -64,7 +66,7 @@ export default function Users() {
           await deleteUser(id);
           setUsers(prev => prev.filter(u => u.id !== id));
         } catch (err) {
-          alert(err.response?.data?.message || 'Delete failed.');
+          setToast(err.response?.data?.message || 'Delete failed.');
         }
       },
     });
@@ -334,6 +336,7 @@ export default function Users() {
           onCancel={() => setConfirmState(null)}
         />
       )}
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   );
 }

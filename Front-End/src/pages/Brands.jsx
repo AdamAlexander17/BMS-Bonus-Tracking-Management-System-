@@ -4,6 +4,7 @@ import { getBrands, deleteBrand, createBrand, updateBrand } from '../api/brands'
 import CustomSelect from '../components/CustomSelect/CustomSelect';
 
 import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
+import Toast from '../components/Toast/Toast';
 import PageHeader from '../components/PageHeader/PageHeader';
 import './Users.css';
 
@@ -22,6 +23,7 @@ export default function Brands() {
   const [showAdd, setShowAdd]     = useState(false);
   const [editBrand, setEditBrand] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
+  const [toast, setToast] = useState(null);
   const [newName, setNewName]     = useState('');
   const [newCode, setNewCode]     = useState('');
   const [creating, setCreating]   = useState(false);
@@ -53,7 +55,7 @@ export default function Brands() {
       setShowAdd(false);
       fetchBrands();
     } catch (err) {
-      alert(err.response?.data?.message || 'Create failed.');
+      setToast(err.response?.data?.message || 'Create failed.');
     } finally {
       setCreating(false);
     }
@@ -70,7 +72,7 @@ export default function Brands() {
           await deleteBrand(id);
           fetchBrands();
         } catch (err) {
-          alert(err.response?.data?.message || 'Delete failed.');
+          setToast(err.response?.data?.message || 'Delete failed.');
         }
       },
     });
@@ -261,6 +263,7 @@ export default function Brands() {
           onCancel={() => setConfirmState(null)}
         />
       )}
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   );
 }

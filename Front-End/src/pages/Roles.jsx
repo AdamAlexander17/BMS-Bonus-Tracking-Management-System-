@@ -4,6 +4,7 @@ import { getRoles, deleteRole } from '../api/roles';
 import CustomSelect from '../components/CustomSelect/CustomSelect';
 
 import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
+import Toast from '../components/Toast/Toast';
 import PageHeader from '../components/PageHeader/PageHeader';
 import RoleModal from '../components/RoleModal/RoleModal';
 import './Users.css';
@@ -23,6 +24,7 @@ export default function Roles() {
   const [showModal, setShowModal] = useState(false);
   const [editRole, setEditRole]   = useState(null);
   const [confirmState, setConfirmState] = useState(null);
+  const [toast, setToast] = useState(null);
   const [pageSize, setPageSize]         = useState(10);
   const [page, setPage]                 = useState(1);
 
@@ -51,7 +53,7 @@ export default function Roles() {
           await deleteRole(id);
           fetchRoles();
         } catch (err) {
-          alert(err.response?.data?.message || 'Delete failed.');
+          setToast(err.response?.data?.message || 'Delete failed.');
         }
       },
     });
@@ -222,6 +224,7 @@ export default function Roles() {
           onCancel={() => setConfirmState(null)}
         />
       )}
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   );
 }
