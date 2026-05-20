@@ -63,10 +63,10 @@ function FilterField({ label, children, span = 1 }) {
 
 function StatCard({ label, value, helper }) {
   return (
-    <div className="um__card" style={{ padding: '18px 20px', minHeight: 124, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-      <div style={{ fontSize: 12, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: '#111827', lineHeight: 1.2, wordBreak: 'break-word', margin: '10px 0 8px' }}>{value}</div>
-      {helper ? <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5 }}>{helper}</div> : null}
+    <div className="um__card" style={{ padding: '10px 12px', minHeight: 78, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+      <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>{label}</div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', lineHeight: 1.2, wordBreak: 'break-word', margin: '5px 0 4px' }}>{value}</div>
+      {helper ? <div style={{ fontSize: 10, color: '#6b7280', lineHeight: 1.3 }}>{helper}</div> : null}
     </div>
   );
 }
@@ -87,6 +87,7 @@ export default function Reports() {
   const [transactionType, setTransactionType] = useState('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [showFilters, setShowFilters] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -293,72 +294,79 @@ export default function Reports() {
       />
 
       <div className="um__card" style={{ marginBottom: 20 }}>
-        <div style={{ padding: 20, borderBottom: '1px solid #e8ecf0' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Report Filters</div>
-          <div style={{ fontSize: 13, color: '#6b7280' }}>Narrow the report by broker, client state, transaction type, and date range.</div>
-        </div>
-        <div style={{ padding: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, alignItems: 'end' }}>
-          <FilterField label="Search" span={2}>
-            <input
-              style={controlStyle}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search broker, client, ARC ID, user, type, or amount"
-            />
-          </FilterField>
-          <FilterField label="Brand">
-            <select style={controlStyle} value={brandId} onChange={(event) => setBrandId(event.target.value)}>
-              <option value="all">All brands</option>
-              {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-            </select>
-          </FilterField>
-          <FilterField label="Broker">
-            <select style={controlStyle} value={brokerId} onChange={(event) => setBrokerId(event.target.value)}>
-              <option value="all">All brokers</option>
-              {brokers.map((broker) => <option key={broker.id} value={broker.id}>{broker.name}</option>)}
-            </select>
-          </FilterField>
-          <FilterField label="Client Status">
-            <select style={controlStyle} value={status} onChange={(event) => setStatus(event.target.value)}>
-              <option value="all">All statuses</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </FilterField>
-          <FilterField label="Trading OK">
-            <select style={controlStyle} value={tradingState} onChange={(event) => setTradingState(event.target.value)}>
-              <option value="all">All clients</option>
-              <option value="yes">Checked only</option>
-              <option value="no">Unchecked only</option>
-            </select>
-          </FilterField>
-          <FilterField label="Transaction Type">
-            <select style={controlStyle} value={transactionType} onChange={(event) => setTransactionType(event.target.value)}>
-              <option value="all">All types</option>
-              <option value="deposit">Deposit</option>
-              <option value="withdrawal">Withdrawal</option>
-            </select>
-          </FilterField>
-          <FilterField label="From Date">
-            <input type="date" style={controlStyle} value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
-          </FilterField>
-          <FilterField label="To Date">
-            <input type="date" style={controlStyle} value={toDate} onChange={(event) => setToDate(event.target.value)} />
-          </FilterField>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, minHeight: 40 }}>
-            <button className="ph-btn ph-btn--ghost" type="button" onClick={resetFilters}>Reset Filters</button>
+        <div style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Report Filters</div>
+            <div style={{ fontSize: 13, color: '#6b7280' }}>Narrow the report by broker, client state, transaction type, and date range.</div>
           </div>
+          <button className="ph-btn ph-btn--ghost" type="button" onClick={() => setShowFilters((current) => !current)}>
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+          </button>
         </div>
+        {showFilters && (
+          <div style={{ padding: '0 20px 20px', borderTop: '1px solid #e8ecf0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, alignItems: 'end' }}>
+            <FilterField label="Search" span={2}>
+              <input
+                style={controlStyle}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search broker, client, ARC ID, user, type, or amount"
+              />
+            </FilterField>
+            <FilterField label="Brand">
+              <select style={controlStyle} value={brandId} onChange={(event) => setBrandId(event.target.value)}>
+                <option value="all">All brands</option>
+                {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+              </select>
+            </FilterField>
+            <FilterField label="Broker">
+              <select style={controlStyle} value={brokerId} onChange={(event) => setBrokerId(event.target.value)}>
+                <option value="all">All brokers</option>
+                {brokers.map((broker) => <option key={broker.id} value={broker.id}>{broker.name}</option>)}
+              </select>
+            </FilterField>
+            <FilterField label="Client Status">
+              <select style={controlStyle} value={status} onChange={(event) => setStatus(event.target.value)}>
+                <option value="all">All statuses</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </FilterField>
+            <FilterField label="Trading OK">
+              <select style={controlStyle} value={tradingState} onChange={(event) => setTradingState(event.target.value)}>
+                <option value="all">All clients</option>
+                <option value="yes">Checked only</option>
+                <option value="no">Unchecked only</option>
+              </select>
+            </FilterField>
+            <FilterField label="Transaction Type">
+              <select style={controlStyle} value={transactionType} onChange={(event) => setTransactionType(event.target.value)}>
+                <option value="all">All types</option>
+                <option value="deposit">Deposit</option>
+                <option value="withdrawal">Withdrawal</option>
+              </select>
+            </FilterField>
+            <FilterField label="From Date">
+              <input type="date" style={controlStyle} value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
+            </FilterField>
+            <FilterField label="To Date">
+              <input type="date" style={controlStyle} value={toDate} onChange={(event) => setToDate(event.target.value)} />
+            </FilterField>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, minHeight: 40 }}>
+              <button className="ph-btn ph-btn--ghost" type="button" onClick={resetFilters}>Reset Filters</button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ marginBottom: 12, fontSize: 15, fontWeight: 700, color: '#111827' }}>Key Metrics</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 16, marginBottom: 20 }}>
-        <StatCard label="Brokers In Report" value={formatCount(summary.brokerCount)}  />
-        <StatCard label="Clients In Report" value={formatCount(summary.clientCount)}  />
-        <StatCard label="Legitimate Clients" value={formatCount(summary.legitimateCount)}  />
-        <StatCard label="Total Earned" value={formatMoney(summary.totalEarned)}  />
-        <StatCard label="Client Deposits" value={formatMoney(summary.totalDeposited)}  />
-        <StatCard label="Client Withdrawals" value={formatMoney(summary.totalWithdrawn)}/>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 12, marginBottom: 20 }}>
+        <StatCard label="Brokers In Report" value={formatCount(summary.brokerCount)} />
+        <StatCard label="Clients In Report" value={formatCount(summary.clientCount)} />
+        <StatCard label="Legitimate Clients" value={formatCount(summary.legitimateCount)} />
+        <StatCard label="Total Earned" value={formatMoney(summary.totalEarned)} />
+        <StatCard label="Client Deposits" value={formatMoney(summary.totalDeposited)} />
+        <StatCard label="Client Withdrawals" value={formatMoney(summary.totalWithdrawn)} />
       </div>
 
       <div className="um__card" style={{ marginBottom: 20 }}>
