@@ -388,7 +388,7 @@ export default function AuditLog() {
           <span className="audit-log-pagination__label">{`Page ${pagination.page} of ${totalPages}`}</span>
           <button
             type="button"
-            className="audit-log-btn audit-log-btn--primary"
+            className="ph-btn ph-btn--ghost"
             disabled={pagination.page >= totalPages || loading}
             onClick={() => setPage((current) => Math.min(current + 1, totalPages))}
           >
