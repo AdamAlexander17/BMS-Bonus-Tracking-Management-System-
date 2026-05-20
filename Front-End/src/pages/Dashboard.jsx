@@ -222,15 +222,13 @@ export default function Dashboard() {
   const funnel = useMemo(() => {
     const added    = filteredClients.length;
     const verified = filteredClients.filter(c => Number(c.deposited_amount || 0) > 0).length;
-    const fmReview = Math.round(verified * 0.9);
-    const checker  = Math.round(verified * 0.8);
+    const checker  = Math.round(verified * 0.9);
     const released = filteredClients.filter(c => c.status === 'Active' && Number(c.deposited_amount || 0) > 0).length;
     return [
-      { label: 'Client Added',         value: added },
-      { label: 'Trading Verified',     value: verified },
-      { label: 'Floor Manager Review', value: fmReview },
-      { label: 'Checker Approval',     value: checker },
-      { label: 'Bonus Released',       value: released },
+      { label: 'Client Added',     value: added },
+      { label: 'Trading Verified', value: verified },
+      { label: 'Checker Approval', value: checker },
+      { label: 'Bonus Released',   value: released },
     ];
   }, [filteredClients]);
 
@@ -326,7 +324,7 @@ export default function Dashboard() {
         </div>
 
         <div className="chart-card">
-          <ChartHeader title="Monthly Deposit vs Withdrawal" subtitle="Compare cash flow across months" />
+          <ChartHeader title=" Deposit vs Withdrawal" subtitle="Compare cash flow across months" />
           <Chart
             type="bar"
             height={310}

@@ -59,6 +59,10 @@
   color: #fff;
   font-weight: 600;
 }
+.csel__option--all {
+  border-bottom: 1px solid #e8ecf0;
+  margin-bottom: 2px;
+}
 
 /* Form variant */
 .csel--form {

@@ -29,6 +29,14 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
 
       {open && (
         <ul className="csel__dropdown">
+          {!isForm && (
+            <li
+              className="csel__option csel__option--all"
+              onClick={() => { onChange('all'); setOpen(false); }}
+            >
+              {placeholder}
+            </li>
+          )}
           {options.map(opt => (
             <li
               key={opt.value}
