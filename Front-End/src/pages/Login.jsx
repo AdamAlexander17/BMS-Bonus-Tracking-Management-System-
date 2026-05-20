@@ -78,36 +78,7 @@ export default function Login() {
 
       {/* Right: decorative teal panel */}
       <div className="lp__left">
-        {/* Full-panel candlestick chart background */}
-        <svg className="lp__chart" viewBox="0 0 600 800" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
-          {/* Candles: [cx, wickTop, wickBottom, bodyTop, bodyBottom, filled] */}
-          {[
-            [55,  90,  700, 200, 540, true ],
-            [135, 310, 730, 350, 610, false],
-            [215, 55,  610, 105, 420, true ],
-            [295, 190, 690, 230, 530, false],
-            [375, 25,  550, 65,  380, true ],
-            [455, 130, 630, 165, 470, false],
-            [535, 15,  520, 50,  340, true ],
-          ].map(([cx, wt, wb, bt, bb, filled], i) => (
-            <g key={i}>
-              <line x1={cx} y1={wt} x2={cx} y2={wb}
-                stroke="rgba(180,220,220,0.38)" strokeWidth="2"/>
-              <rect x={cx - 26} y={bt} width="52" height={bb - bt} rx="4"
-                fill={filled ? 'rgba(100,185,185,0.42)' : 'none'}
-                stroke="rgba(180,220,220,0.38)" strokeWidth="1.8"
-              />
-            </g>
-          ))}
-          {/* Upward trend line */}
-          <polyline
-            points="55,370 135,480 215,262 295,380 375,222 455,318 535,195"
-            fill="none" stroke="#4ecdc4" strokeWidth="2.5" opacity="0.65"
-            strokeLinejoin="round"
-          />
-        </svg>
-
-        {/* Logo / brand at top */}
+        {/* Brand */}
         <div className="lp__brand">
           <div className="lp__brand-icon">
             <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="26" height="26">
@@ -123,17 +94,17 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Middle content */}
+        {/* Content */}
         <div className="lp__left-content">
-          <p className="lp__headline">Your Bonus Operations,<br/>Unified.</p>
+          <p className="lp__headline">Smarter Bonus<br/>Management Starts Here</p>
           <p className="lp__desc">
-            Built for precision. Designed for scale. Manage broker commissions,
-            client payouts, and performance data — all in one place.
+            Track broker commissions, manage client payouts, and monitor
+            performance — all from one powerful, unified platform.
           </p>
           <div className="lp__features">
             <div className="lp__feature">
               <span className="lp__feature-dot" />
-              <span>Real-time broker commission tracking</span>
+              <span>Real-time commission &amp; bonus tracking</span>
             </div>
             <div className="lp__feature">
               <span className="lp__feature-dot" />
@@ -141,14 +112,14 @@ export default function Login() {
             </div>
             <div className="lp__feature">
               <span className="lp__feature-dot" />
-              <span>Role-based access &amp; full audit trails</span>
+              <span>Role-based access with full audit trail</span>
             </div>
           </div>
         </div>
 
         {/* Footer */}
         <div className="lp__left-footer">
-          <span>Copyright &copy; 2026 BMS &mdash; Bonus Tracking Management System</span>
+          <span>&copy; 2026 BMS &mdash; Bonus Tracking Management System</span>
         </div>
       </div>
     </div>
