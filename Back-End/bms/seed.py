@@ -20,9 +20,12 @@ print(f'✔ Brands seeded: {brands_data}')
 # ─── Permissions ─────────────────────────────────────────────────────────────
 permissions_data = [
     ('broker', 'create'), ('broker', 'update'), ('broker', 'delete'), ('broker', 'view'),
-    ('client', 'create'), ('client', 'update'), ('client', 'delete'), ('client', 'view'),
-    ('report', 'view'),   ('report', 'comment'), ('report', 'approve'),
+    ('client', 'create'), ('client', 'update'), ('client', 'delete'), ('client', 'view'), ('client', 'trading_ok'),
+    ('report', 'view'),   ('report', 'export'),
+    ('auditlog', 'view'),
     ('user',   'create'), ('user',   'update'),  ('user',   'delete'),  ('user', 'view'),
+    ('brand',  'create'), ('brand',  'update'),  ('brand',  'delete'),  ('brand', 'view'),
+    ('role',   'create'), ('role',   'update'),  ('role',   'delete'),  ('role', 'view'),
 ]
 for module, action in permissions_data:
     Permission.objects.get_or_create(module=module, action=action)
@@ -32,9 +35,12 @@ print(f'✔ Permissions seeded: {len(permissions_data)} entries')
 role_permissions_map = {
     'Admin': [
         ('broker','create'),('broker','update'),('broker','delete'),('broker','view'),
-        ('client','create'),('client','update'),('client','delete'),('client','view'),
-        ('report','view'),  ('report','comment'),('report','approve'),
+        ('client','create'),('client','update'),('client','delete'),('client','view'),('client','trading_ok'),
+        ('report','view'),  ('report','export'),
+        ('auditlog','view'),
         ('user','create'),  ('user','update'),  ('user','delete'),  ('user','view'),
+        ('brand','create'), ('brand','update'), ('brand','delete'), ('brand','view'),
+        ('role','create'),  ('role','update'),  ('role','delete'),  ('role','view'),
     ],
     'RM': [
         ('broker','create'),('broker','update'),('broker','delete'),('broker','view'),
@@ -45,10 +51,10 @@ role_permissions_map = {
         ('client','create'),('client','update'),('client','delete'),('client','view'),
     ],
     'FM': [
-        ('broker','view'),('client','view'),('report','view'),('report','comment'),
+        ('broker','view'),('client','view'),('report','view'),('report','export'),
     ],
     'Checker': [
-        ('broker','view'),('client','view'),('report','view'),('report','approve'),
+        ('broker','view'),('client','view'),('report','view'),('report','export'),
     ],
 }
 

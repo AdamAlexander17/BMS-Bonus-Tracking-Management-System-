@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
 import { getBrokers } from '../api/brokers';
 import { getBrands } from '../api/brands';
@@ -122,7 +123,7 @@ function ReportToolbar({ title, subtitle, rowCount, pageSize, onPageSizeChange, 
           <option value="25">25 rows</option>
           <option value="50">50 rows</option>
         </select>
-        <button className="ph-btn ph-btn--ghost" type="button" onClick={onExport}>Export CSV</button>
+        {onExport && <button className="ph-btn ph-btn--ghost" type="button" onClick={onExport}>Export CSV</button>}
         {children}
       </div>
     </div>
@@ -147,6 +148,9 @@ function PaginationControls({ page, pageSize, totalRows, onChange }) {
 }
 
 export default function Reports() {
+  const { user } = useAuth();
+  const canExport = !user?.permissions || user.permissions.includes('report:export');
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [brokers, setBrokers] = useState([]);
@@ -495,7 +499,7 @@ export default function Reports() {
           rowCount={brokerSummary.length}
           pageSize={brokerPageSize}
           onPageSizeChange={setBrokerPageSize}
-          onExport={() => exportRowsToCsv('broker-performance-summary.csv', brokerColumns, brokerSummary)}
+          onExport={canExport ? () => exportRowsToCsv('broker-performance-summary.csv', brokerColumns, brokerSummary) : undefined}
         />
         <table className="um__table">
           <thead>
@@ -536,7 +540,7 @@ export default function Reports() {
           rowCount={filteredClients.length}
           pageSize={clientPageSize}
           onPageSizeChange={setClientPageSize}
-          onExport={() => exportRowsToCsv('client-bonus-report.csv', clientColumns, filteredClients)}
+          onExport={canExport ? () => exportRowsToCsv('client-bonus-report.csv', clientColumns, filteredClients) : undefined}
         />
         <table className="um__table">
           <thead>
@@ -582,7 +586,7 @@ export default function Reports() {
           rowCount={filteredTransactions.length}
           pageSize={transactionPageSize}
           onPageSizeChange={setTransactionPageSize}
-          onExport={() => exportRowsToCsv('transaction-ledger.csv', transactionColumns, filteredTransactions)}
+          onExport={canExport ? () => exportRowsToCsv('transaction-ledger.csv', transactionColumns, filteredTransactions) : undefined}
         />
         <table className="um__table">
           <thead>

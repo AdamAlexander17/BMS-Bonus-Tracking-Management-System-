@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
 import { getBrokersByRmUser, createBroker, updateBroker, deleteBroker } from '../api/brokers';
 import { createClient } from '../api/clients';
@@ -82,7 +83,7 @@ function ConfirmDialog({ title, message, confirmLabel = 'Yes, Delete', onConfirm
           </div>
         </div>
         <div style={{
-          display: 'flex', justifyContent: 'flex-end', gap: 10,
+          display: 'flex', justifyContent: 'space-between', gap: 10,
           padding: '16px 24px', borderTop: '1px solid #f1f5f9',
         }}>
           <button className="ph-btn ph-btn--ghost" onClick={onCancel}>No, Keep It</button>
@@ -509,6 +510,12 @@ function AddClientModal({ broker, onClose, onCreated }) {
 export default function BrokerUserDetail() {
   const { userId } = useParams();
   const navigate   = useNavigate();
+  const { user }   = useAuth();
+  const hasPerm    = (key) => !user?.permissions || user.permissions.includes(key);
+  const canCreate  = hasPerm('broker:create');
+  const canUpdate  = hasPerm('broker:update');
+  const canDelete  = hasPerm('broker:delete');
+  const canActions = canUpdate || canDelete;
 
   const [rmUser, setRmUser]   = useState(null);
   const [brokers, setBrokers] = useState([]);
@@ -571,13 +578,15 @@ export default function BrokerUserDetail() {
             <button className="ph-btn ph-btn--ghost" onClick={() => navigate('/brokers')}>
               <BackIcon /> Back to Brokers
             </button>
-            <button className="ph-btn ph-btn--primary" onClick={() => setShowModal(true)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              Add Broker
-            </button>
+            {canCreate && (
+              <button className="ph-btn ph-btn--primary" onClick={() => setShowModal(true)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Add Broker
+              </button>
+            )}
           </>
         }
       />
@@ -606,13 +615,13 @@ export default function BrokerUserDetail() {
               <th>CLIENTS</th>
               <th>STATUS</th>
               <th>CREATED</th>
-              <th>ACTIONS</th>
+              {canActions && <th>ACTIONS</th>}
             </tr>
           </thead>
           <tbody>
             {brokers.length === 0 ? (
               <tr>
-                <td colSpan="7" className="um__empty">
+                <td colSpan={canActions ? 7 : 6} className="um__empty">
                   No broker companies assigned yet. Click "Add Broker" to get started.
                 </td>
               </tr>
@@ -641,30 +650,36 @@ export default function BrokerUserDetail() {
                 </td>
                 <td><span className="um__date">{formatDate(b.created_at)}</span></td>
                 <td onClick={e => e.stopPropagation()}>
-                  <div className="um__actions">
-                    <button
-                      className="um__action-btn um__action-btn--edit"
-                      title="Edit broker"
-                      onClick={() => setEditBroker(b)}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                      </svg>
-                    </button>
-                    <button
-                      className="um__action-btn um__action-btn--delete"
-                      title="Delete broker"
-                      onClick={() => handleDeleteBroker(b)}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                        <path d="M10 11v6M14 11v6"/>
-                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                      </svg>
-                    </button>
-                  </div>
+                  {canActions && (
+                    <div className="um__actions">
+                      {canUpdate && (
+                        <button
+                          className="um__action-btn um__action-btn--edit"
+                          title="Edit broker"
+                          onClick={() => setEditBroker(b)}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                          </svg>
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          className="um__action-btn um__action-btn--delete"
+                          title="Delete broker"
+                          onClick={() => handleDeleteBroker(b)}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                            <path d="M10 11v6M14 11v6"/>
+                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}

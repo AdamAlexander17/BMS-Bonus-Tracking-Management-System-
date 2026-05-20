@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from django.db.models import Count, Q
+from django.db.models.deletion import ProtectedError
 
 from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, Client, ClientTransaction, AuditLog
 from app.utils import verify_password, generate_access_token, generate_refresh_token, decode_token
@@ -148,6 +149,16 @@ def login(request):
                 'username': user.username,
                 'roles': user.role_names,
                 'brand': user.brand_name,
+                'permissions': sorted({
+                    f'{m}:{a}'
+                    for m, a in user.roles
+                        .values_list(
+                            'role_permissions__permission__module',
+                            'role_permissions__permission__action'
+                        )
+                        .distinct()
+                    if m and a
+                }),
             }
         }
     }, status=status.HTTP_200_OK)
@@ -278,7 +289,7 @@ def format_user(user):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def audit_log_list(request):
-    if not has_perm(request, 'report:view'):
+    if not has_perm(request, 'auditlog:view'):
         return Response(
             {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
@@ -897,7 +908,13 @@ def brand_delete(request, brand_id):
         )
 
     deleted_brand_name = brand.name
-    brand.delete()
+    try:
+        brand.delete()
+    except ProtectedError:
+        return Response(
+            {'success': False, 'message': f'Cannot delete "{deleted_brand_name}" — it is still assigned to users or brokers. Reassign them first.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
     log_audit_event(
         request,
         module='brand',
@@ -929,7 +946,7 @@ def format_permission(permission):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def permission_list(request):
-    if not has_perm(request, 'permission:view'):
+    if not has_perm(request, 'role:configure'):
         return Response(
             {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
@@ -945,7 +962,7 @@ def permission_list(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def permission_get(request, permission_id):
-    if not has_perm(request, 'permission:view'):
+    if not has_perm(request, 'role:configure'):
         return Response(
             {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
@@ -2075,12 +2092,19 @@ def client_update(request, client_id):
 
     if new_is_legitimate is not None:
         try:
-            client.is_legitimate = _parse_bool(new_is_legitimate, 'is_legitimate')
+            parsed_legitimate = _parse_bool(new_is_legitimate, 'is_legitimate')
         except ValueError as exc:
             return Response(
                 {'success': False, 'message': str(exc)},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        if parsed_legitimate != bool(client.is_legitimate):
+            if not has_perm(request, 'client:trading_ok'):
+                return Response(
+                    {'success': False, 'message': 'You do not have permission to update the Legitimate Client status.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            client.is_legitimate = parsed_legitimate
 
     if new_status is not None:
         normalized = new_status.strip().capitalize()

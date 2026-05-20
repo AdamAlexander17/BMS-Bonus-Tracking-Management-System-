@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
 import { getBroker, updateBroker } from '../api/brokers';
 import { getBrands } from '../api/brands';
@@ -90,7 +91,7 @@ function ConfirmDialog({ title, message, confirmLabel = 'Yes, Delete', onConfirm
           </div>
         </div>
         <div style={{
-          display: 'flex', justifyContent: 'flex-end', gap: 10,
+          display: 'flex', justifyContent: 'space-between', gap: 10,
           padding: '16px 24px', borderTop: '1px solid #f1f5f9',
         }}>
           <button className="ph-btn ph-btn--ghost" onClick={onCancel}>No, Keep It</button>
@@ -640,6 +641,14 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
 export default function BrokerDetail() {
   const { id }   = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const hasPerm         = (key) => !user?.permissions || user.permissions.includes(key);
+  const canTradingOk    = hasPerm('client:trading_ok');
+  const canClientCreate = hasPerm('client:create');
+  const canClientUpdate = hasPerm('client:update');
+  const canClientDelete = hasPerm('client:delete');
+  const canClientActions = canClientUpdate || canClientDelete;
+  const canBrokerUpdate = hasPerm('broker:update');
 
   const [broker, setBroker]   = useState(null);
   const [clients, setClients] = useState([]);
@@ -726,9 +735,11 @@ export default function BrokerDetail() {
             <button className="ph-btn ph-btn--ghost" onClick={() => broker.rm_user ? navigate(`/brokers/rm/${broker.rm_user.id}`) : navigate('/brokers')}>
               <BackIcon /> Back
             </button>
-            <button className="ph-btn ph-btn--primary" onClick={() => setShowModal(true)}>
-              <PlusIcon /> Add Client
-            </button>
+            {canClientCreate && (
+              <button className="ph-btn ph-btn--primary" onClick={() => setShowModal(true)}>
+                <PlusIcon /> Add Client
+              </button>
+            )}
           </>
         }
       />
@@ -804,14 +815,14 @@ export default function BrokerDetail() {
               <th>NET TOTAL</th>
               <th>EARNED (1%)</th>
               <th>STATUS</th>
-              <th>TRADING OK</th>
+              {canTradingOk && <th>LEGITIMATE CLIENT</th>}
               <th>CREATED</th>
-              <th>ACTIONS</th>
+              {canClientActions && <th>ACTIONS</th>}
             </tr>
           </thead>
           <tbody>
             {clients.length === 0 ? (
-              <tr><td colSpan="10" className="um__empty">No clients yet. Click "Add Client" to create the first one.</td></tr>
+              <tr><td colSpan={9 + (canTradingOk ? 1 : 0) + (canClientActions ? 1 : 0)} className="um__empty">No clients yet. Click "Add Client" to create the first one.</td></tr>
             ) : clients.map(c => (
               <tr key={c.id}>
                 <td>{c.name}</td>
@@ -821,81 +832,97 @@ export default function BrokerDetail() {
                 <td>{formatINR(c.net_total)}</td>
                 <td style={{ color: '#3b82f6', fontWeight: 600 }}>{formatINR(c.earned_amount)}</td>
                 <td>
-                  <button
-                    className={`um__toggle ${c.status === 'Active' ? 'um__toggle--on' : ''}`}
-                    onClick={() => handleToggleClient(c)}
-                    title={c.status}
-                  >
-                    <span className="um__toggle-thumb" />
-                  </button>
+                  {canClientUpdate ? (
+                    <button
+                      className={`um__toggle ${c.status === 'Active' ? 'um__toggle--on' : ''}`}
+                      onClick={() => handleToggleClient(c)}
+                      title={c.status}
+                    >
+                      <span className="um__toggle-thumb" />
+                    </button>
+                  ) : (
+                    <span className={`um__status-badge ${c.status === 'Active' ? 'um__status-badge--active' : 'um__status-badge--inactive'}`}>
+                      {c.status}
+                    </span>
+                  )}
                 </td>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(c.is_legitimate)}
-                    onChange={() => handleToggleLegitimate(c)}
-                    title={c.is_legitimate ? 'Legitimate trading confirmed' : 'Legitimate trading not confirmed'}
-                  />
-                </td>
+                {canTradingOk && (
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(c.is_legitimate)}
+                      onChange={() => handleToggleLegitimate(c)}
+                      title={c.is_legitimate ? 'Legitimate trading confirmed' : 'Legitimate trading not confirmed'}
+                    />
+                  </td>
+                )}
                 <td><span className="um__date">{formatDate(c.created_at)}</span></td>
-                <td>
-                  <div className="um__actions">
-                    <button
-                      className="um__action-btn"
-                      title="Transaction History"
-                      style={{ color: '#2563eb' }}
-                      onClick={() => navigate(`/clients/${c.id}/transactions`)}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                        <path d="M3 12h18"/>
-                        <path d="M3 6h18"/>
-                        <path d="M3 18h18"/>
-                      </svg>
-                    </button>
-                    <button
-                      className="um__action-btn"
-                      title="Add Deposit"
-                      style={{ color: '#10b981' }}
-                      onClick={() => setAmountAction({ client: c, mode: 'deposit' })}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                        <line x1="12" y1="5" x2="12" y2="19"/>
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                      </svg>
-                    </button>
-                    <button
-                      className="um__action-btn"
-                      title="Add Withdrawal"
-                      style={{ color: '#f59e0b' }}
-                      onClick={() => setAmountAction({ client: c, mode: 'withdrawal' })}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                      </svg>
-                    </button>
-                    <button
-                      className="um__action-btn um__action-btn--edit"
-                      title="Edit"
-                      onClick={() => setEditClient(c)}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                      </svg>
-                    </button>
-                    <button
-                      className="um__action-btn um__action-btn--delete"
-                      title="Delete"
-                      onClick={() => handleDeleteClient(c)}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6l-1 14H6L5 6"/>
-                        <path d="M10 11v6M14 11v6"/>
-                      </svg>
-                    </button>
-                  </div>
-                </td>
+                {canClientActions && (
+                  <td>
+                    <div className="um__actions">
+                      {canClientUpdate && (
+                        <>
+                          <button
+                            className="um__action-btn"
+                            title="Transaction History"
+                            style={{ color: '#2563eb' }}
+                            onClick={() => navigate(`/clients/${c.id}/transactions`)}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                              <path d="M3 12h18"/>
+                              <path d="M3 6h18"/>
+                              <path d="M3 18h18"/>
+                            </svg>
+                          </button>
+                          <button
+                            className="um__action-btn"
+                            title="Add Deposit"
+                            style={{ color: '#10b981' }}
+                            onClick={() => setAmountAction({ client: c, mode: 'deposit' })}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                              <line x1="12" y1="5" x2="12" y2="19"/>
+                              <line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                          </button>
+                          <button
+                            className="um__action-btn"
+                            title="Add Withdrawal"
+                            style={{ color: '#f59e0b' }}
+                            onClick={() => setAmountAction({ client: c, mode: 'withdrawal' })}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                              <line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                          </button>
+                          <button
+                            className="um__action-btn um__action-btn--edit"
+                            title="Edit"
+                            onClick={() => setEditClient(c)}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                          </button>
+                        </>
+                      )}
+                      {canClientDelete && (
+                        <button
+                          className="um__action-btn um__action-btn--delete"
+                          title="Delete"
+                          onClick={() => handleDeleteClient(c)}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6l-1 14H6L5 6"/>
+                            <path d="M10 11v6M14 11v6"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

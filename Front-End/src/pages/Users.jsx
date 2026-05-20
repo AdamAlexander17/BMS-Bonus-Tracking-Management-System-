@@ -1,11 +1,66 @@
 import { useEffect, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { getUsers, deleteUser, updateUser } from '../api/users';
+
+function ConfirmDialog({ title, message, onConfirm, onCancel }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 2000,
+      background: 'rgba(15,23,42,0.5)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 24,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 400,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden',
+      }}>
+        <div style={{ padding: '28px 24px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: '50%',
+              background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" width="22" height="22">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div>
+              <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: '#111827' }}>{title}</h3>
+              <p style={{ margin: 0, fontSize: 14, color: '#6b7280', lineHeight: 1.6 }}>{message}</p>
+            </div>
+          </div>
+        </div>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', gap: 10,
+          padding: '16px 24px', borderTop: '1px solid #f1f5f9',
+        }}>
+          <button className="ph-btn ph-btn--ghost" onClick={onCancel}>No, Keep It</button>
+          <button
+            style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+            onClick={onConfirm}
+          >
+            Yes, Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 import { getRoles } from '../api/roles';
 import PageHeader from '../components/PageHeader/PageHeader';
 import CustomSelect from '../components/CustomSelect/CustomSelect';
 import './Users.css';
 
 export default function Users() {
+  const { user } = useAuth();
+  const hasPerm    = (key) => !user?.permissions || user.permissions.includes(key);
+  const canCreate  = hasPerm('user:create');
+  const canUpdate  = hasPerm('user:update');
+  const canDelete  = hasPerm('user:delete');
+  const canActions = canUpdate || canDelete;
+
   const [users, setUsers]         = useState([]);
   const [roles, setRoles]         = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -14,6 +69,7 @@ export default function Users() {
   const [roleFilter, setRoleFilter] = useState('all');
   const [showAdd, setShowAdd]     = useState(false);
   const [editUser, setEditUser]   = useState(null);
+  const [confirmState, setConfirmState] = useState(null);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -40,14 +96,20 @@ export default function Users() {
     }
   };
 
-  const handleDelete = async (id, username) => {
-    if (!window.confirm(`Delete user "${username}"?`)) return;
-    try {
-      await deleteUser(id);
-      setUsers(prev => prev.filter(u => u.id !== id));
-    } catch (err) {
-      alert(err.response?.data?.message || 'Delete failed.');
-    }
+  const handleDelete = (id, username) => {
+    setConfirmState({
+      title: 'Delete User',
+      message: `You are about to permanently delete "${username}" and all their data. This action cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmState(null);
+        try {
+          await deleteUser(id);
+          setUsers(prev => prev.filter(u => u.id !== id));
+        } catch (err) {
+          alert(err.response?.data?.message || 'Delete failed.');
+        }
+      },
+    });
   };
 
   const filtered = users.filter(u => {
@@ -86,13 +148,15 @@ export default function Users() {
               </svg>
               Refresh
             </button>
-            <button className="ph-btn ph-btn--primary" onClick={() => setShowAdd(true)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              Add User
-            </button>
+            {canCreate && (
+              <button className="ph-btn ph-btn--primary" onClick={() => setShowAdd(true)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
+                  <line x1="12" y1="5" x2="12" y2="19"/>
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Add User
+              </button>
+            )}
           </>
         }
       />
@@ -126,8 +190,8 @@ export default function Users() {
               <col style={{ width: '18%' }} />
               <col style={{ width: '14%' }} />
               <col style={{ width: '12%' }} />
-              <col style={{ width: '18%' }} />
-              <col style={{ width: '13%' }} />
+              <col />
+              {canActions && <col style={{ width: '13%' }} />}
             </colgroup>
             <thead>
               <tr>
@@ -136,12 +200,12 @@ export default function Users() {
                 <th>ROLES</th>
                 <th>STATUS</th>
                 <th>CREATED ↓</th>
-                <th style={{ textAlign: 'right' }}>ACTIONS</th>
+                {canActions && <th style={{ textAlign: 'right' }}>ACTIONS</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan="6" className="um__empty">No users found.</td></tr>
+                <tr><td colSpan={canActions ? 6 : 5} className="um__empty">No users found.</td></tr>
               ) : filtered.map(u => (
                 <tr key={u.id}>
                   <td>
@@ -164,13 +228,19 @@ export default function Users() {
                     </div>
                   </td>
                   <td>
-                    <button
-                      className={`um__toggle ${u.status === 'Active' ? 'um__toggle--on' : ''}`}
-                      onClick={() => handleToggleStatus(u)}
-                      title={u.status}
-                    >
-                      <span className="um__toggle-thumb" />
-                    </button>
+                    {canUpdate ? (
+                      <button
+                        className={`um__toggle ${u.status === 'Active' ? 'um__toggle--on' : ''}`}
+                        onClick={() => handleToggleStatus(u)}
+                        title={u.status}
+                      >
+                        <span className="um__toggle-thumb" />
+                      </button>
+                    ) : (
+                      <span className={`um__status-badge ${u.status === 'Active' ? 'um__status-badge--active' : 'um__status-badge--inactive'}`}>
+                        {u.status}
+                      </span>
+                    )}
                   </td>
                   <td>
                     <span className="um__date">
@@ -183,28 +253,34 @@ export default function Users() {
                       {formatDate(u.created_at)}
                     </span>
                   </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div className="um__actions" style={{ justifyContent: 'flex-end' }}>
-                      <button className="um__action-btn um__action-btn--edit" title="Edit" onClick={() => setEditUser(u)}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                        </svg>
-                      </button>
-                      <button
-                        className="um__action-btn um__action-btn--delete"
-                        title="Delete"
-                        onClick={() => handleDelete(u.id, u.username)}
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="3 6 5 6 21 6"/>
-                          <path d="M19 6l-1 14H6L5 6"/>
-                          <path d="M10 11v6M14 11v6"/>
-                          <path d="M9 6V4h6v2"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </td>
+                  {canActions && (
+                    <td style={{ textAlign: 'right' }}>
+                      <div className="um__actions" style={{ justifyContent: 'flex-end' }}>
+                        {canUpdate && (
+                          <button className="um__action-btn um__action-btn--edit" title="Edit" onClick={() => setEditUser(u)}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            className="um__action-btn um__action-btn--delete"
+                            title="Delete"
+                            onClick={() => handleDelete(u.id, u.username)}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <polyline points="3 6 5 6 21 6"/>
+                              <path d="M19 6l-1 14H6L5 6"/>
+                              <path d="M10 11v6M14 11v6"/>
+                              <path d="M9 6V4h6v2"/>
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -247,6 +323,15 @@ export default function Users() {
             />
           </div>
         </div>
+      )}
+
+      {confirmState && (
+        <ConfirmDialog
+          title={confirmState.title}
+          message={confirmState.message}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState(null)}
+        />
       )}
     </div>
   );

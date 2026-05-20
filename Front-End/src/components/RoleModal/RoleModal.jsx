@@ -17,6 +17,7 @@ export default function RoleModal({ open, role, onClose, onSuccess }) {
   const [permissions, setPermissions] = useState([]);
   const [selected, setSelected]     = useState([]);
   const [loading, setLoading]       = useState(false);
+  const [permsErr, setPermsErr]     = useState('');
   const [saving, setSaving]         = useState(false);
   const [err, setErr]               = useState('');
 
@@ -28,9 +29,11 @@ export default function RoleModal({ open, role, onClose, onSuccess }) {
     setRoleStatus(isEdit ? (role.status || 'Active') : 'Active');
     setSelected(isEdit ? (role.permissions?.map(p => p.id) || []) : []);
     setErr('');
+    setPermsErr('');
     setLoading(true);
     getPermissions()
       .then(permRes => setPermissions(permRes.data.data || []))
+      .catch(() => setPermsErr('Could not load permissions. Please restart the server and try again.'))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -66,8 +69,11 @@ export default function RoleModal({ open, role, onClose, onSuccess }) {
   };
 
   const formatPermLabel = (p) => {
-    const action = (p.action || '').charAt(0).toUpperCase() + (p.action || '').slice(1);
-    const module = (p.module || '').toLowerCase().replace(/_/g, ' ');
+    if (p.action === 'trading_ok') return 'Legitimate Client';
+    const action = (p.action || '').split('_')
+      .map(w => w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+    const module = (p.module || '').charAt(0).toUpperCase() + (p.module || '').slice(1).toLowerCase();
     return `${action} ${module}`;
   };
 
@@ -160,6 +166,8 @@ export default function RoleModal({ open, role, onClose, onSuccess }) {
 
               {loading ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: '#8a94a6' }}>Loading permissions...</div>
+              ) : permsErr ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#dc2626', fontSize: 14 }}>{permsErr}</div>
               ) : (
                 <div className="rm__groups">
                   {Object.entries(grouped).map(([group, perms]) => {
