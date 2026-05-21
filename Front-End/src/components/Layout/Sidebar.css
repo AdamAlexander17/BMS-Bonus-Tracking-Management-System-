@@ -156,6 +156,33 @@
   padding: 12px 14px;
   flex-shrink: 0;
 }
+
+/* Theme toggle */
+.sidebar__theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  background: transparent;
+  border: 1px solid #dde2eb;
+  border-radius: 10px;
+  color: #5a6478;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.sidebar__theme-toggle:hover {
+  background: #f4f6fb;
+  color: #1a1f36;
+  border-color: #c9cfdb;
+}
+.sidebar__theme-toggle--collapsed {
+  justify-content: center;
+  padding: 9px 0;
+}
 .sidebar__user {
   display: flex;
   align-items: center;
