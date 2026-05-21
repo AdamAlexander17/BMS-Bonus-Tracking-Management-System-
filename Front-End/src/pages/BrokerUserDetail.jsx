@@ -27,7 +27,9 @@ const formatDate = (str) => {
 
 const formatDateTime = (str) => {
   if (!str) return '—';
-  return new Date(str.replace(' ', 'T')).toLocaleString('en-IN', {
+  const parsed = new Date(str.includes('T') ? str : str.replace(' ', 'T'));
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleString('en-IN', {
     day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit'
   });
 };
@@ -628,13 +630,13 @@ export default function BrokerUserDetail() {
       />
 
       {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 20 }}>
-        <InfoCard label="Role"             value={(rmUser.roles || []).join('/')} />
-        <InfoCard label="Broker Count" value={brokers.length} />
-        <InfoCard label="Total Clients"    value={totalClients} />
-        <InfoCard label="Total Earned" value={formatINR(totalEarned)} />
-        <InfoCard label="Total Paid" value={formatINR(totalPaid)} />
-        <InfoCard label="Pending Payout" value={formatINR(totalPending)} />
+      <div style={{ display: 'flex', gap: 16, marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
+        <div style={{ flex: '1 0 180px' }}><InfoCard label="Role" value={(rmUser.roles || []).join('/')} /></div>
+        <div style={{ flex: '1 0 180px' }}><InfoCard label="Broker Count" value={brokers.length} /></div>
+        <div style={{ flex: '1 0 180px' }}><InfoCard label="Total Clients" value={totalClients} /></div>
+        <div style={{ flex: '1 0 180px' }}><InfoCard label="Total Earned" value={formatINR(totalEarned)} /></div>
+        <div style={{ flex: '1 0 180px' }}><InfoCard label="Total Paid" value={formatINR(totalPaid)} /></div>
+        <div style={{ flex: '1 0 180px' }}><InfoCard label="Pending Payout" value={formatINR(totalPending)} /></div>
       </div>
 
       {/* Broker companies table */}

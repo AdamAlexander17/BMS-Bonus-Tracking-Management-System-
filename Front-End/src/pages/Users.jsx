@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { getUsers, deleteUser, updateUser, bulkUploadUsers } from '../api/users';
 import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
 import Toast from '../components/Toast/Toast';
@@ -581,10 +582,60 @@ function EditUserForm({ user, roles, onClose, onSuccess }) {
 }
 
 function BulkUploadModal({ onClose, onSuccess }) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
+  const T = {
+    overlay:          isDark ? 'rgba(0,0,0,0.65)'        : 'rgba(15,23,42,0.5)',
+    surface:          isDark ? '#0a1a14'                 : '#fff',
+    headerBg:         isDark ? '#0a1a14'                 : '#004B4E',
+    headerBorder:     isDark ? '1px solid #1e3a31'       : '1px solid transparent',
+    text:             isDark ? '#e7f0ec'                 : '#374151',
+    textMuted:        isDark ? '#9ab3aa'                 : '#9ca3af',
+    accent:           isDark ? '#4ade80'                 : '#004B4E',
+    accentBtnBg:      isDark ? '#4ade80'                 : '#004B4E',
+    accentBtnText:    isDark ? '#03110c'                 : '#fff',
+    closeBtnBg:       isDark ? 'rgba(255,255,255,0.08)'  : 'rgba(255,255,255,0.15)',
+    headerSubText:    isDark ? '#9ab3aa'                 : 'rgba(255,255,255,0.8)',
+    headerTitle:      isDark ? '#e7f0ec'                 : '#fff',
+    cardBg:           isDark ? '#0f241c'                 : '#e0f5f5',
+    cardBorder:       isDark ? '1px solid #1e3a31'       : '1px solid #b2dfdf',
+    cardLabel:        isDark ? '#86efac'                 : '#004B4E',
+    codeBg:           isDark ? 'rgba(74,222,128,0.10)'   : 'rgba(0,75,78,0.08)',
+    codeText:         isDark ? '#d1fae5'                 : '#004B4E',
+    captionText:      isDark ? '#86efac'                 : '#006467',
+    dropBg:           isDark ? '#0f241c'                 : '#fafafa',
+    dropBgActive:     isDark ? 'rgba(74,222,128,0.14)'   : '#e0f5f5',
+    dropBorder:       isDark ? '#1e3a31'                 : '#e2e8f0',
+    dropBorderActive: isDark ? '#4ade80'                 : '#004B4E',
+    dropText:         isDark ? '#e7f0ec'                 : '#374151',
+    dropTextMuted:    isDark ? '#6b857c'                 : '#9ca3af',
+    fileNameColor:    isDark ? '#4ade80'                 : '#004B4E',
+    iconIdle:         isDark ? '#6b857c'                 : '#94a3b8',
+    iconActive:       isDark ? '#4ade80'                 : '#004B4E',
+    errBg:            isDark ? 'rgba(220,38,38,0.12)'    : '#fef2f2',
+    errBorder:        isDark ? 'rgba(220,38,38,0.4)'     : '#fecaca',
+    errText:          isDark ? '#fca5a5'                 : '#dc2626',
+    successBg:        isDark ? 'rgba(74,222,128,0.12)'   : '#f0fdf4',
+    successBorder:    isDark ? 'rgba(74,222,128,0.4)'    : '#bbf7d0',
+    successText:      isDark ? '#86efac'                 : '#166534',
+    failTableBg:      isDark ? '#0a1a14'                 : '#fff',
+    failTableHead:    isDark ? 'rgba(220,38,38,0.15)'    : '#fef2f2',
+    failTableBorder:  isDark ? 'rgba(220,38,38,0.35)'    : '#fee2e2',
+    failTextHead:     isDark ? '#fca5a5'                 : '#7f1d1d',
+    failTextBody:     isDark ? '#fecaca'                 : '#991b1b',
+    failTextReason:   isDark ? '#9ab3aa'                 : '#6b7280',
+    progressTrack:    isDark ? 'rgba(74,222,128,0.15)'   : '#e2e8f0',
+    progressFill:     isDark ? '#4ade80'                 : '#004B4E',
+  };
+
+  const CHUNK_SIZE = 100;
+
   const [file, setFile]       = useState(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult]   = useState(null); // { created, failed, message }
   const [err, setErr]         = useState('');
+  const [progress, setProgress] = useState({ done: 0, total: 0, chunk: 0, totalChunks: 0 });
 
   const downloadTemplate = () => {
     const csv = 'username,brand,role\njohn_doe,BrandA,RM\njane_doe,BrandB,JRM\n';
@@ -599,42 +650,106 @@ function BulkUploadModal({ onClose, onSuccess }) {
     e.preventDefault();
     if (!file) { setErr('Please select a CSV file.'); return; }
     setErr(''); setResult(null); setUploading(true);
+    setProgress({ done: 0, total: 0, chunk: 0, totalChunks: 0 });
+
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await bulkUploadUsers(fd);
-      setResult(res.data);
-      if (res.data.created > 0) onSuccess();
+      const text = await file.text();
+      const lines = text.split(/\r?\n/);
+      // Trim trailing empty lines but keep order
+      while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+
+      if (lines.length < 2) {
+        setErr('CSV must have a header row and at least one data row.');
+        setUploading(false);
+        return;
+      }
+
+      const header = lines[0];
+      const dataLines = lines.slice(1).filter(l => l.trim().length > 0);
+      const totalChunks = Math.ceil(dataLines.length / CHUNK_SIZE);
+      setProgress({ done: 0, total: dataLines.length, chunk: 0, totalChunks });
+
+      let totalCreated = 0;
+      const allFailed = [];
+
+      for (let i = 0; i < totalChunks; i++) {
+        const chunkRows = dataLines.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        const chunkCsv  = [header, ...chunkRows].join('\n') + '\n';
+        const chunkBlob = new Blob([chunkCsv], { type: 'text/csv' });
+        const fd = new FormData();
+        fd.append('file', new File([chunkBlob], file.name || 'chunk.csv', { type: 'text/csv' }));
+
+        try {
+          const res = await bulkUploadUsers(fd);
+          totalCreated += res.data?.created || 0;
+          if (Array.isArray(res.data?.failed)) {
+            const offset = i * CHUNK_SIZE;
+            res.data.failed.forEach(f => {
+              // Backend numbers rows starting at 2 within each chunk; remap to global file row
+              const globalRow = (typeof f.row === 'number') ? f.row + offset : f.row;
+              allFailed.push({ ...f, row: globalRow });
+            });
+          }
+        } catch (ex) {
+          const reason = ex.response?.data?.message || ex.message || 'chunk upload failed';
+          chunkRows.forEach((_, j) => {
+            allFailed.push({
+              row: i * CHUNK_SIZE + j + 2,
+              username: '(unknown)',
+              reason,
+            });
+          });
+        }
+
+        setProgress({
+          done: Math.min((i + 1) * CHUNK_SIZE, dataLines.length),
+          total: dataLines.length,
+          chunk: i + 1,
+          totalChunks,
+        });
+      }
+
+      setResult({
+        created: totalCreated,
+        failed:  allFailed,
+        message: `${totalCreated} user(s) created, ${allFailed.length} failed (processed in ${totalChunks} chunk${totalChunks === 1 ? '' : 's'} of up to ${CHUNK_SIZE}).`,
+      });
+      if (totalCreated > 0) onSuccess();
     } catch (ex) {
-      setErr(ex.response?.data?.message || 'Upload failed.');
+      setErr(ex.response?.data?.message || ex.message || 'Upload failed.');
     } finally {
       setUploading(false);
     }
   };
 
+  const pct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
+
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 2000,
-      background: 'rgba(15,23,42,0.5)',
+      background: T.overlay,
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
     }}>
       <div onClick={e => e.stopPropagation()} style={{
-        background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden',
+        background: T.surface, borderRadius: 14, width: '100%', maxWidth: 520,
+        boxShadow: isDark ? '0 20px 60px rgba(0,0,0,0.6)' : '0 20px 60px rgba(0,0,0,0.18)',
+        overflow: 'hidden',
+        border: isDark ? '1px solid #1e3a31' : '1px solid transparent',
       }}>
         {/* Header */}
         <div style={{
-          background: '#004B4E',
+          background: T.headerBg,
+          borderBottom: T.headerBorder,
           padding: '22px 24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
         }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#fff' }}>Bulk Upload Users</h3>
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: T.headerTitle }}>Bulk Upload Users</h3>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: T.headerSubText }}>
               Upload a CSV file to create multiple users at once
             </p>
           </div>
           <button onClick={onClose} style={{
-            background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
+            background: T.closeBtnBg, border: 'none', color: T.headerTitle,
             borderRadius: 8, width: 32, height: 32, cursor: 'pointer', fontSize: 16,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>✕</button>
@@ -643,16 +758,16 @@ function BulkUploadModal({ onClose, onSuccess }) {
         <div style={{ padding: '24px' }}>
           {/* Format guide */}
           <div style={{
-            background: '#e0f5f5', border: '1px solid #b2dfdf', borderRadius: 10,
+            background: T.cardBg, border: T.cardBorder, borderRadius: 10,
             padding: '14px 16px', marginBottom: 20,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#004B4E' }}>Required CSV Format</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: T.cardLabel }}>Required CSV Format</span>
               <button
                 type="button"
                 onClick={downloadTemplate}
                 style={{
-                  background: '#004B4E', color: '#fff', border: 'none', borderRadius: 6,
+                  background: T.accentBtnBg, color: T.accentBtnText, border: 'none', borderRadius: 6,
                   padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: 5,
                 }}
@@ -666,15 +781,15 @@ function BulkUploadModal({ onClose, onSuccess }) {
               </button>
             </div>
             <code style={{
-              display: 'block', fontSize: 12, color: '#004B4E',
-              background: 'rgba(0,75,78,0.08)', borderRadius: 6, padding: '8px 12px', lineHeight: 1.7,
+              display: 'block', fontSize: 12, color: T.codeText,
+              background: T.codeBg, borderRadius: 6, padding: '8px 12px', lineHeight: 1.7,
             }}>
               username, brand, role<br/>
               john_doe, BrandA, RM<br/>
               jane_doe, BrandB, JRM
             </code>
-            <p style={{ margin: '8px 0 0', fontSize: 12, color: '#006467' }}>
-              Max 500 rows per file. Default password is 123456 and each user must change it on first login.
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: T.captionText }}>
+              No row limit. File is uploaded in chunks of {CHUNK_SIZE}. Default password is <strong>123456</strong> and each user must change it on first login.
             </p>
           </div>
 
@@ -682,31 +797,31 @@ function BulkUploadModal({ onClose, onSuccess }) {
           <form onSubmit={handleSubmit}>
             {err && (
               <div style={{
-                background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8,
-                padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#dc2626',
+                background: T.errBg, border: `1px solid ${T.errBorder}`, borderRadius: 8,
+                padding: '10px 14px', marginBottom: 16, fontSize: 13, color: T.errText,
               }}>{err}</div>
             )}
 
             <div style={{
-              border: `2px dashed ${file ? '#004B4E' : '#e2e8f0'}`,
+              border: `2px dashed ${file ? T.dropBorderActive : T.dropBorder}`,
               borderRadius: 10, padding: '28px 20px',
               textAlign: 'center', marginBottom: 16, cursor: 'pointer',
-              background: file ? '#e0f5f5' : '#fafafa',
+              background: file ? T.dropBgActive : T.dropBg,
               transition: 'all 0.2s',
             }}
               onClick={() => document.getElementById('bulk-csv-input').click()}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke={file ? '#004B4E' : '#94a3b8'} strokeWidth="1.8" width="36" height="36" style={{ margin: '0 auto 10px', display: 'block' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke={file ? T.iconActive : T.iconIdle} strokeWidth="1.8" width="36" height="36" style={{ margin: '0 auto 10px', display: 'block' }}>
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                 <polyline points="14 2 14 8 20 8"/>
                 <line x1="12" y1="18" x2="12" y2="12"/>
                 <line x1="9" y1="15" x2="15" y2="15"/>
               </svg>
               {file
-                ? <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#004B4E' }}>{file.name}</p>
+                ? <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: T.fileNameColor }}>{file.name}</p>
                 : <>
-                    <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 600, color: '#374151' }}>Click to select CSV file</p>
-                    <p style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>Only .csv files accepted</p>
+                    <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 600, color: T.dropText }}>Click to select CSV file</p>
+                    <p style={{ margin: 0, fontSize: 12, color: T.dropTextMuted }}>Only .csv files accepted</p>
                   </>
               }
               <input
@@ -718,34 +833,50 @@ function BulkUploadModal({ onClose, onSuccess }) {
               />
             </div>
 
+            {/* Progress */}
+            {uploading && progress.total > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: T.text, marginBottom: 6 }}>
+                  <span>Uploading chunk {progress.chunk} of {progress.totalChunks}</span>
+                  <span>{progress.done} / {progress.total} rows ({pct}%)</span>
+                </div>
+                <div style={{ background: T.progressTrack, borderRadius: 999, height: 6, overflow: 'hidden' }}>
+                  <div style={{
+                    background: T.progressFill, height: '100%', width: `${pct}%`,
+                    transition: 'width 0.25s ease',
+                  }} />
+                </div>
+              </div>
+            )}
+
             {/* Result */}
             {result && (
               <div style={{ marginBottom: 16 }}>
                 <div style={{
-                  background: result.created > 0 ? '#f0fdf4' : '#fef2f2',
-                  border: `1px solid ${result.created > 0 ? '#bbf7d0' : '#fecaca'}`,
+                  background: result.created > 0 ? T.successBg : T.errBg,
+                  border: `1px solid ${result.created > 0 ? T.successBorder : T.errBorder}`,
                   borderRadius: 8, padding: '10px 14px', fontSize: 13,
-                  color: result.created > 0 ? '#166534' : '#dc2626', fontWeight: 600,
+                  color: result.created > 0 ? T.successText : T.errText, fontWeight: 600,
                   marginBottom: result.failed?.length ? 10 : 0,
                 }}>
                   {result.message}
                 </div>
                 {result.failed?.length > 0 && (
-                  <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid #fee2e2', borderRadius: 8 }}>
+                  <div style={{ maxHeight: 160, overflowY: 'auto', border: `1px solid ${T.failTableBorder}`, borderRadius: 8, background: T.failTableBg }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                       <thead>
-                        <tr style={{ background: '#fef2f2' }}>
-                          <th style={{ padding: '6px 10px', textAlign: 'left', color: '#7f1d1d', fontWeight: 600 }}>Row</th>
-                          <th style={{ padding: '6px 10px', textAlign: 'left', color: '#7f1d1d', fontWeight: 600 }}>Username</th>
-                          <th style={{ padding: '6px 10px', textAlign: 'left', color: '#7f1d1d', fontWeight: 600 }}>Reason</th>
+                        <tr style={{ background: T.failTableHead }}>
+                          <th style={{ padding: '6px 10px', textAlign: 'left', color: T.failTextHead, fontWeight: 600 }}>Row</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left', color: T.failTextHead, fontWeight: 600 }}>Username</th>
+                          <th style={{ padding: '6px 10px', textAlign: 'left', color: T.failTextHead, fontWeight: 600 }}>Reason</th>
                         </tr>
                       </thead>
                       <tbody>
                         {result.failed.map((f, i) => (
-                          <tr key={i} style={{ borderTop: '1px solid #fee2e2' }}>
-                            <td style={{ padding: '6px 10px', color: '#991b1b' }}>{f.row}</td>
-                            <td style={{ padding: '6px 10px', color: '#991b1b' }}>{f.username}</td>
-                            <td style={{ padding: '6px 10px', color: '#6b7280' }}>{f.reason}</td>
+                          <tr key={i} style={{ borderTop: `1px solid ${T.failTableBorder}` }}>
+                            <td style={{ padding: '6px 10px', color: T.failTextBody }}>{f.row}</td>
+                            <td style={{ padding: '6px 10px', color: T.failTextBody }}>{f.username}</td>
+                            <td style={{ padding: '6px 10px', color: T.failTextReason }}>{f.reason}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -758,7 +889,7 @@ function BulkUploadModal({ onClose, onSuccess }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
               <button type="button" className="um__btn-cancel" onClick={onClose}>Close</button>
               <button type="submit" className="um__btn-save" disabled={uploading || !file}>
-                {uploading ? 'Uploading...' : 'Upload & Create Users'}
+                {uploading ? `Uploading ${pct}%...` : 'Upload & Create Users'}
               </button>
             </div>
           </form>

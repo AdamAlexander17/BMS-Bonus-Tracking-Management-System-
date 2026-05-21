@@ -773,8 +773,7 @@ def user_bulk_upload(request):
     rows = list(reader)
     if not rows:
         return Response({'success': False, 'message': 'CSV file is empty.'}, status=status.HTTP_400_BAD_REQUEST)
-    if len(rows) > 500:
-        return Response({'success': False, 'message': 'Maximum 500 rows per upload.'}, status=status.HTTP_400_BAD_REQUEST)
+    # No hard row cap — frontend uploads in chunks (e.g. 100 rows per request).
 
     # Pre-load brands and roles into dicts for fast lookup
     brand_map = {b.name.lower(): b for b in Brand.objects.all()}
@@ -1682,7 +1681,7 @@ def format_broker(broker):
         'amount_earned': str(broker.amount_earned),
         'amount_paid':   str(broker.amount_paid),
         'pending_payout': str(broker.pending_payout),
-        'last_paid_at':  last_paid_at.strftime('%Y-%m-%d %H:%M:%S') if last_paid_at else None,
+        'last_paid_at':  last_paid_at.isoformat() if last_paid_at else None,
         'status':        broker.status,
         'client_count':  getattr(broker, 'client_count', broker.clients.count()),
         'created_by':    broker.created_by.username if broker.created_by else None,
@@ -2023,7 +2022,7 @@ def broker_payout_create(request, broker_id):
             'amount': amount,
             'pending_payout': broker.pending_payout,
             'paid_by': request.user.username,
-            'paid_at': payout.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'paid_at': payout.created_at.isoformat(),
         },
     )
 
