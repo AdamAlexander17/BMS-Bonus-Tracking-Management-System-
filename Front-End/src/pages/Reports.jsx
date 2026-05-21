@@ -20,14 +20,6 @@ const inputControlStyle = {
   boxSizing: 'border-box',
 };
 
-const selectControlStyle = {
-  width: '100%',
-  height: 40,
-  padding: '0 12px',
-  outline: 'none',
-  boxSizing: 'border-box',
-};
-
 function formatMoney(value) {
   if (value == null) return '—';
   return `₹${Number(value || 0).toLocaleString('en-IN', {
@@ -450,8 +442,8 @@ export default function Reports() {
         <>
 
       {showFilters && (
-        <div className="um__card" style={{ marginBottom: 20 }}>
-          <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, alignItems: 'end' }}>
+        <div className="um__card" style={{ marginBottom: 20, overflow: 'visible', position: 'relative', zIndex: 5 }}>
+          <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, alignItems: 'end', overflow: 'visible' }}>
             <FilterField label="Search" span={2}>
               <input
                 style={inputControlStyle}
@@ -461,37 +453,58 @@ export default function Reports() {
               />
             </FilterField>
             <FilterField label="Brand">
-              <select className="app-report-select" style={selectControlStyle} value={brandId} onChange={(event) => setBrandId(event.target.value)}>
-                <option value="all">All brands</option>
-                {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-              </select>
+              <CustomSelect
+                value={brandId}
+                onChange={setBrandId}
+                options={brands.map((brand) => ({ value: String(brand.id), label: brand.name }))}
+                placeholder="All brands"
+                style={{ width: '100%' }}
+              />
             </FilterField>
             <FilterField label="Broker">
-              <select className="app-report-select" style={selectControlStyle} value={brokerId} onChange={(event) => setBrokerId(event.target.value)}>
-                <option value="all">All brokers</option>
-                {brokers.map((broker) => <option key={broker.id} value={broker.id}>{broker.name}</option>)}
-              </select>
+              <CustomSelect
+                value={brokerId}
+                onChange={setBrokerId}
+                options={brokers.map((broker) => ({ value: String(broker.id), label: broker.name }))}
+                placeholder="All brokers"
+                style={{ width: '100%' }}
+              />
             </FilterField>
             <FilterField label="Client Status">
-              <select className="app-report-select" style={selectControlStyle} value={status} onChange={(event) => setStatus(event.target.value)}>
-                <option value="all">All statuses</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
+              <CustomSelect
+                value={status}
+                onChange={setStatus}
+                options={[
+                  { value: 'Active', label: 'Active' },
+                  { value: 'Inactive', label: 'Inactive' },
+                ]}
+                placeholder="All statuses"
+                style={{ width: '100%' }}
+              />
             </FilterField>
             <FilterField label="LEGITIMATE CLIENT">
-              <select className="app-report-select" style={selectControlStyle} value={tradingState} onChange={(event) => setTradingState(event.target.value)}>
-                <option value="all">All clients</option>
-                <option value="yes">Checked only</option>
-                <option value="no">Unchecked only</option>
-              </select>
+              <CustomSelect
+                value={tradingState}
+                onChange={setTradingState}
+                options={[
+                  { value: 'yes', label: 'Checked only' },
+                  { value: 'no', label: 'Unchecked only' },
+                ]}
+                placeholder="All clients"
+                style={{ width: '100%' }}
+              />
             </FilterField>
             <FilterField label="Transaction Type">
-              <select className="app-report-select" style={selectControlStyle} value={transactionType} onChange={(event) => setTransactionType(event.target.value)}>
-                <option value="all">All types</option>
-                <option value="deposit">Deposit</option>
-                <option value="withdrawal">Withdrawal</option>
-              </select>
+              <CustomSelect
+                value={transactionType}
+                onChange={setTransactionType}
+                options={[
+                  { value: 'deposit', label: 'Deposit' },
+                  { value: 'withdrawal', label: 'Withdrawal' },
+                ]}
+                placeholder="All types"
+                style={{ width: '100%' }}
+              />
             </FilterField>
             <FilterField label="From Date">
               <input type="date" style={inputControlStyle} value={fromDate} onChange={(event) => setFromDate(event.target.value)} />

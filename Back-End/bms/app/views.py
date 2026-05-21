@@ -2292,6 +2292,11 @@ def client_update(request, client_id):
                     {'success': False, 'message': 'You do not have permission to update the Legitimate Client status.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
+                if client.status != 'Active':
+                    return Response(
+                        {'success': False, 'message': 'Legitimate Client status can only be updated for active clients.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
             client.legitimacy_status = target_legitimacy_status
             client.is_legitimate = parsed_legitimate
 
@@ -2394,6 +2399,12 @@ def client_transaction_create(request, client_id):
     if transaction_type not in ('deposit', 'withdrawal'):
         return Response(
             {'success': False, 'message': 'transaction_type must be deposit or withdrawal.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if client.status != 'Active':
+        return Response(
+            {'success': False, 'message': 'Deposits and withdrawals are only allowed for active clients.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 

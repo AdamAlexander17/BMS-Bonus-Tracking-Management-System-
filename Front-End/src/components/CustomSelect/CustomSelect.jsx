@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import './CustomSelect.css';
 
-export default function CustomSelect({ value, onChange, options, placeholder = 'All Roles', variant = 'filter' }) {
+export default function CustomSelect({ value, onChange, options, placeholder = 'All Roles', variant = 'filter', className = '', style }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -15,7 +15,7 @@ export default function CustomSelect({ value, onChange, options, placeholder = '
   }, []);
 
   return (
-    <div className={`csel${isForm ? ' csel--form' : ''}`} ref={ref}>
+    <div className={`csel${isForm ? ' csel--form' : ''}${className ? ` ${className}` : ''}`} style={style} ref={ref}>
       <button
         type="button"
         className="csel__trigger"

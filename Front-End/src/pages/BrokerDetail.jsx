@@ -839,11 +839,15 @@ export default function BrokerDetail() {
                 </td>
                 {canTradingOk && (
                   <td>
-                    <LegitimacyCheckboxGroup
-                      value={normalizeLegitimacyStatus(c)}
-                      compact
-                      onChange={(legitimacyStatus) => handleSetLegitimacy(c, legitimacyStatus)}
-                    />
+                    {c.status === 'Active' ? (
+                      <LegitimacyCheckboxGroup
+                        value={normalizeLegitimacyStatus(c)}
+                        compact
+                        onChange={(legitimacyStatus) => handleSetLegitimacy(c, legitimacyStatus)}
+                      />
+                    ) : (
+                      <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
+                    )}
                   </td>
                 )}
                 <td><span className="um__date">{formatDate(c.created_at)}</span></td>
@@ -851,7 +855,7 @@ export default function BrokerDetail() {
                   <td>
                     <div className="um__actions">
                       {(() => {
-                        const canAdjustAmounts = normalizeLegitimacyStatus(c) !== 'declined';
+                        const canAdjustAmounts = c.status === 'Active' && normalizeLegitimacyStatus(c) !== 'declined';
 
                         return (
                           <>
