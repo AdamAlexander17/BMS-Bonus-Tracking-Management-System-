@@ -181,6 +181,22 @@ body {
   color: #03110c !important;
 }
 
+/* ---------- Circular green-fill icons (navbar avatar, sidebar toggle) ---------- */
+[data-theme="dark"] .navbar__user-avatar,
+[data-theme="dark"] .sidebar__toggle,
+[data-theme="dark"] .sidebar__toggle--active,
+[data-theme="dark"] .sidebar__user-avatar {
+  background: var(--dm-accent) !important;
+  color: #03110c !important;
+  border-color: var(--dm-accent) !important;
+  box-shadow: 0 2px 8px rgba(74,222,128,0.25) !important;
+}
+[data-theme="dark"] .sidebar__toggle:hover,
+[data-theme="dark"] .sidebar__toggle--active:hover {
+  background: var(--dm-accent-2) !important;
+  color: #03110c !important;
+}
+
 /* ---------- Card / Table ---------- */
 [data-theme="dark"] .um__card {
   background: var(--dm-surface) !important;
