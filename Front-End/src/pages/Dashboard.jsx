@@ -373,7 +373,7 @@ export default function Dashboard() {
               xaxis: { categories: timeLabels, labels: { style: { colors: axisColor } } },
               yaxis: { labels: { style: { colors: axisColor }, formatter: v => formatMoney(v) } },
               legend: { position: 'top', horizontalAlign: 'right', markers: { width: 10, height: 10 } },
-              tooltip: { y: { formatter: v => formatMoney(v) } },
+              tooltip: { theme: P.tooltip, y: { formatter: v => formatMoney(v) } },
             }}
           />
         </div>
@@ -448,7 +448,7 @@ export default function Dashboard() {
                     },
                   },
                 },
-                tooltip: { y: { formatter: v => `${v} clients` } },
+                tooltip: { theme: P.tooltip, y: { formatter: v => `${v} clients` } },
               }}
             />
           )}
@@ -477,6 +477,7 @@ export default function Dashboard() {
                 yaxis: { labels: { style: { colors: axisColorStr, fontSize: '13px', fontWeight: 600 } } },
                 legend: { position: 'top', horizontalAlign: 'right', markers: { width: 10, height: 10 } },
                 tooltip: {
+                  theme: P.tooltip,
                   y: { formatter: (v, opts) => (opts.seriesIndex === 2 ? formatMoney(v) : formatCount(v)) },
                 },
               }}
@@ -506,7 +507,7 @@ export default function Dashboard() {
                 xaxis: { categories: brandWise.labels, labels: { style: { colors: '#64748b' } } },
                 yaxis: { labels: { style: { colors: '#64748b' }, formatter: v => formatMoney(v) } },
                 legend: { position: 'top', horizontalAlign: 'right', markers: { width: 10, height: 10 } },
-                tooltip: { y: { formatter: v => formatMoney(v) } },
+tooltip: { theme: P.tooltip, y: { formatter: v => formatMoney(v) } },
               }}
             />
           )}
