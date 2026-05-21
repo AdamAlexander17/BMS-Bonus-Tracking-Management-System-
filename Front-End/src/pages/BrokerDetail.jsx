@@ -48,6 +48,49 @@ const inputStyle = {
   boxSizing: 'border-box',
 };
 
+const legitimacyOptions = [
+  { value: 'pending', label: 'Pending', shortLabel: 'P' },
+  { value: 'approved', label: 'Approved', shortLabel: 'A' },
+  { value: 'declined', label: 'Declined', shortLabel: 'D' },
+];
+
+function normalizeLegitimacyStatus(clientOrValue) {
+  if (typeof clientOrValue === 'string') {
+    const normalized = clientOrValue.trim().toLowerCase();
+    return ['pending', 'approved', 'declined'].includes(normalized) ? normalized : 'pending';
+  }
+
+  if (clientOrValue?.legitimacy_status) {
+    return normalizeLegitimacyStatus(clientOrValue.legitimacy_status);
+  }
+
+  return clientOrValue?.is_legitimate ? 'approved' : 'pending';
+}
+
+function LegitimacyCheckboxGroup({ value, onChange, disabled = false, compact = false }) {
+  const selectedValue = normalizeLegitimacyStatus(value);
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 12 : 18, flexWrap: 'wrap', flexDirection: 'row' }}>
+      {legitimacyOptions.map((option) => (
+        <label
+          key={option.value}
+          title={option.label}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: compact ? 12 : 14, color: '#374151', cursor: disabled ? 'default' : 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}
+        >
+          <input
+            type="checkbox"
+            checked={selectedValue === option.value}
+            disabled={disabled}
+            onChange={() => onChange(option.value)}
+          />
+          {compact ? option.shortLabel : option.label}
+        </label>
+      ))}
+    </div>
+  );
+}
+
 function Field({ label, required, children }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -65,7 +108,7 @@ import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
 function AddClientModal({ broker, onClose, onCreated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
-  const [form, setForm]     = useState({ name: '', arc_id: '', deposited_amount: '', withdrawal_amount: '', is_legitimate: false });
+  const [form, setForm]     = useState({ name: '', arc_id: '', deposited_amount: '', withdrawal_amount: '', legitimacy_status: 'pending' });
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -83,7 +126,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
         arc_id:            form.arc_id.trim(),
         deposited_amount:  form.deposited_amount  || 0,
         withdrawal_amount: form.withdrawal_amount || 0,
-        is_legitimate:     form.is_legitimate,
+        legitimacy_status: form.legitimacy_status,
       });
       onCreated();
     } catch (err) {
@@ -199,14 +242,12 @@ function AddClientModal({ broker, onClose, onCreated }) {
                 />
               </Field>
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 500, color: '#374151', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={form.is_legitimate}
-                    onChange={(e) => setForm(f => ({ ...f, is_legitimate: e.target.checked }))}
+                <Field label="Legitimate Client Status">
+                  <LegitimacyCheckboxGroup
+                    value={form.legitimacy_status}
+                    onChange={(legitimacyStatus) => setForm((current) => ({ ...current, legitimacy_status: legitimacyStatus }))}
                   />
-                  Client has proper trading and is eligible for earned amount
-                </label>
+                </Field>
               </div>
             </div>
           </div>
@@ -235,7 +276,7 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
   const [form, setForm]     = useState({
     name:              client.name ?? '',
     arc_id:            client.arc_id,
-    is_legitimate:     Boolean(client.is_legitimate),
+    legitimacy_status: normalizeLegitimacyStatus(client),
   });
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -252,7 +293,7 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
       await updateClient(client.id, {
         name:              form.name.trim(),
         arc_id:            form.arc_id.trim(),
-        is_legitimate:     form.is_legitimate,
+        legitimacy_status: form.legitimacy_status,
       });
       onUpdated();
     } catch (err) {
@@ -346,14 +387,12 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
                 </Field>
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 500, color: '#374151', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={form.is_legitimate}
-                    onChange={(e) => setForm(f => ({ ...f, is_legitimate: e.target.checked }))}
+                <Field label="Legitimate Client Status">
+                  <LegitimacyCheckboxGroup
+                    value={form.legitimacy_status}
+                    onChange={(legitimacyStatus) => setForm((current) => ({ ...current, legitimacy_status: legitimacyStatus }))}
                   />
-                  Client has proper trading and is eligible for earned amount
-                </label>
+                </Field>
               </div>
             </div>
           </div>
@@ -643,10 +682,12 @@ export default function BrokerDetail() {
     }
   };
 
-  const handleToggleLegitimate = async (c) => {
+  const handleSetLegitimacy = async (c, legitimacyStatus) => {
     setPageError('');
+    if (normalizeLegitimacyStatus(c) === legitimacyStatus) return;
+
     try {
-      const res = await updateClient(c.id, { is_legitimate: !c.is_legitimate });
+      const res = await updateClient(c.id, { legitimacy_status: legitimacyStatus });
       const updated = res.data?.data;
       setClients(prev => prev.map(x => x.id === c.id ? { ...x, ...updated } : x));
     } catch (err) {
@@ -678,7 +719,7 @@ export default function BrokerDetail() {
 
   const totalDeposited  = clients.reduce((s, c) => s + Number(c.deposited_amount  || 0), 0);
   const totalWithdrawn  = clients.reduce((s, c) => s + Number(c.withdrawal_amount || 0), 0);
-  const totalEarned     = clients.reduce((s, c) => s + Number(c.earned_amount     || 0), 0);
+  const totalNetPnl     = totalDeposited - totalWithdrawn;
 
   return (
     <div className="um">
@@ -699,14 +740,14 @@ export default function BrokerDetail() {
           </>
         }
       />
-
+      
       {/* Broker info cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 20 }}>
         <InfoCard label="Designation" value={broker.rm_user ? `${broker.rm_user.username} (${(broker.rm_user.roles || []).join('/')})` : 'Unassigned'} />
         <InfoCard label="Status"      value={broker.status} accent={broker.status === 'Active' ? '#10b981' : '#9ca3af'} />
         <InfoCard label="Total Deposited"  value={formatINR(totalDeposited)} />
         <InfoCard label="Total Withdrawn"  value={formatINR(totalWithdrawn)} />
-        <InfoCard label="Total Earned"     value={formatINR(totalEarned)} accent="#3b82f6" />
+        <InfoCard label="Net P&L"          value={formatINR(totalNetPnl)} />
       </div>
 
       {/* Modals */}
@@ -805,11 +846,10 @@ export default function BrokerDetail() {
                 </td>
                 {canTradingOk && (
                   <td>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(c.is_legitimate)}
-                      onChange={() => handleToggleLegitimate(c)}
-                      title={c.is_legitimate ? 'Legitimate trading confirmed' : 'Legitimate trading not confirmed'}
+                    <LegitimacyCheckboxGroup
+                      value={normalizeLegitimacyStatus(c)}
+                      compact
+                      onChange={(legitimacyStatus) => handleSetLegitimacy(c, legitimacyStatus)}
                     />
                   </td>
                 )}
@@ -817,6 +857,11 @@ export default function BrokerDetail() {
                 {canClientActions && (
                   <td>
                     <div className="um__actions">
+                      {(() => {
+                        const canAdjustAmounts = normalizeLegitimacyStatus(c) !== 'declined';
+
+                        return (
+                          <>
                       {canClientUpdate && (
                         <>
                           <button
@@ -831,27 +876,31 @@ export default function BrokerDetail() {
                               <path d="M3 18h18"/>
                             </svg>
                           </button>
-                          <button
-                            className="um__action-btn"
-                            title="Add Deposit"
-                            style={{ color: '#10b981' }}
-                            onClick={() => setAmountAction({ client: c, mode: 'deposit' })}
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                              <line x1="12" y1="5" x2="12" y2="19"/>
-                              <line x1="5" y1="12" x2="19" y2="12"/>
-                            </svg>
-                          </button>
-                          <button
-                            className="um__action-btn"
-                            title="Add Withdrawal"
-                            style={{ color: '#f59e0b' }}
-                            onClick={() => setAmountAction({ client: c, mode: 'withdrawal' })}
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                              <line x1="5" y1="12" x2="19" y2="12"/>
-                            </svg>
-                          </button>
+                          {canAdjustAmounts && (
+                            <>
+                              <button
+                                className="um__action-btn"
+                                title="Add Deposit"
+                                style={{ color: '#10b981' }}
+                                onClick={() => setAmountAction({ client: c, mode: 'deposit' })}
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                                  <line x1="12" y1="5" x2="12" y2="19"/>
+                                  <line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                              </button>
+                              <button
+                                className="um__action-btn"
+                                title="Add Withdrawal"
+                                style={{ color: '#f59e0b' }}
+                                onClick={() => setAmountAction({ client: c, mode: 'withdrawal' })}
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                                  <line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                              </button>
+                            </>
+                          )}
                           <button
                             className="um__action-btn um__action-btn--edit"
                             title="Edit"
@@ -877,6 +926,9 @@ export default function BrokerDetail() {
                           </svg>
                         </button>
                       )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </td>
                 )}
