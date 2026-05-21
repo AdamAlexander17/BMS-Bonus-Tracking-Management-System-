@@ -117,12 +117,11 @@ function ReportToolbar({ title, subtitle, rowCount, pageSize, onPageSizeChange, 
         {subtitle ? <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>{subtitle}</div> : null}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'nowrap' }}>
-        <span style={{ fontSize: 13, color: '#6b7280' }}>{rowCount} record{rowCount !== 1 ? 's' : ''}</span>
         <CustomSelect
           variant="form"
           value={String(pageSize)}
           onChange={(v) => onPageSizeChange(Number(v))}
-          options={[{value:'5',label:'5 rows'},{value:'10',label:'10 rows'},{value:'25',label:'25 rows'},{value:'50',label:'50 rows'}]}
+          options={[{value:'5',label:'5'},{value:'10',label:'10'},{value:'25',label:'25'},{value:'50',label:'50'}]}
         />
         {onExport && <button className="ph-btn ph-btn--ghost" type="button" onClick={onExport}>Export CSV</button>}
         {children}

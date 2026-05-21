@@ -1922,6 +1922,7 @@ def format_client(client):
         'withdrawal_amount': str(withdrawal_amount),
         'net_total':         str(net_total),
         'earned_amount':     str(client.earned_amount),
+        'legitimacy_status': client.legitimacy_status,
         'is_legitimate':     client.is_legitimate,
         'status':            client.status,
         'created_by':        client.created_by.username if client.created_by else None,
@@ -1956,6 +1957,24 @@ def _parse_bool(value, field_name):
     raise ValueError(f'{field_name} must be true or false.')
 
 
+def _normalize_legitimacy_status(value):
+    if value is None:
+        return None
+
+    if isinstance(value, bool):
+        return 'approved' if value else 'pending'
+
+    normalized = str(value).strip().lower()
+    if normalized in ('pending', 'approved', 'declined'):
+        return normalized
+    if normalized in ('true', '1', 'yes', 'on'):
+        return 'approved'
+    if normalized in ('false', '0', 'no', 'off'):
+        return 'pending'
+
+    raise ValueError('legitimacy_status must be Pending, Approved, or Declined.')
+
+
 def _check_client_access(request, client):
     """Return True if the current user is allowed to access this client (via broker access)."""
     return _check_broker_access(request, client.broker)
@@ -1988,6 +2007,7 @@ def client_create(request, broker_id):
     arc_id            = request.data.get('arc_id', '').strip()
     deposited_amount  = request.data.get('deposited_amount', 0)
     withdrawal_amount = request.data.get('withdrawal_amount', 0)
+    legitimacy_status = request.data.get('legitimacy_status')
     is_legitimate     = request.data.get('is_legitimate', False)
 
     if not name:
@@ -2011,10 +2031,12 @@ def client_create(request, broker_id):
     try:
         deposited_amount  = Decimal(str(deposited_amount))
         withdrawal_amount = Decimal(str(withdrawal_amount))
-        is_legitimate     = _parse_bool(is_legitimate, 'is_legitimate')
+        legitimacy_status = _normalize_legitimacy_status(legitimacy_status)
+        if legitimacy_status is None:
+            legitimacy_status = 'approved' if _parse_bool(is_legitimate, 'is_legitimate') else 'pending'
     except (InvalidOperation, ValueError, TypeError):
         return Response(
-            {'success': False, 'message': 'deposited_amount and withdrawal_amount must be numbers, and is_legitimate must be true or false.'},
+            {'success': False, 'message': 'deposited_amount and withdrawal_amount must be numbers, and legitimacy_status must be Pending, Approved, or Declined.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -2024,7 +2046,7 @@ def client_create(request, broker_id):
         broker=broker,
         deposited_amount=deposited_amount,
         withdrawal_amount=withdrawal_amount,
-        is_legitimate=is_legitimate,
+        legitimacy_status=legitimacy_status,
         status='Active',
         created_by=request.user,
     )
@@ -2058,6 +2080,7 @@ def client_create(request, broker_id):
             'broker': broker.name,
             'deposited_amount': deposited_amount,
             'withdrawal_amount': withdrawal_amount,
+            'legitimacy_status': client.legitimacy_status,
             'is_legitimate': client.is_legitimate,
         },
     )
@@ -2157,12 +2180,14 @@ def client_update(request, client_id):
 
     new_name              = request.data.get('name')
     new_arc_id            = request.data.get('arc_id')
+    new_legitimacy_status = request.data.get('legitimacy_status')
     new_is_legitimate     = request.data.get('is_legitimate')
     new_status            = request.data.get('status')
     previous_client = {
         'name': client.name,
         'arc_id': client.arc_id,
         'status': client.status,
+        'legitimacy_status': client.legitimacy_status,
         'is_legitimate': client.is_legitimate,
     }
 
@@ -2195,20 +2220,31 @@ def client_update(request, client_id):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    if new_is_legitimate is not None:
+    target_legitimacy_status = _normalize_legitimacy_status(new_legitimacy_status)
+    if target_legitimacy_status is None and new_is_legitimate is not None:
         try:
-            parsed_legitimate = _parse_bool(new_is_legitimate, 'is_legitimate')
+            target_legitimacy_status = 'approved' if _parse_bool(new_is_legitimate, 'is_legitimate') else 'pending'
         except ValueError as exc:
             return Response(
                 {'success': False, 'message': str(exc)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        if parsed_legitimate != bool(client.is_legitimate):
+
+    if target_legitimacy_status is not None:
+        try:
+            parsed_legitimate = target_legitimacy_status == 'approved'
+        except ValueError as exc:
+            return Response(
+                {'success': False, 'message': str(exc)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if target_legitimacy_status != client.legitimacy_status:
             if not has_perm(request, 'client:trading_ok'):
                 return Response(
                     {'success': False, 'message': 'You do not have permission to update the Legitimate Client status.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
+            client.legitimacy_status = target_legitimacy_status
             client.is_legitimate = parsed_legitimate
 
     if new_status is not None:
@@ -2233,9 +2269,11 @@ def client_update(request, client_id):
             'previous_name': previous_client['name'],
             'previous_arc_id': previous_client['arc_id'],
             'previous_status': previous_client['status'],
+            'previous_legitimacy_status': previous_client['legitimacy_status'],
             'previous_is_legitimate': previous_client['is_legitimate'],
             'current_arc_id': client.arc_id,
             'current_status': client.status,
+            'current_legitimacy_status': client.legitimacy_status,
             'current_is_legitimate': client.is_legitimate,
         },
     )
@@ -2309,6 +2347,12 @@ def client_transaction_create(request, client_id):
     if transaction_type not in ('deposit', 'withdrawal'):
         return Response(
             {'success': False, 'message': 'transaction_type must be deposit or withdrawal.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if client.legitimacy_status == 'declined':
+        return Response(
+            {'success': False, 'message': 'Deposits and withdrawals are not allowed for declined clients.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 

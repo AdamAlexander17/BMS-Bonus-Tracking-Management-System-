@@ -188,6 +188,11 @@ class Client(models.Model):
         ('Active',   'Active'),
         ('Inactive', 'Inactive'),
     ]
+    LEGITIMACY_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('declined', 'Declined'),
+    ]
 
     id                = models.BigAutoField(primary_key=True)
     name              = models.CharField(max_length=100)
@@ -195,6 +200,7 @@ class Client(models.Model):
     broker            = models.ForeignKey(Broker, on_delete=models.CASCADE, related_name='clients')
     deposited_amount  = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     withdrawal_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    legitimacy_status = models.CharField(max_length=20, choices=LEGITIMACY_STATUS_CHOICES, default='pending')
     is_legitimate     = models.BooleanField(default=False)
     status            = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Active')
     created_by        = models.ForeignKey(
@@ -208,9 +214,13 @@ class Client(models.Model):
     def __str__(self):
         return f'{self.name} ({self.arc_id}) → {self.broker.name}'
 
+    def save(self, *args, **kwargs):
+        self.is_legitimate = self.legitimacy_status == 'approved'
+        super().save(*args, **kwargs)
+
     @property
     def earned_amount(self):
-        if not self.is_legitimate:
+        if self.legitimacy_status != 'approved':
             return 0
 
         # 1% of deposited_amount for legitimate trading clients only

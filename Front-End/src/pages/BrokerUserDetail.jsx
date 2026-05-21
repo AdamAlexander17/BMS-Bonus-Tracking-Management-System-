@@ -25,6 +25,11 @@ const formatDate = (str) => {
   return new Date(str).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+const formatINR = (value) => `₹${Number(value || 0).toLocaleString('en-IN', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})}`;
+
 /* ── Field component ─────────────────────────────────────────── */
 function Field({ label, required, children }) {
   return (
@@ -522,6 +527,7 @@ export default function BrokerUserDetail() {
   if (!rmUser) return null;
 
   const totalClients = brokers.reduce((s, b) => s + (b.client_count || 0), 0);
+  const totalEarned = brokers.reduce((sum, broker) => sum + Number(broker.amount_earned || 0), 0);
 
   return (
     <div className="um">
@@ -552,6 +558,7 @@ export default function BrokerUserDetail() {
         <InfoCard label="Role"             value={(rmUser.roles || []).join('/')} accent={(rmUser.roles || []).includes('RM') ? '#1d4ed8' : '#92400e'} />
         <InfoCard label="Broker Count" value={brokers.length} />
         <InfoCard label="Total Clients"    value={totalClients} />
+        <InfoCard label="Total Earned" value={formatINR(totalEarned)} accent="#3b82f6" />
       </div>
 
       {/* Broker companies table */}
@@ -569,6 +576,7 @@ export default function BrokerUserDetail() {
               <th>ARC ID</th>
               <th>BRAND</th>
               <th>CLIENTS</th>
+              <th>EARNED</th>
               <th>STATUS</th>
               <th>CREATED</th>
               {canActions && <th>ACTIONS</th>}
@@ -577,7 +585,7 @@ export default function BrokerUserDetail() {
           <tbody>
             {brokers.length === 0 ? (
               <tr>
-                <td colSpan={canActions ? 7 : 6} className="um__empty">
+                <td colSpan={canActions ? 8 : 7} className="um__empty">
                   No broker companies assigned yet. Click "Add Broker" to get started.
                 </td>
               </tr>
@@ -599,6 +607,7 @@ export default function BrokerUserDetail() {
                 <td><code className="um__handle">{b.arc_id}</code></td>
                 <td><span className="um__role-badge">{b.brand?.name || '—'}</span></td>
                 <td><span style={{ fontWeight: 600 }}>{b.client_count ?? 0}</span></td>
+                <td><span style={{ fontWeight: 600, color: '#2563eb' }}>{formatINR(b.amount_earned)}</span></td>
                 <td>
                   <span className={`um__status-badge ${b.status === 'Active' ? 'um__status-badge--active' : 'um__status-badge--inactive'}`}>
                     {b.status}
