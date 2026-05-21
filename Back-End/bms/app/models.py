@@ -100,6 +100,7 @@ class User(models.Model):
         related_name='users'
     )
     status     = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Active')
+    must_change_password = models.BooleanField(default=False)
     created_by = models.ForeignKey(
         'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='created_users'
     )

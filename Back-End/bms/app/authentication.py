@@ -13,6 +13,10 @@ class JWTAuthentication(BaseAuthentication):
     """
 
     def authenticate(self, request):
+        allowed_when_password_change_required = {
+            '/api/logout/',
+            '/api/users/change-password/',
+        }
         auth_header = request.headers.get('Authorization', '')
 
         if not auth_header.startswith('Bearer '):
@@ -37,6 +41,9 @@ class JWTAuthentication(BaseAuthentication):
 
         if user.status != 'Active':
             raise AuthenticationFailed('User account is inactive.')
+
+        if user.must_change_password and request.path not in allowed_when_password_change_required:
+            raise AuthenticationFailed('Password change required before continuing.')
 
         return (user, payload)
 

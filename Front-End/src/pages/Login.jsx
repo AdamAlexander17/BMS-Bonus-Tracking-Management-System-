@@ -1,15 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Login.css';
 
 export default function Login() {
-  const { login } = useAuth();
+  const { user, login, changeOwnPassword, logout } = useAuth();
   const navigate  = useNavigate();
   const [form, setForm]       = useState({ username: '', password: '' });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [showPwd, setShowPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user && !user.must_change_password) {
+      navigate('/');
+    }
+  }, [navigate, user]);
 
   const handleChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -19,8 +28,12 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      await login(form.username, form.password);
-      navigate('/');
+      const userData = await login(form.username, form.password);
+      if (!userData.must_change_password) {
+        navigate('/');
+      } else {
+        setPasswordForm((prev) => ({ ...prev, currentPassword: form.password }));
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid credentials.');
     } finally {
@@ -28,51 +41,140 @@ export default function Login() {
     }
   };
 
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      setError('All password fields are required.');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setError('New password and confirm password must match.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await changeOwnPassword(passwordForm.currentPassword, passwordForm.newPassword);
+      navigate('/');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to change password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const forcedPasswordChange = Boolean(user?.must_change_password);
+
   return (
     <div className="lp">
       {/* Left: form panel */}
       <div className="lp__right">
         <div className="lp__form-wrap">
-          <h2 className="lp__title">Login to Your Account</h2>
-          <p className="lp__subtitle">Please enter your username and password to access your account</p>
+          <h2 className="lp__title">{forcedPasswordChange ? 'Change Your Password' : 'Login to Your Account'}</h2>
+          <p className="lp__subtitle">
+            {forcedPasswordChange
+              ? 'Your first login uses the default password 123456. Set a new password before continuing.'
+              : 'Please enter your username and password to access your account'}
+          </p>
 
           {error && <div className="lp__error">{error}</div>}
 
-          <form onSubmit={handleSubmit} className="lp__form">
-            <div className="lp__field">
-              <label>Username <span className="lp__req">*</span></label>
-              <input
-                name="username"
-                type="text"
-                placeholder="Enter username"
-                value={form.username}
-                onChange={handleChange}
-                required
-                autoFocus
-              />
-            </div>
-
-            <div className="lp__field">
-              <label>Password <span className="lp__req">*</span></label>
-              <div className="lp__pwd-wrap">
-                <input
-                  name="password"
-                  type={showPwd ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  value={form.password}
-                  onChange={handleChange}
-                  required
-                />
-                <button type="button" className="lp__show-btn" onClick={() => setShowPwd(p => !p)}>
-                  {showPwd ? 'Hide' : 'Show'}
+          {forcedPasswordChange ? (
+            <form onSubmit={handlePasswordChange} className="lp__form">
+              <div className="lp__notice">Password change is required before you can access the application.</div>
+              <div className="lp__field">
+                <label>Current Password <span className="lp__req">*</span></label>
+                <div className="lp__pwd-wrap">
+                  <input
+                    name="currentPassword"
+                    type={showPwd ? 'text' : 'password'}
+                    placeholder="Enter current password"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
+                    required
+                    autoFocus
+                  />
+                  <button type="button" className="lp__show-btn" onClick={() => setShowPwd((p) => !p)}>
+                    {showPwd ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </div>
+              <div className="lp__field">
+                <label>New Password <span className="lp__req">*</span></label>
+                <div className="lp__pwd-wrap">
+                  <input
+                    name="newPassword"
+                    type={showNewPwd ? 'text' : 'password'}
+                    placeholder="Enter new password"
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
+                    required
+                  />
+                  <button type="button" className="lp__show-btn" onClick={() => setShowNewPwd((p) => !p)}>
+                    {showNewPwd ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </div>
+              <div className="lp__field">
+                <label>Confirm Password <span className="lp__req">*</span></label>
+                <div className="lp__pwd-wrap">
+                  <input
+                    name="confirmPassword"
+                    type={showConfirmPwd ? 'text' : 'password'}
+                    placeholder="Confirm new password"
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                    required
+                  />
+                  <button type="button" className="lp__show-btn" onClick={() => setShowConfirmPwd((p) => !p)}>
+                    {showConfirmPwd ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </div>
+              <div className="lp__actions">
+                <button type="button" className="lp__secondary" onClick={logout} disabled={loading}>Logout</button>
+                <button type="submit" className="lp__submit" disabled={loading}>
+                  {loading ? 'Updating...' : 'Update Password'}
                 </button>
               </div>
-            </div>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="lp__form">
+              <div className="lp__field">
+                <label>Username <span className="lp__req">*</span></label>
+                <input
+                  name="username"
+                  type="text"
+                  placeholder="Enter username"
+                  value={form.username}
+                  onChange={handleChange}
+                  required
+                  autoFocus
+                />
+              </div>
 
-            <button type="submit" className="lp__submit" disabled={loading}>
-              {loading ? 'Logging in...' : 'Login'}
-            </button>
-          </form>
+              <div className="lp__field">
+                <label>Password <span className="lp__req">*</span></label>
+                <div className="lp__pwd-wrap">
+                  <input
+                    name="password"
+                    type={showPwd ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={form.password}
+                    onChange={handleChange}
+                    required
+                  />
+                  <button type="button" className="lp__show-btn" onClick={() => setShowPwd(p => !p)}>
+                    {showPwd ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </div>
+
+              <button type="submit" className="lp__submit" disabled={loading}>
+                {loading ? 'Logging in...' : 'Login'}
+              </button>
+            </form>
+          )}
         </div>
       </div>
 

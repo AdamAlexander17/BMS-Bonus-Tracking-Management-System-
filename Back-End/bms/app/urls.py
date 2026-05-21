@@ -6,6 +6,7 @@ urlpatterns = [
     path('login/',                       views.login,        name='login'),
     path('token/refresh/',               views.refresh_token, name='token_refresh'),
     path('logout/',                      views.logout,       name='logout'),
+    path('users/change-password/',       views.change_own_password, name='change_own_password'),
     path('audit-logs/',                  views.audit_log_list, name='audit_log_list'),
 
     # User CRUD

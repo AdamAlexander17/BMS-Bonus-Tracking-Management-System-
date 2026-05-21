@@ -342,7 +342,7 @@ export default function Users() {
 }
 
 function AddUserForm({ roles, onClose, onSuccess }) {
-  const [form, setForm]       = useState({ username: '', password: '', brand: '', roleNames: [] });
+  const [form, setForm]       = useState({ username: '', brand: '', roleNames: [] });
   const [brands, setBrands]   = useState([]);
   const [saving, setSaving]   = useState(false);
   const [err, setErr]         = useState('');
@@ -368,7 +368,6 @@ function AddUserForm({ roles, onClose, onSuccess }) {
       const { createUser } = await import('../api/users');
       await createUser({
         username: form.username,
-        password: form.password,
         brand:    form.brand,
         roles:    form.roleNames,
       });
@@ -389,9 +388,12 @@ function AddUserForm({ roles, onClose, onSuccess }) {
           <input required placeholder=" Name " value={form.username} onChange={e => setForm(p => ({...p, username: e.target.value}))} />
         </div>
         <div className="um__form-group">
-          <label>Password <span className="um__required">*</span></label>
-          <input required type="password" placeholder="••••••••" value={form.password} onChange={e => setForm(p => ({...p, password: e.target.value}))} />
+          <label>Default Password</label>
+          <input value="123456" readOnly />
         </div>
+      </div>
+      <div className="um__label-hint" style={{ marginTop: -4, marginBottom: 8 }}>
+        New users are created with password 123456 and must change it on first login.
       </div>
 
       <div className="um__form-group">
@@ -585,7 +587,7 @@ function BulkUploadModal({ onClose, onSuccess }) {
   const [err, setErr]         = useState('');
 
   const downloadTemplate = () => {
-    const csv = 'username,password,brand,role\njohn_doe,Pass123!,BrandA,RM\njane_doe,Pass456!,BrandB,JRM\n';
+    const csv = 'username,brand,role\njohn_doe,BrandA,RM\njane_doe,BrandB,JRM\n';
     const blob = new Blob([csv], { type: 'text/csv' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -667,12 +669,12 @@ function BulkUploadModal({ onClose, onSuccess }) {
               display: 'block', fontSize: 12, color: '#004B4E',
               background: 'rgba(0,75,78,0.08)', borderRadius: 6, padding: '8px 12px', lineHeight: 1.7,
             }}>
-              username, password, brand, role<br/>
-              john_doe, Pass123!, BrandA, RM<br/>
-              jane_doe, Pass456!, BrandB, JRM
+              username, brand, role<br/>
+              john_doe, BrandA, RM<br/>
+              jane_doe, BrandB, JRM
             </code>
             <p style={{ margin: '8px 0 0', fontSize: 12, color: '#006467' }}>
-              Max 500 rows per file. Brand and role names must match exactly.
+              Max 500 rows per file. Default password is 123456 and each user must change it on first login.
             </p>
           </div>
 

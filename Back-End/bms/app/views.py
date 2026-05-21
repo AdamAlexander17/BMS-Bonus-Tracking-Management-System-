@@ -15,7 +15,10 @@ from django.db.models import Count, Q
 from django.db.models.deletion import ProtectedError
 
 from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, Client, ClientTransaction, AuditLog
-from app.utils import verify_password, generate_access_token, generate_refresh_token, decode_token
+from app.utils import verify_password, generate_access_token, generate_refresh_token, decode_token, hash_password
+
+
+DEFAULT_USER_PASSWORD = '123456'
 
 
 def _extract_ip(request):
@@ -174,6 +177,7 @@ def login(request):
                 'username': user.username,
                 'roles': user.role_names,
                 'brand': user.brand_name,
+                'must_change_password': user.must_change_password,
                 'permissions': sorted({
                     f'{m}:{a}'
                     for m, a in user.roles
@@ -306,6 +310,7 @@ def format_user(user):
         'brand':        user.brand_name,
         'brand_id':     user.brand_id,
         'status':       user.status,
+        'must_change_password': user.must_change_password,
         'created_by':   user.created_by.username if user.created_by else None,
         'created_at':   user.created_at.strftime('%Y-%m-%d %H:%M:%S'),
     }
@@ -382,7 +387,6 @@ def create_user(request):
         )
 
     username   = request.data.get('username', '').strip()
-    password   = request.data.get('password', '').strip()
     brand_name = (request.data.get('brand') or '').strip()
     # Accept role IDs (most precise) OR role names (now globally unique)
     role_ids   = request.data.get('role_ids')
@@ -391,9 +395,9 @@ def create_user(request):
         single = (request.data.get('role') or '').strip()
         role_names = [single] if single else []
 
-    if not username or not password or not (role_ids or role_names):
+    if not username or not (role_ids or role_names):
         return Response(
-            {'success': False, 'message': 'username, password and at least one role are required.'},
+            {'success': False, 'message': 'username and at least one role are required.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -439,12 +443,12 @@ def create_user(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-    from app.utils import hash_password
     new_user = User.objects.create(
         username=username,
-        password=hash_password(password),
+        password=hash_password(DEFAULT_USER_PASSWORD),
         brand=brand_obj,
         status='Active',
+        must_change_password=True,
         created_by=request.user,
     )
     for role in roles:
@@ -462,12 +466,13 @@ def create_user(request):
             'brand': new_user.brand_name,
             'roles': [role.name for role in roles],
             'status': new_user.status,
+            'default_password_assigned': True,
         },
     )
 
     return Response({
         'success': True,
-        'message': 'User created successfully.',
+        'message': f'User created successfully. Default password is {DEFAULT_USER_PASSWORD}.',
         'data': format_user(new_user)
     }, status=status.HTTP_201_CREATED)
 
@@ -610,8 +615,8 @@ def update_user(request, user_id):
         user.status = normalized_status
 
     if new_password:
-        from app.utils import hash_password
         user.password = hash_password(new_password)
+        user.must_change_password = True
 
     user.save()
 
@@ -630,6 +635,7 @@ def update_user(request, user_id):
                 'brand': user.brand_name,
                 'roles': list(user.roles.values_list('name', flat=True)),
                 'status': user.status,
+                'must_change_password': user.must_change_password,
             },
             {'password_changed': True} if new_password else None,
         ),
@@ -639,6 +645,54 @@ def update_user(request, user_id):
         'success': True,
         'message': 'User updated successfully.',
         'data': format_user(user)
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_own_password(request):
+    current_password = (request.data.get('current_password') or '').strip()
+    new_password = (request.data.get('new_password') or '').strip()
+
+    if not current_password or not new_password:
+        return Response(
+            {'success': False, 'message': 'Current password and new password are required.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not verify_password(current_password, request.user.password):
+        return Response(
+            {'success': False, 'message': 'Current password is incorrect.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if current_password == new_password:
+        return Response(
+            {'success': False, 'message': 'New password must be different from the current password.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    request.user.password = hash_password(new_password)
+    request.user.must_change_password = False
+    request.user.save(update_fields=['password', 'must_change_password'])
+
+    log_audit_event(
+        request,
+        module='auth',
+        action='change_password',
+        description=f'User "{request.user.username}" changed password.',
+        entity_type='user',
+        entity_id=request.user.id,
+        entity_label=request.user.username,
+        actor=request.user,
+    )
+
+    return Response({
+        'success': True,
+        'message': 'Password changed successfully.',
+        'data': {
+            'must_change_password': False,
+        }
     }, status=status.HTTP_200_OK)
 
 
@@ -692,7 +746,6 @@ def user_create(request):
 @permission_classes([IsAuthenticated])
 def user_bulk_upload(request):
     import csv, io
-    from app.utils import hash_password
 
     if not has_perm(request, 'user:create'):
         return Response({'success': False, 'message': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
@@ -710,10 +763,10 @@ def user_bulk_upload(request):
         return Response({'success': False, 'message': 'File must be UTF-8 encoded.'}, status=status.HTTP_400_BAD_REQUEST)
 
     reader = csv.DictReader(io.StringIO(text))
-    required_cols = {'username', 'password', 'brand', 'role'}
+    required_cols = {'username', 'brand', 'role'}
     if not required_cols.issubset({c.strip().lower() for c in (reader.fieldnames or [])}):
         return Response(
-            {'success': False, 'message': f'CSV must have columns: username, password, brand, role'},
+            {'success': False, 'message': 'CSV must have columns: username, brand, role'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -733,7 +786,6 @@ def user_bulk_upload(request):
 
     for idx, row in enumerate(rows, start=2):  # row 1 = header
         username   = (row.get('username') or '').strip()
-        password   = (row.get('password') or '').strip()
         brand_name = (row.get('brand')    or '').strip()
         role_name  = (row.get('role')     or '').strip()
 
@@ -742,8 +794,6 @@ def user_bulk_upload(request):
 
         if not username:
             fail('username is required'); continue
-        if not password:
-            fail('password is required'); continue
         if not brand_name:
             fail('brand is required'); continue
         if not role_name:
@@ -765,9 +815,10 @@ def user_bulk_upload(request):
             with db_transaction.atomic():
                 new_user = User.objects.create(
                     username=username,
-                    password=hash_password(password),
+                    password=hash_password(DEFAULT_USER_PASSWORD),
                     brand=brand_obj,
                     status='Active',
+                    must_change_password=True,
                     created_by=request.user,
                 )
                 UserRole.objects.create(user=new_user, role=role_obj)
@@ -781,7 +832,7 @@ def user_bulk_upload(request):
             module='user',
             action='bulk_create',
             description=f'Bulk uploaded {created_count} user(s)',
-            details={'created': created_count, 'failed_count': len(failed)},
+            details={'created': created_count, 'failed_count': len(failed), 'default_password_assigned': True},
         )
 
     return Response({
