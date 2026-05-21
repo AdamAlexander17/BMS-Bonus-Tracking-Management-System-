@@ -509,10 +509,20 @@ body {
 [data-theme="dark"] .chart-empty svg { color: var(--dm-border) !important; }
 
 [data-theme="dark"] .funnel__label { color: var(--dm-text) !important; }
-[data-theme="dark"] .funnel__index { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .funnel__index {
+  background: var(--dm-accent) !important;
+  color: #03110c !important;
+}
 [data-theme="dark"] .funnel__bar-wrap { background: var(--dm-surface-2) !important; }
-[data-theme="dark"] .funnel__value { color: var(--dm-text) !important; }
-[data-theme="dark"] .funnel__drop { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .funnel__value {
+  color: #03110c !important;
+  text-shadow: none !important;
+}
+[data-theme="dark"] .funnel__drop {
+  background: var(--dm-surface) !important;
+  border-color: var(--dm-border) !important;
+  color: #f87171 !important;
+}
 
 /* Recharts SVG axis/grid */
 [data-theme="dark"] .recharts-cartesian-axis-tick-value { fill: var(--dm-text-2) !important; }
@@ -520,7 +530,20 @@ body {
 [data-theme="dark"] .recharts-default-legend .recharts-legend-item-text { color: var(--dm-text) !important; }
 [data-theme="dark"] .recharts-tooltip-wrapper .recharts-default-tooltip {
   background: var(--dm-surface) !important;
-  border-color: var(--dm-border) !important;
+  border: 1px solid var(--dm-border) !important;
+  color: var(--dm-text) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45) !important;
+}
+[data-theme="dark"] .recharts-default-tooltip .recharts-tooltip-label {
+  color: var(--dm-text) !important;
+  font-weight: 700 !important;
+}
+[data-theme="dark"] .recharts-default-tooltip .recharts-tooltip-item-list,
+[data-theme="dark"] .recharts-default-tooltip .recharts-tooltip-item,
+[data-theme="dark"] .recharts-default-tooltip .recharts-tooltip-item-name,
+[data-theme="dark"] .recharts-default-tooltip .recharts-tooltip-item-value,
+[data-theme="dark"] .recharts-default-tooltip .recharts-tooltip-item-separator,
+[data-theme="dark"] .recharts-default-tooltip .recharts-tooltip-item-unit {
   color: var(--dm-text) !important;
 }
 
