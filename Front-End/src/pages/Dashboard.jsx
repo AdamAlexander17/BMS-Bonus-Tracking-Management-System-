@@ -1,18 +1,39 @@
 import { useEffect, useMemo, useState } from 'react';
 import Chart from 'react-apexcharts';
 import PageHeader from '../components/PageHeader/PageHeader';
+import { useTheme } from '../context/ThemeContext';
 import { getBrokers } from '../api/brokers';
 import { getBrands } from '../api/brands';
 import { getClientsByBroker } from '../api/clients';
 import './Dashboard.css';
 
-const TEAL        = '#004B4E';
-const TEAL_HOVER  = '#006467';
-const TEAL_LIGHT  = '#4ecdc4';
-const TEAL_PALE   = '#a8d8d8';
-const AMBER       = '#f59e0b';
-const RED         = '#ef4444';
-const GREEN       = '#10b981';
+const LIGHT_PALETTE = {
+  primary:    '#004B4E',
+  primary2:   '#006467',
+  accent1:    '#4ecdc4',
+  accent2:    '#a8d8d8',
+  accent3:    '#b2dfdb',
+  amber:      '#f59e0b',
+  red:        '#ef4444',
+  green:      '#10b981',
+  grid:       '#eef2f6',
+  tooltip:    'light',
+  stroke:     '#fff',
+};
+
+const DARK_PALETTE = {
+  primary:    '#4ade80',
+  primary2:   '#22c55e',
+  accent1:    '#86efac',
+  accent2:    '#16a34a',
+  accent3:    '#bbf7d0',
+  amber:      '#fbbf24',
+  red:        '#f87171',
+  green:      '#4ade80',
+  grid:       '#1e3a31',
+  tooltip:    'dark',
+  stroke:     '#03110c',
+};
 
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -26,6 +47,16 @@ function formatCount(n) {
 }
 
 export default function Dashboard() {
+  const { theme } = useTheme();
+  const P = theme === 'dark' ? DARK_PALETTE : LIGHT_PALETTE;
+  const TEAL       = P.primary;
+  const TEAL_HOVER = P.primary2;
+  const TEAL_LIGHT = P.accent1;
+  const TEAL_PALE  = P.accent2;
+  const AMBER      = P.amber;
+  const RED        = P.red;
+  const GREEN      = P.green;
+
   const [brokers, setBrokers] = useState([]);
   const [brands, setBrands]   = useState([]);
   const [clients, setClients] = useState([]);
@@ -235,9 +266,11 @@ export default function Dashboard() {
   /* ── Chart common config ───────────────────────────────────── */
   const baseChart = {
     chart:   { fontFamily: 'inherit', toolbar: { show: false }, animations: { easing: 'easeinout', speed: 500 } },
-    tooltip: { theme: 'light' },
-    grid:    { borderColor: '#eef2f6', strokeDashArray: 4 },
+    tooltip: { theme: P.tooltip },
+    grid:    { borderColor: P.grid, strokeDashArray: 4 },
   };
+  const axisColor    = theme === 'dark' ? '#9ca3af' : '#64748b';
+  const axisColorStr = theme === 'dark' ? '#e7e9ed' : '#0f172a';
 
   const periodLabel = { weekly: 'This Week', monthly: 'This Month', yearly: 'This Year' }[period];
 
@@ -297,21 +330,21 @@ export default function Dashboard() {
               options={{
                 ...baseChart,
                 labels: bonusByBrand.labels,
-                colors: [TEAL, '#009688', TEAL_LIGHT, TEAL_PALE, '#b2dfdb'],
+                colors: [TEAL, TEAL_HOVER, TEAL_LIGHT, TEAL_PALE, P.accent3],
                 legend: { position: 'bottom', fontSize: '13px', markers: { width: 10, height: 10 } },
-                stroke: { width: 2, colors: ['#fff'] },
+                stroke: { width: 2, colors: [P.stroke] },
                 dataLabels: { enabled: true, style: { fontSize: '12px', fontWeight: 600 } },
-                tooltip: { theme: 'dark', y: { formatter: v => formatMoney(v) } },
+                tooltip: { theme: P.tooltip, y: { formatter: v => formatMoney(v) } },
                 plotOptions: {
                   pie: {
                     donut: {
                       size: '68%',
                       labels: {
                         show: true,
-                        name:  { fontSize: '13px', color: '#64748b' },
-                        value: { fontSize: '22px', fontWeight: 700, color: '#0f172a', formatter: v => formatMoney(v) },
+                        name:  { fontSize: '13px', color: theme === 'dark' ? '#9ca3af' : '#64748b' },
+                        value: { fontSize: '22px', fontWeight: 700, color: theme === 'dark' ? '#e7e9ed' : '#0f172a', formatter: v => formatMoney(v) },
                         total: {
-                          show: true, label: 'Total Bonus', color: '#64748b',
+                          show: true, label: 'Total Bonus', color: theme === 'dark' ? '#9ca3af' : '#64748b',
                           formatter: w => formatMoney(w.globals.seriesTotals.reduce((a, b) => a + b, 0)),
                         },
                       },
@@ -337,8 +370,8 @@ export default function Dashboard() {
               colors: [TEAL, AMBER],
               plotOptions: { bar: { borderRadius: 6, columnWidth: '55%' } },
               dataLabels: { enabled: false },
-              xaxis: { categories: timeLabels, labels: { style: { colors: '#64748b' } } },
-              yaxis: { labels: { style: { colors: '#64748b' }, formatter: v => formatMoney(v) } },
+              xaxis: { categories: timeLabels, labels: { style: { colors: axisColor } } },
+              yaxis: { labels: { style: { colors: axisColor }, formatter: v => formatMoney(v) } },
               legend: { position: 'top', horizontalAlign: 'right', markers: { width: 10, height: 10 } },
               tooltip: { y: { formatter: v => formatMoney(v) } },
             }}
@@ -366,8 +399,8 @@ export default function Dashboard() {
                 gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05, stops: [0, 100] },
               },
               dataLabels: { enabled: false },
-              xaxis: { categories: timeLabels, labels: { style: { colors: '#64748b' } } },
-              yaxis: { labels: { style: { colors: '#64748b' } } },
+              xaxis: { categories: timeLabels, labels: { style: { colors: axisColor } } },
+              yaxis: { labels: { style: { colors: axisColor } } },
               legend: { position: 'top', horizontalAlign: 'right', markers: { width: 10, height: 10 } },
               markers: { size: 4, strokeWidth: 2, hover: { size: 6 } },
             }}
@@ -384,7 +417,7 @@ export default function Dashboard() {
               options={{
                 ...baseChart,
                 labels: ['Genuine', 'Pending', 'Rejected'],
-                colors: ['#004B4E', '#2ab8ac', '#a8d8d8'],
+                colors: [TEAL, P.accent1, P.accent2],
                 legend: {
                   position: 'bottom',
                   horizontalAlign: 'center',
@@ -392,7 +425,7 @@ export default function Dashboard() {
                   markers: { width: 10, height: 10 },
                   itemMargin: { horizontal: 10, vertical: 4 },
                 },
-                stroke: { width: 2, colors: ['#fff'] },
+                stroke: { width: 2, colors: [P.stroke] },
                 dataLabels: {
                   enabled: true,
                   formatter: v => `${v.toFixed(1)}%`,
@@ -405,10 +438,10 @@ export default function Dashboard() {
                       size: '68%',
                       labels: {
                         show: true,
-                        name:  { fontSize: '13px', color: '#64748b' },
-                        value: { fontSize: '22px', fontWeight: 700, color: '#0f172a' },
+                        name:  { fontSize: '13px', color: theme === 'dark' ? '#9ca3af' : '#64748b' },
+                        value: { fontSize: '22px', fontWeight: 700, color: theme === 'dark' ? '#e7e9ed' : '#0f172a' },
                         total: {
-                          show: true, label: 'Total Clients', color: '#64748b',
+                          show: true, label: 'Total Clients', color: theme === 'dark' ? '#9ca3af' : '#64748b',
                           formatter: w => formatCount(w.globals.seriesTotals.reduce((a, b) => a + b, 0)),
                         },
                       },
@@ -440,8 +473,8 @@ export default function Dashboard() {
                 colors: [TEAL, TEAL_LIGHT, AMBER],
                 plotOptions: { bar: { horizontal: true, borderRadius: 6, barHeight: '70%' } },
                 dataLabels: { enabled: false },
-                xaxis: { categories: topBrokers.map(b => b.name), labels: { style: { colors: '#64748b' } } },
-                yaxis: { labels: { style: { colors: '#0f172a', fontSize: '13px', fontWeight: 600 } } },
+                xaxis: { categories: topBrokers.map(b => b.name), labels: { style: { colors: axisColor } } },
+                yaxis: { labels: { style: { colors: axisColorStr, fontSize: '13px', fontWeight: 600 } } },
                 legend: { position: 'top', horizontalAlign: 'right', markers: { width: 10, height: 10 } },
                 tooltip: {
                   y: { formatter: (v, opts) => (opts.seriesIndex === 2 ? formatMoney(v) : formatCount(v)) },
@@ -481,7 +514,7 @@ export default function Dashboard() {
 
         <div className="chart-card">
           <ChartHeader title="Approval Workflow Status" subtitle="Conversion through each approval stage" />
-          <FunnelChart data={funnel} />
+          <FunnelChart data={funnel} palette={P} />
         </div>
       </div>
     </div>
@@ -524,7 +557,9 @@ function EmptyState() {
   );
 }
 
-function FunnelChart({ data }) {
+function FunnelChart({ data, palette }) {
+  const TEAL       = palette?.primary  || '#004B4E';
+  const TEAL_HOVER = palette?.primary2 || '#006467';
   const max = Math.max(...data.map(d => d.value), 1);
   return (
     <div className="funnel">

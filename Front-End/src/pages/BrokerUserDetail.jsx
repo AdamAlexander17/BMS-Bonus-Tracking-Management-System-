@@ -102,6 +102,7 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
     >
       {/* Dialog */}
       <div
+        className="bms-dialog"
         onClick={e => e.stopPropagation()}
         style={{
           background: '#fff',
@@ -257,6 +258,7 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
       }}
     >
       <div
+        className="bms-dialog"
         onClick={e => e.stopPropagation()}
         style={{
           background: '#fff', borderRadius: 14, width: '100%', maxWidth: 580,
@@ -702,11 +704,9 @@ export default function BrokerUserDetail() {
 
 function InfoCard({ label, value, accent }) {
   return (
-    <div className="um__card" style={{ padding: '10px 12px', minHeight: 78, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-      <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: accent || '#111827', lineHeight: 1.2, wordBreak: 'break-word', margin: '5px 0 4px' }}>
+    <div className="info-card">
+      <div className="info-card__label">{label}</div>
+      <div className="info-card__value" style={accent ? { color: accent } : undefined}>
         {value}
       </div>
     </div>
