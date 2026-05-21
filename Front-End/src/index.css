@@ -111,16 +111,23 @@ body {
 /* ---------- Generic page header (.um, .ph, .bk) ---------- */
 [data-theme="dark"] .um__header,
 [data-theme="dark"] .ph,
+[data-theme="dark"] .page-header,
 [data-theme="dark"] .bk__header {
   background: var(--dm-surface) !important;
   border-color: var(--dm-border) !important;
 }
 [data-theme="dark"] .um__header-icon,
-[data-theme="dark"] .ph__icon { background: var(--dm-accent-bg) !important; color: var(--dm-accent) !important; }
+[data-theme="dark"] .ph__icon,
+[data-theme="dark"] .page-header__icon { background: var(--dm-accent-bg) !important; color: var(--dm-accent) !important; }
 [data-theme="dark"] .um__title,
-[data-theme="dark"] .ph__title { color: var(--dm-text) !important; }
+[data-theme="dark"] .ph__title,
+[data-theme="dark"] .page-header__title { color: var(--dm-text) !important; }
 [data-theme="dark"] .um__sub,
-[data-theme="dark"] .ph__subtitle { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .ph__subtitle,
+[data-theme="dark"] .page-header__sub { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .ph-user { border-color: var(--dm-border) !important; }
+[data-theme="dark"] .ph-user__name { color: var(--dm-text) !important; }
+[data-theme="dark"] .ph-user__role { color: var(--dm-text-2) !important; }
 
 /* ---------- Buttons (.ph-btn ghost/primary) ---------- */
 [data-theme="dark"] .ph-btn--ghost,
@@ -249,4 +256,61 @@ body {
 
 /* ---------- ConfirmDialog text colors when nested ---------- */
 [data-theme="dark"] .ph-btn--ghost { color: var(--dm-accent); }
+
+/* ---------- Dashboard page ---------- */
+[data-theme="dark"] .dashboard__heading { color: var(--dm-text) !important; }
+[data-theme="dark"] .dashboard__sub { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .dashboard__sticky-top { background: var(--dm-bg) !important; }
+
+[data-theme="dark"] .dashboard__period-btn {
+  border-color: var(--dm-accent) !important;
+  color: var(--dm-accent) !important;
+  background: transparent !important;
+}
+[data-theme="dark"] .dashboard__period-btn:hover { background: var(--dm-accent-bg) !important; }
+[data-theme="dark"] .dashboard__period-btn--active { background: var(--dm-accent) !important; color: #fff !important; }
+
+[data-theme="dark"] .stat-card {
+  background: var(--dm-surface) !important;
+  border-color: var(--dm-border) !important;
+  box-shadow: none !important;
+}
+[data-theme="dark"] .stat-card:hover {
+  border-color: var(--dm-accent) !important;
+  box-shadow: 0 4px 16px rgba(239,68,68,0.12) !important;
+}
+[data-theme="dark"] .stat-card__label { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .stat-card__value { color: var(--dm-text) !important; }
+
+[data-theme="dark"] .chart-card {
+  background: var(--dm-surface) !important;
+  border-color: var(--dm-border) !important;
+  box-shadow: none !important;
+}
+[data-theme="dark"] .chart-card:hover { border-color: var(--dm-accent) !important; }
+[data-theme="dark"] .chart-card__header h4 { color: var(--dm-text) !important; }
+[data-theme="dark"] .chart-card__sub { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .chart-card__select {
+  background: var(--dm-surface-2) !important;
+  border-color: var(--dm-border) !important;
+  color: var(--dm-text) !important;
+}
+[data-theme="dark"] .chart-empty { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .chart-empty svg { color: var(--dm-border) !important; }
+
+[data-theme="dark"] .funnel__label { color: var(--dm-text) !important; }
+[data-theme="dark"] .funnel__index { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .funnel__bar-wrap { background: var(--dm-surface-2) !important; }
+[data-theme="dark"] .funnel__value { color: var(--dm-text) !important; }
+[data-theme="dark"] .funnel__drop { color: var(--dm-text-2) !important; }
+
+/* Recharts SVG axis/grid */
+[data-theme="dark"] .recharts-cartesian-axis-tick-value { fill: var(--dm-text-2) !important; }
+[data-theme="dark"] .recharts-cartesian-grid line { stroke: var(--dm-border) !important; }
+[data-theme="dark"] .recharts-default-legend .recharts-legend-item-text { color: var(--dm-text) !important; }
+[data-theme="dark"] .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: var(--dm-surface) !important;
+  border-color: var(--dm-border) !important;
+  color: var(--dm-text) !important;
+}
 
