@@ -375,7 +375,7 @@ export default function Reports() {
     { label: 'Brand', value: (row) => row.brand_name },
     { label: 'RM', value: (row) => row.rm_user_name },
     { label: 'Clients', value: (row) => row.client_count },
-    { label: 'Trading OK', value: (row) => row.legitimate_count },
+    { label: 'LEGITIMATE CLIENT', value: (row) => row.legitimate_count },
     { label: 'Deposited', value: (row) => row.deposited_amount },
     { label: 'Withdrawn', value: (row) => row.withdrawal_amount },
     { label: 'Earned', value: (row) => row.earned_amount },
@@ -387,7 +387,7 @@ export default function Reports() {
     { label: 'Broker', value: (row) => row.broker_name },
     { label: 'Brand', value: (row) => row.brand_name },
     { label: 'Status', value: (row) => row.status },
-    { label: 'Trading OK', value: (row) => row.is_legitimate ? 'Yes' : 'No' },
+    { label: 'LEGITIMATE CLIENT', value: (row) => row.is_legitimate ? 'Yes' : 'No' },
     { label: 'Deposited', value: (row) => row.deposited_amount },
     { label: 'Withdrawn', value: (row) => row.withdrawal_amount },
     { label: 'Earned', value: (row) => row.earned_amount },
@@ -479,7 +479,7 @@ export default function Reports() {
                 <option value="Inactive">Inactive</option>
               </select>
             </FilterField>
-            <FilterField label="Trading OK">
+            <FilterField label="LEGITIMATE CLIENT">
               <select className="app-report-select" style={selectControlStyle} value={tradingState} onChange={(event) => setTradingState(event.target.value)}>
                 <option value="all">All clients</option>
                 <option value="yes">Checked only</option>
@@ -531,7 +531,7 @@ export default function Reports() {
               <th>Brand</th>
               <th>RM</th>
               <th>Clients</th>
-              <th>Trading OK</th>
+              <th>LEGITIMATE CLIENT</th>
               <th>Deposited</th>
               <th>Withdrawn</th>
               <th>Earned</th>
@@ -573,7 +573,7 @@ export default function Reports() {
               <th>Broker</th>
               <th>Brand</th>
               <th>Status</th>
-              <th>Trading OK</th>
+              <th>LEGITIMATE CLIENT</th>
               <th>Deposited</th>
               <th>Withdrawn</th>
               <th>Earned</th>

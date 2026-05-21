@@ -81,17 +81,32 @@ function formatDetailValue(value) {
   return String(value);
 }
 
+function formatChangeEntries(changes) {
+  const entries = Object.entries(changes || {}).filter(([, value]) => value && typeof value === 'object');
+  if (!entries.length) return [];
+
+  return entries.map(([key, value]) => {
+    const fromValue = formatDetailValue(value.from);
+    const toValue = formatDetailValue(value.to);
+    return `${formatLabel(key)}: ${fromValue} -> ${toValue}`;
+  });
+}
+
 function formatDetails(details) {
   if (!details || typeof details !== 'object' || Array.isArray(details)) {
     return '-';
   }
 
-  const entries = Object.entries(details).filter(([, value]) => value !== null && value !== undefined && value !== '');
+  const changeEntries = formatChangeEntries(details.changes);
+  const otherEntries = Object.entries(details)
+    .filter(([key, value]) => key !== 'changes' && value !== null && value !== undefined && value !== '')
+    .map(([key, value]) => `${formatLabel(key)}: ${formatDetailValue(value)}`);
+
+  const entries = [...changeEntries, ...otherEntries];
   if (!entries.length) return '-';
 
   return entries
     .slice(0, 4)
-    .map(([key, value]) => `${formatLabel(key)}: ${formatDetailValue(value)}`)
     .join(' | ');
 }
 
