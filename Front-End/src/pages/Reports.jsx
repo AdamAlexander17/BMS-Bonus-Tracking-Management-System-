@@ -101,12 +101,16 @@ function StatCard({ label, value, helper }) {
   );
 }
 
-function ReportToolbar({ title, subtitle, rowCount, pageSize, onPageSizeChange, onExport, children }) {
+function ReportToolbar({ title, subtitle, rowCount, pageSize, onPageSizeChange, onExport, leftContent, children }) {
   return (
     <div className="um__toolbar">
-      <div>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{title}</h3>
-        {subtitle ? <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>{subtitle}</div> : null}
+      <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+        {leftContent || (
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{title}</h3>
+            {subtitle ? <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>{subtitle}</div> : null}
+          </div>
+        )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'nowrap' }}>
         <CustomSelect
@@ -443,15 +447,7 @@ export default function Reports() {
 
       {showFilters && (
         <div className="um__card" style={{ marginBottom: 20, overflow: 'visible', position: 'relative', zIndex: 5 }}>
-          <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, alignItems: 'end', overflow: 'visible' }}>
-            <FilterField label="Search" span={2}>
-              <input
-                style={inputControlStyle}
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search broker, client, ARC ID, user, type, or amount"
-              />
-            </FilterField>
+          <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', columnGap: 12, rowGap: 10, alignItems: 'end', overflow: 'visible' }}>
             <FilterField label="Brand">
               <CustomSelect
                 value={brandId}
@@ -536,6 +532,19 @@ export default function Reports() {
           pageSize={brokerPageSize}
           onPageSizeChange={setBrokerPageSize}
           onExport={canExport ? () => exportRowsToCsv('broker-performance-summary.csv', brokerColumns, brokerSummary) : undefined}
+          leftContent={(
+            <div className="um__search" style={{ maxWidth: 360 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="7" />
+                <line x1="16.65" y1="16.65" x2="21" y2="21" />
+              </svg>
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search broker, client, ARC ID, user, type, or amount"
+              />
+            </div>
+          )}
         />
         <table className="um__table">
           <thead>
