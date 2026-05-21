@@ -71,6 +71,19 @@
   white-space: nowrap;
 }
 .ph-btn--ghost:hover { background: #004B4E; color: #fff; }
+.ph-btn--refresh {
+  height: 44px;
+  padding: 0 18px;
+  gap: 8px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.ph-btn--refresh svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
 .ph-btn--primary {
   background: transparent;
   color: #004B4E;

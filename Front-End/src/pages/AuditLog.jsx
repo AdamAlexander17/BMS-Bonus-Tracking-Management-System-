@@ -144,6 +144,15 @@ function buildCsv(rows) {
   ].join('\n');
 }
 
+const RefreshIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+    <path d="M3 12a8.5 8.5 0 0 1 14.5-6"/>
+    <polyline points="17 2 17 6 13 6"/>
+    <path d="M21 12a8.5 8.5 0 0 1-14.5 6"/>
+    <polyline points="7 22 7 18 11 18"/>
+  </svg>
+);
+
 export default function AuditLog() {
   const [rows, setRows] = useState([]);
   const [search, setSearch] = useState('');
@@ -157,6 +166,7 @@ export default function AuditLog() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -197,7 +207,7 @@ export default function AuditLog() {
     return () => {
       cancelled = true;
     };
-  }, [search, moduleFilter, actionFilter, fromDate, toDate, page, pageSize]);
+  }, [search, moduleFilter, actionFilter, fromDate, toDate, page, pageSize, refreshKey]);
 
   function resetPage(update) {
     setPage(1);
@@ -239,9 +249,15 @@ export default function AuditLog() {
         title="Audit Log"
         subtitle="Track application activity across logins, data changes, and financial transactions"
         actions={(
-          <button type="button" className="ph-btn ph-btn--ghost" onClick={() => setShowFilters((current) => !current)}>
-            {showFilters ? 'Hide Filters' : 'Show Filters'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button type="button" className="ph-btn ph-btn--ghost" onClick={() => setShowFilters((current) => !current)}>
+              {showFilters ? 'Hide Filters' : 'Show Filters'}
+            </button>
+            <button type="button" className="ph-btn ph-btn--ghost ph-btn--refresh" onClick={() => setRefreshKey((current) => current + 1)}>
+              <RefreshIcon />
+              Refresh
+            </button>
+          </div>
         )}
       />
 

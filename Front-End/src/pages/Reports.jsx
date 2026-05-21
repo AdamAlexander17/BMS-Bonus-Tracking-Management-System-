@@ -34,7 +34,9 @@ function formatCount(value) {
 
 function formatDateTime(value) {
   if (!value) return '—';
-  return new Date(value.replace(' ', 'T')).toLocaleString('en-IN', {
+  const parsed = new Date(String(value).includes('T') ? value : String(value).replace(' ', 'T'));
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleString('en-IN', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -143,6 +145,15 @@ function PaginationControls({ page, pageSize, totalRows, onChange }) {
   );
 }
 
+const RefreshIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+    <path d="M3 12a8.5 8.5 0 0 1 14.5-6"/>
+    <polyline points="17 2 17 6 13 6"/>
+    <path d="M21 12a8.5 8.5 0 0 1-14.5 6"/>
+    <polyline points="7 22 7 18 11 18"/>
+  </svg>
+);
+
 export default function Reports() {
   const { user } = useAuth();
   const canExport = !user?.permissions || user.permissions.includes('report:export');
@@ -170,6 +181,7 @@ export default function Reports() {
   const [brokerPageSize, setBrokerPageSize] = useState(10);
   const [clientPageSize, setClientPageSize] = useState(10);
   const [transactionPageSize, setTransactionPageSize] = useState(10);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -254,7 +266,7 @@ export default function Reports() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   const normalizedSearch = search.trim().toLowerCase();
 
@@ -306,10 +318,19 @@ export default function Reports() {
     });
   }, [transactions, normalizedSearch, brandId, brokerId, status, tradingState, transactionType, fromDate, toDate]);
 
+  const brokerLookup = useMemo(() => {
+    const lookup = new Map();
+    brokers.forEach((broker) => {
+      lookup.set(broker.id, broker);
+    });
+    return lookup;
+  }, [brokers]);
+
   const brokerSummary = useMemo(() => {
     const grouped = new Map();
     filteredClients.forEach((client) => {
       const key = client.broker_id;
+      const brokerMeta = brokerLookup.get(key);
       if (!grouped.has(key)) {
         grouped.set(key, {
           broker_id: client.broker_id,
@@ -321,6 +342,9 @@ export default function Reports() {
           deposited_amount: 0,
           withdrawal_amount: 0,
           earned_amount: 0,
+          amount_paid: Number(brokerMeta?.amount_paid || 0),
+          pending_payout: Number(brokerMeta?.pending_payout || 0),
+          last_paid_at: brokerMeta?.last_paid_at || null,
         });
       }
 
@@ -330,10 +354,13 @@ export default function Reports() {
       item.deposited_amount += Number(client.deposited_amount || 0);
       item.withdrawal_amount += Number(client.withdrawal_amount || 0);
       item.earned_amount += Number(client.earned_amount || 0);
+      item.amount_paid = Number(brokerMeta?.amount_paid || item.amount_paid || 0);
+      item.pending_payout = Number(brokerMeta?.pending_payout || item.pending_payout || 0);
+      item.last_paid_at = brokerMeta?.last_paid_at || item.last_paid_at || null;
     });
 
     return Array.from(grouped.values()).sort((left, right) => right.earned_amount - left.earned_amount);
-  }, [filteredClients]);
+  }, [filteredClients, brokerLookup]);
 
   const summary = useMemo(() => {
     const depositTransactions = filteredTransactions
@@ -348,12 +375,14 @@ export default function Reports() {
       clientCount: filteredClients.length,
       legitimateCount: filteredClients.filter((client) => client.is_legitimate).length,
       totalEarned: filteredClients.reduce((total, client) => total + Number(client.earned_amount || 0), 0),
+      totalPaid: brokerSummary.reduce((total, broker) => total + Number(broker.amount_paid || 0), 0),
+      totalPending: brokerSummary.reduce((total, broker) => total + Number(broker.pending_payout || 0), 0),
       totalDeposited: filteredClients.reduce((total, client) => total + Number(client.deposited_amount || 0), 0),
       totalWithdrawn: filteredClients.reduce((total, client) => total + Number(client.withdrawal_amount || 0), 0),
       periodDeposits: depositTransactions,
       periodWithdrawals: withdrawalTransactions,
     };
-  }, [filteredClients, filteredTransactions]);
+  }, [filteredClients, filteredTransactions, brokerSummary]);
 
   const resetFilters = () => {
     setSearch('');
@@ -375,6 +404,9 @@ export default function Reports() {
     { label: 'Deposited', value: (row) => row.deposited_amount },
     { label: 'Withdrawn', value: (row) => row.withdrawal_amount },
     { label: 'Earned', value: (row) => row.earned_amount },
+    { label: 'Paid', value: (row) => row.amount_paid },
+    { label: 'Pending Payout', value: (row) => row.pending_payout },
+    { label: 'Last Paid', value: (row) => row.last_paid_at },
   ], []);
 
   const clientColumns = useMemo(() => [
@@ -422,9 +454,15 @@ export default function Reports() {
         title="Reports"
         subtitle="Operational reporting across brokers, clients, trading status, and transaction history"
         actions={(
-          <button className="ph-btn ph-btn--ghost" type="button" onClick={() => setShowFilters((current) => !current)}>
-            {showFilters ? 'Hide Filters' : 'Show Filters'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button className="ph-btn ph-btn--ghost" type="button" onClick={() => setShowFilters((current) => !current)}>
+              {showFilters ? 'Hide Filters' : 'Show Filters'}
+            </button>
+            <button className="ph-btn ph-btn--ghost ph-btn--refresh" type="button" onClick={() => setRefreshKey((current) => current + 1)}>
+              <RefreshIcon />
+              Refresh
+            </button>
+          </div>
         )}
       />
 
@@ -516,11 +554,13 @@ export default function Reports() {
       )}
 
       <div className="report-section-title" style={{ marginBottom: 12, fontSize: 15, fontWeight: 700 }}>Key Metrics</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: 12, marginBottom: 20 }}>
         <StatCard label="Brokers In Report" value={formatCount(summary.brokerCount)} />
         <StatCard label="Clients In Report" value={formatCount(summary.clientCount)} />
         <StatCard label="Legitimate Clients" value={formatCount(summary.legitimateCount)} />
         <StatCard label="Total Earned" value={formatMoney(summary.totalEarned)} />
+        <StatCard label="Total Paid" value={formatMoney(summary.totalPaid)} />
+        <StatCard label="Pending Payout" value={formatMoney(summary.totalPending)} />
         <StatCard label="Client Deposits" value={formatMoney(summary.totalDeposited)} />
         <StatCard label="Client Withdrawals" value={formatMoney(summary.totalWithdrawn)} />
       </div>
@@ -557,11 +597,14 @@ export default function Reports() {
               <th>Deposited</th>
               <th>Withdrawn</th>
               <th>Earned</th>
+              <th>Paid</th>
+              <th>Pending</th>
+              <th>Last Paid</th>
             </tr>
           </thead>
           <tbody>
             {pagedBrokerSummary.length === 0 ? (
-              <tr><td colSpan="8" className="um__empty">No brokers match the current report filters.</td></tr>
+              <tr><td colSpan="11" className="um__empty">No brokers match the current report filters.</td></tr>
             ) : pagedBrokerSummary.map((broker) => (
               <tr key={broker.broker_id}>
                 <td>{broker.broker_name}</td>
@@ -572,6 +615,9 @@ export default function Reports() {
                 <td>{formatMoney(broker.deposited_amount)}</td>
                 <td>{formatMoney(broker.withdrawal_amount)}</td>
                 <td style={{ fontWeight: 600, color: '#111827' }}>{formatMoney(broker.earned_amount)}</td>
+                <td style={{ fontWeight: 600, color: '#111827' }}>{formatMoney(broker.amount_paid)}</td>
+                <td style={{ fontWeight: 600, color: '#111827' }}>{formatMoney(broker.pending_payout)}</td>
+                <td>{formatDateTime(broker.last_paid_at)}</td>
               </tr>
             ))}
           </tbody>
