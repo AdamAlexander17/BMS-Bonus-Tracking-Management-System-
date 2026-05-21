@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
-import { getBrokersByRmUser, createBroker, updateBroker, deleteBroker } from '../api/brokers';
+import { getBrokersByRmUser, createBroker, updateBroker, createBrokerPayout, deleteBroker } from '../api/brokers';
 import { createClient } from '../api/clients';
 import './Users.css';
 
@@ -23,6 +23,13 @@ const UserIcon = () => (
 const formatDate = (str) => {
   if (!str) return '—';
   return new Date(str).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const formatDateTime = (str) => {
+  if (!str) return '—';
+  return new Date(str.replace(' ', 'T')).toLocaleString('en-IN', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit'
+  });
 };
 
 const formatINR = (value) => `₹${Number(value || 0).toLocaleString('en-IN', {
@@ -268,13 +275,13 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
         {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '20px 24px 18px', borderBottom: '1px solid #f1f5f9',
+          padding: '20px 24px 18px', borderBottom: 'none', background: '#004B4E',
         }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>Edit Broker</h2>
-            <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>Update details for <strong>{broker.name}</strong></p>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Edit Broker</h2>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>Update details for <strong>{broker.name}</strong></p>
           </div>
-          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9ca3af', padding: 4, borderRadius: 6, display: 'flex' }}>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.8)', padding: 4, borderRadius: 6, display: 'flex' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
@@ -308,6 +315,68 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
             <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Update Broker'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PayBrokerModal({ broker, onClose, onPaid }) {
+  const pendingAmount = Number(broker.pending_payout || 0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [amount, setAmount] = useState(pendingAmount > 0 ? pendingAmount.toFixed(2) : '');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    const numericAmount = Number(amount);
+    if (!numericAmount || numericAmount <= 0) {
+      setError('Enter a valid payout amount.');
+      return;
+    }
+    if (numericAmount > pendingAmount) {
+      setError('Payout amount cannot be greater than pending payout.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await createBrokerPayout(broker.id, { amount: numericAmount });
+      onPaid();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to record broker payout.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div className="bms-dialog" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 18px', borderBottom: 'none', background: '#004B4E' }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Pay Broker Earned Amount</h2>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>{broker.name} · Pending {formatINR(broker.pending_payout)}</p>
+          </div>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.8)', padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '24px 24px 8px' }}>
+            {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: 18 }}>
+              <div className="um__card" style={{ padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>Earned</div><div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginTop: 6 }}>{formatINR(broker.amount_earned)}</div></div>
+              <div className="um__card" style={{ padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>Paid</div><div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginTop: 6 }}>{formatINR(broker.amount_paid)}</div></div>
+              <div className="um__card" style={{ padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>Pending</div><div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginTop: 6 }}>{formatINR(broker.pending_payout)}</div></div>
+            </div>
+            <Field label="Payout Amount" required>
+              <input type="number" min="0.01" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} onFocus={(e) => e.target.style.borderColor = '#004B4E'} onBlur={(e) => e.target.style.borderColor = '#d1d5db'} required />
+            </Field>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
+            <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Recording...' : 'Record Payout'}</button>
           </div>
         </form>
       </div>
@@ -487,6 +556,7 @@ export default function BrokerUserDetail() {
   const [showClientModal, setShowClientModal] = useState(false);
   const [selectedBroker, setSelectedBroker]   = useState(null);
   const [editBroker, setEditBroker]           = useState(null);
+  const [payoutBroker, setPayoutBroker]       = useState(null);
   const [confirmState, setConfirmState]       = useState(null);
   const [pageError, setPageError]             = useState('');
 
@@ -530,6 +600,8 @@ export default function BrokerUserDetail() {
 
   const totalClients = brokers.reduce((s, b) => s + (b.client_count || 0), 0);
   const totalEarned = brokers.reduce((sum, broker) => sum + Number(broker.amount_earned || 0), 0);
+  const totalPaid = brokers.reduce((sum, broker) => sum + Number(broker.amount_paid || 0), 0);
+  const totalPending = brokers.reduce((sum, broker) => sum + Number(broker.pending_payout || 0), 0);
 
   return (
     <div className="um">
@@ -556,11 +628,13 @@ export default function BrokerUserDetail() {
       />
 
       {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 20 }}>
         <InfoCard label="Role"             value={(rmUser.roles || []).join('/')} />
         <InfoCard label="Broker Count" value={brokers.length} />
         <InfoCard label="Total Clients"    value={totalClients} />
         <InfoCard label="Total Earned" value={formatINR(totalEarned)} />
+        <InfoCard label="Total Paid" value={formatINR(totalPaid)} />
+        <InfoCard label="Pending Payout" value={formatINR(totalPending)} />
       </div>
 
       {/* Broker companies table */}
@@ -579,6 +653,9 @@ export default function BrokerUserDetail() {
               <th>BRAND</th>
               <th>CLIENTS</th>
               <th>EARNED</th>
+              <th>PAID</th>
+              <th>PENDING</th>
+              <th>LAST PAID</th>
               <th>STATUS</th>
               <th>CREATED</th>
               {canActions && <th>ACTIONS</th>}
@@ -587,7 +664,7 @@ export default function BrokerUserDetail() {
           <tbody>
             {brokers.length === 0 ? (
               <tr>
-                <td colSpan={canActions ? 8 : 7} className="um__empty">
+                <td colSpan={canActions ? 11 : 10} className="um__empty">
                   No broker companies assigned yet. Click "Add Broker" to get started.
                 </td>
               </tr>
@@ -610,6 +687,9 @@ export default function BrokerUserDetail() {
                 <td><span className="um__role-badge">{b.brand?.name || '—'}</span></td>
                 <td><span style={{ fontWeight: 600 }}>{b.client_count ?? 0}</span></td>
                 <td><span style={{ fontWeight: 600 }}>{formatINR(b.amount_earned)}</span></td>
+                <td><span style={{ fontWeight: 600 }}>{formatINR(b.amount_paid)}</span></td>
+                <td><span style={{ fontWeight: 600 }}>{formatINR(b.pending_payout)}</span></td>
+                <td><span className="um__date">{formatDateTime(b.last_paid_at)}</span></td>
                 <td>
                   <span className={`um__status-badge ${b.status === 'Active' ? 'um__status-badge--active' : 'um__status-badge--inactive'}`}>
                     {b.status}
@@ -619,6 +699,20 @@ export default function BrokerUserDetail() {
                 <td onClick={e => e.stopPropagation()}>
                   {canActions && (
                     <div className="um__actions">
+                      {canUpdate && Number(b.pending_payout || 0) > 0 && (
+                        <button
+                          className="um__action-btn"
+                          title="Record payout"
+                          style={{ color: '#10b981' }}
+                          onClick={() => setPayoutBroker(b)}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                            <path d="M3 7h18v10H3z"/>
+                            <path d="M7 12h10"/>
+                            <path d="M12 9v6"/>
+                          </svg>
+                        </button>
+                      )}
                       {canUpdate && (
                         <button
                           className="um__action-btn um__action-btn--edit"
@@ -677,6 +771,13 @@ export default function BrokerUserDetail() {
           onUpdated={() => { setEditBroker(null); fetchAll(); }}
         />
       )}
+      {payoutBroker && (
+        <PayBrokerModal
+          broker={payoutBroker}
+          onClose={() => setPayoutBroker(null)}
+          onPaid={() => { setPayoutBroker(null); fetchAll(); }}
+        />
+      )}
       {confirmState && (
         <ConfirmDialog
           title={confirmState.title}
@@ -704,9 +805,11 @@ export default function BrokerUserDetail() {
 
 function InfoCard({ label, value, accent }) {
   return (
-    <div className="info-card">
-      <div className="info-card__label">{label}</div>
-      <div className="info-card__value" style={accent ? { color: accent } : undefined}>
+    <div className="um__card" style={{ padding: '10px 12px', minHeight: 78, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+      <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: accent || '#111827', lineHeight: 1.2, wordBreak: 'break-word', margin: '5px 0 4px' }}>
         {value}
       </div>
     </div>

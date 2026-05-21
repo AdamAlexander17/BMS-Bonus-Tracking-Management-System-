@@ -14,7 +14,7 @@ from rest_framework import status
 from django.db.models import Count, Q
 from django.db.models.deletion import ProtectedError
 
-from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, Client, ClientTransaction, AuditLog
+from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, BrokerPayout, Client, ClientTransaction, AuditLog
 from app.utils import verify_password, generate_access_token, generate_refresh_token, decode_token, hash_password
 
 
@@ -1643,7 +1643,8 @@ def brokers_by_rm_user(request, user_id):
             )
         brokers = (
             Broker.objects
-            .select_related('brand', 'created_by')
+            .select_related('brand', 'created_by', 'rm_user')
+            .prefetch_related('payouts')
             .annotate(client_count=Count('clients'))
             .filter(created_by=request.user)
             .order_by('id')
@@ -1651,7 +1652,8 @@ def brokers_by_rm_user(request, user_id):
     else:
         brokers = (
             Broker.objects
-            .select_related('brand', 'created_by')
+            .select_related('brand', 'created_by', 'rm_user')
+            .prefetch_related('payouts')
             .annotate(client_count=Count('clients'))
             .filter(rm_user=rm_user)
             .order_by('id')
@@ -1670,6 +1672,7 @@ def brokers_by_rm_user(request, user_id):
 
 def format_broker(broker):
     rm = broker.rm_user
+    last_paid_at = broker.last_paid_at
     return {
         'id':            broker.id,
         'arc_id':        broker.arc_id,
@@ -1677,6 +1680,9 @@ def format_broker(broker):
         'brand':         {'id': broker.brand.id, 'name': broker.brand.name},
         'rm_user':       {'id': rm.id, 'username': rm.username, 'roles': rm.role_names} if rm else None,
         'amount_earned': str(broker.amount_earned),
+        'amount_paid':   str(broker.amount_paid),
+        'pending_payout': str(broker.pending_payout),
+        'last_paid_at':  last_paid_at.strftime('%Y-%m-%d %H:%M:%S') if last_paid_at else None,
         'status':        broker.status,
         'client_count':  getattr(broker, 'client_count', broker.clients.count()),
         'created_by':    broker.created_by.username if broker.created_by else None,
@@ -1819,7 +1825,8 @@ def broker_get(request, broker_id):
     try:
         broker = (
             Broker.objects
-            .select_related('brand', 'created_by')
+            .select_related('brand', 'created_by', 'rm_user')
+            .prefetch_related('payouts')
             .annotate(client_count=Count('clients'))
             .get(id=broker_id)
         )
@@ -1948,6 +1955,81 @@ def broker_update(request, broker_id):
     return Response(
         {'success': True, 'message': 'Broker updated successfully.', 'data': format_broker(broker)},
         status=status.HTTP_200_OK
+    )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def broker_payout_create(request, broker_id):
+    if not has_perm(request, 'broker:update'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    try:
+        broker = Broker.objects.select_related('brand', 'created_by', 'rm_user').prefetch_related('payouts').get(id=broker_id)
+    except Broker.DoesNotExist:
+        return Response(
+            {'success': False, 'message': 'Broker not found.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not _check_broker_access(request, broker):
+        return Response(
+            {'success': False, 'message': 'Access denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    raw_amount = request.data.get('amount')
+    try:
+        amount = Decimal(str(raw_amount))
+    except (InvalidOperation, TypeError, ValueError):
+        return Response(
+            {'success': False, 'message': 'Amount must be a valid number.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if amount <= 0:
+        return Response(
+            {'success': False, 'message': 'Amount must be greater than zero.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    pending_payout = Decimal(str(broker.pending_payout))
+    if amount > pending_payout:
+        return Response(
+            {'success': False, 'message': 'Amount exceeds pending payout.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    payout = BrokerPayout.objects.create(
+        broker=broker,
+        amount=amount,
+        paid_by=request.user,
+    )
+
+    broker = Broker.objects.select_related('brand', 'created_by', 'rm_user').prefetch_related('payouts').get(id=broker_id)
+
+    log_audit_event(
+        request,
+        module='broker',
+        action='payout',
+        description=f'Broker payout recorded for "{broker.name}".',
+        entity_type='broker',
+        entity_id=broker.id,
+        entity_label=broker.name,
+        details={
+            'amount': amount,
+            'pending_payout': broker.pending_payout,
+            'paid_by': request.user.username,
+            'paid_at': payout.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        },
+    )
+
+    return Response(
+        {'success': True, 'message': 'Broker payout recorded successfully.', 'data': format_broker(broker)},
+        status=status.HTTP_201_CREATED
     )
 
 

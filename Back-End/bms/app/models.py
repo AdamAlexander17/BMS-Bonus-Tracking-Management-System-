@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 
 
@@ -182,6 +184,46 @@ class Broker(models.Model):
     def amount_earned(self):
         # Sum of all clients' earned_amount
         return sum([float(c.earned_amount) for c in self.clients.all()])
+
+    def _payout_items(self):
+        prefetched = getattr(self, '_prefetched_objects_cache', {})
+        if 'payouts' in prefetched:
+            return prefetched['payouts']
+        return self.payouts.all()
+
+    @property
+    def amount_paid(self):
+        total = sum((payout.amount for payout in self._payout_items()), Decimal('0'))
+        return round(float(total), 2)
+
+    @property
+    def pending_payout(self):
+        return round(max(self.amount_earned - self.amount_paid, 0), 2)
+
+    @property
+    def last_paid_at(self):
+        payouts = self._payout_items()
+        if isinstance(payouts, list):
+            return payouts[0].created_at if payouts else None
+        latest = payouts.first()
+        return latest.created_at if latest else None
+
+
+class BrokerPayout(models.Model):
+    id         = models.BigAutoField(primary_key=True)
+    broker      = models.ForeignKey(Broker, on_delete=models.CASCADE, related_name='payouts')
+    amount      = models.DecimalField(max_digits=15, decimal_places=2)
+    paid_by     = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='broker_payouts'
+    )
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'broker_payouts'
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'{self.broker.arc_id} payout {self.amount}'
 
 
 class Client(models.Model):
