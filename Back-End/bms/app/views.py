@@ -773,8 +773,7 @@ def user_bulk_upload(request):
     rows = list(reader)
     if not rows:
         return Response({'success': False, 'message': 'CSV file is empty.'}, status=status.HTTP_400_BAD_REQUEST)
-    if len(rows) > 500:
-        return Response({'success': False, 'message': 'Maximum 500 rows per upload.'}, status=status.HTTP_400_BAD_REQUEST)
+    # No hard row cap — frontend uploads in chunks (e.g. 100 rows per request).
 
     # Pre-load brands and roles into dicts for fast lookup
     brand_map = {b.name.lower(): b for b in Brand.objects.all()}
