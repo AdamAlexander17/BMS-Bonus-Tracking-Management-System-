@@ -137,8 +137,20 @@ body {
 [data-theme="dark"] .sidebar__user-avatar { background: var(--dm-accent); color: #fff; }
 [data-theme="dark"] .sidebar__user-name { color: var(--dm-text); }
 [data-theme="dark"] .sidebar__user-role { color: var(--dm-text-2); }
-[data-theme="dark"] .sidebar__signout-btn { color: var(--dm-text-2); }
-[data-theme="dark"] .sidebar__signout-btn:hover { color: var(--dm-accent); }
+[data-theme="dark"] .sidebar__signout-btn,
+[data-theme="dark"] .sidebar__logout {
+  background: transparent !important;
+  color: var(--dm-text-2) !important;
+}
+[data-theme="dark"] .sidebar__signout-btn:hover,
+[data-theme="dark"] .sidebar__signout-btn:active,
+[data-theme="dark"] .sidebar__signout-btn:focus-visible,
+[data-theme="dark"] .sidebar__logout:hover,
+[data-theme="dark"] .sidebar__logout:active,
+[data-theme="dark"] .sidebar__logout:focus-visible {
+  background: rgba(239, 68, 68, 0.14) !important;
+  color: #f87171 !important;
+}
 
 /* ---------- Generic page header (.um, .ph, .bk) ---------- */
 [data-theme="dark"] .um__header,
@@ -403,6 +415,11 @@ body {
 }
 [data-theme="dark"] .audit-log-table tbody tr:hover td { background: var(--dm-surface-2) !important; }
 [data-theme="dark"] .audit-log-meta { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .audit-log-meta strong { color: var(--dm-text) !important; font-weight: 600 !important; }
+[data-theme="dark"] .audit-log-meta span { color: var(--dm-text-3) !important; }
+[data-theme="dark"] .audit-log-description { color: var(--dm-text) !important; }
+[data-theme="dark"] .audit-log-details { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .audit-log-ip { color: var(--dm-text-3) !important; font-variant-numeric: tabular-nums; }
 [data-theme="dark"] .audit-log-state { color: var(--dm-text-2) !important; }
 [data-theme="dark"] .audit-log-state--error { color: var(--dm-accent) !important; }
 
@@ -439,9 +456,12 @@ body {
 /* Pagination inside audit log */
 [data-theme="dark"] .audit-log-pagination,
 [data-theme="dark"] .audit-log-footer {
+  background: var(--dm-surface) !important;
   border-top-color: var(--dm-border) !important;
   color: var(--dm-text-2) !important;
 }
+[data-theme="dark"] .audit-log-pagination__summary { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .audit-log-pagination__label { color: var(--dm-text) !important; }
 
 
 /* ---------- ConfirmDialog text colors when nested ---------- */
