@@ -85,7 +85,6 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
       });
       onCreated();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create broker.');
       setSaving(false);
     }
   };
@@ -117,13 +116,14 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '20px 24px 18px',
-          borderBottom: '1px solid #f1f5f9',
+          borderBottom: 'none',
+          background: '#004B4E',
         }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>
               Create New Broker
             </h2>
-            <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>
               Assigned to <strong>{rmUser.username}</strong> · {(rmUser.roles || []).join('/')}
             </p>
           </div>
@@ -131,7 +131,7 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
             onClick={onClose}
             style={{
               border: 'none', background: 'none', cursor: 'pointer',
-              color: '#9ca3af', padding: 4, borderRadius: 6,
+              color: 'rgba(255,255,255,0.8)', padding: 4, borderRadius: 6,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
@@ -555,10 +555,10 @@ export default function BrokerUserDetail() {
 
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 24 }}>
-        <InfoCard label="Role"             value={(rmUser.roles || []).join('/')} accent={(rmUser.roles || []).includes('RM') ? '#1d4ed8' : '#92400e'} />
+        <InfoCard label="Role"             value={(rmUser.roles || []).join('/')} />
         <InfoCard label="Broker Count" value={brokers.length} />
         <InfoCard label="Total Clients"    value={totalClients} />
-        <InfoCard label="Total Earned" value={formatINR(totalEarned)} accent="#3b82f6" />
+        <InfoCard label="Total Earned" value={formatINR(totalEarned)} />
       </div>
 
       {/* Broker companies table */}
@@ -607,7 +607,7 @@ export default function BrokerUserDetail() {
                 <td><code className="um__handle">{b.arc_id}</code></td>
                 <td><span className="um__role-badge">{b.brand?.name || '—'}</span></td>
                 <td><span style={{ fontWeight: 600 }}>{b.client_count ?? 0}</span></td>
-                <td><span style={{ fontWeight: 600, color: '#2563eb' }}>{formatINR(b.amount_earned)}</span></td>
+                <td><span style={{ fontWeight: 600 }}>{formatINR(b.amount_earned)}</span></td>
                 <td>
                   <span className={`um__status-badge ${b.status === 'Active' ? 'um__status-badge--active' : 'um__status-badge--inactive'}`}>
                     {b.status}
@@ -702,14 +702,11 @@ export default function BrokerUserDetail() {
 
 function InfoCard({ label, value, accent }) {
   return (
-    <div style={{
-      background: '#fff', border: '1px solid #e5e7eb',
-      borderRadius: 10, padding: '14px 16px',
-    }}>
-      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+    <div className="um__card" style={{ padding: '10px 12px', minHeight: 78, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+      <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>
         {label}
       </div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: accent || '#111827' }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: accent || '#111827', lineHeight: 1.2, wordBreak: 'break-word', margin: '5px 0 4px' }}>
         {value}
       </div>
     </div>

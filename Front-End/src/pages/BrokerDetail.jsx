@@ -160,11 +160,12 @@ function AddClientModal({ broker, onClose, onCreated }) {
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '20px 24px 18px',
-          borderBottom: '1px solid #f1f5f9',
+          borderBottom: 'none',
+          background: '#004B4E',
         }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>Add Client</h2>
-            <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Add Client</h2>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>
               Adding to <strong>{broker.name}</strong> · {broker.arc_id}
             </p>
           </div>
@@ -172,7 +173,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
             onClick={onClose}
             style={{
               border: 'none', background: 'none', cursor: 'pointer',
-              color: '#9ca3af', padding: 4, borderRadius: 6,
+              color: 'rgba(255,255,255,0.8)', padding: 4, borderRadius: 6,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
@@ -241,14 +242,6 @@ function AddClientModal({ broker, onClose, onCreated }) {
                   onBlur={e => e.target.style.borderColor = '#d1d5db'}
                 />
               </Field>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <Field label="Legitimate Client Status">
-                  <LegitimacyCheckboxGroup
-                    value={form.legitimacy_status}
-                    onChange={(legitimacyStatus) => setForm((current) => ({ ...current, legitimacy_status: legitimacyStatus }))}
-                  />
-                </Field>
-              </div>
             </div>
           </div>
 
@@ -828,7 +821,7 @@ export default function BrokerDetail() {
                 <td>{formatINR(c.deposited_amount)}</td>
                 <td>{formatINR(c.withdrawal_amount)}</td>
                 <td>{formatINR(c.net_total)}</td>
-                <td style={{ color: '#3b82f6', fontWeight: 600 }}>{formatINR(c.earned_amount)}</td>
+                <td style={{ fontWeight: 600 }}>{formatINR(c.earned_amount)}</td>
                 <td>
                   {canClientUpdate ? (
                     <button
@@ -943,16 +936,11 @@ export default function BrokerDetail() {
 
 function InfoCard({ label, value, accent }) {
   return (
-    <div style={{
-      background: '#fff',
-      border: '1px solid #e5e7eb',
-      borderRadius: 10,
-      padding: '14px 16px',
-    }}>
-      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+    <div className="um__card" style={{ padding: '10px 12px', minHeight: 78, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+      <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>
         {label}
       </div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: accent || '#111827' }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: accent || '#111827', lineHeight: 1.2, wordBreak: 'break-word', margin: '5px 0 4px' }}>
         {value}
       </div>
     </div>

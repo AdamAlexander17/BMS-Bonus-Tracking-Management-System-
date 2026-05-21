@@ -37,6 +37,31 @@ def _normalize_audit_value(value):
     return str(value)
 
 
+def _build_audit_change_details(previous_values, current_values, extra_details=None):
+    changes = {}
+
+    for key, previous_value in previous_values.items():
+        current_value = current_values.get(key)
+        if _normalize_audit_value(previous_value) == _normalize_audit_value(current_value):
+            continue
+        changes[key] = {
+            'from': previous_value,
+            'to': current_value,
+        }
+
+    details = {}
+    if changes:
+        details['changes'] = changes
+
+    for key, value in (extra_details or {}).items():
+        normalized = _normalize_audit_value(value)
+        if normalized in (None, '', [], {}):
+            continue
+        details[key] = normalized
+
+    return details
+
+
 def log_audit_event(
     request,
     module,
@@ -598,16 +623,16 @@ def update_user(request, user_id):
         entity_type='user',
         entity_id=user.id,
         entity_label=user.username,
-        details={
-            'previous_username': previous_user['username'],
-            'previous_brand': previous_user['brand'],
-            'previous_roles': previous_user['roles'],
-            'previous_status': previous_user['status'],
-            'current_brand': user.brand_name,
-            'current_roles': list(user.roles.values_list('name', flat=True)),
-            'current_status': user.status,
-            'password_changed': bool(new_password),
-        },
+        details=_build_audit_change_details(
+            previous_user,
+            {
+                'username': user.username,
+                'brand': user.brand_name,
+                'roles': list(user.roles.values_list('name', flat=True)),
+                'status': user.status,
+            },
+            {'password_changed': True} if new_password else None,
+        ),
     )
 
     return Response({
@@ -975,7 +1000,10 @@ def brand_update(request, brand_id):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    previous_name = brand.name
+    previous_brand = {
+        'name': brand.name,
+        'code': brand.code,
+    }
     brand.name = name
     brand.code = code or None
     brand.save()
@@ -983,11 +1011,17 @@ def brand_update(request, brand_id):
         request,
         module='brand',
         action='update',
-        description=f'Brand "{previous_name}" updated.',
+        description=f'Brand "{previous_brand["name"]}" updated.',
         entity_type='brand',
         entity_id=brand.id,
         entity_label=brand.name,
-        details={'previous_name': previous_name, 'new_name': brand.name},
+        details=_build_audit_change_details(
+            previous_brand,
+            {
+                'name': brand.name,
+                'code': brand.code,
+            },
+        ),
     )
     return Response(
         {'success': True, 'message': 'Brand updated successfully.', 'data': format_brand(brand)},
@@ -1233,7 +1267,14 @@ def role_update(request, role_id):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    previous_name = role.name
+    previous_role = {
+        'name': role.name,
+        'description': role.description,
+        'status': role.status,
+        'permission_ids': list(
+            RolePermission.objects.filter(role=role).values_list('permission_id', flat=True)
+        ),
+    }
     role.name = name
     if description is not None:
         role.description = description.strip()
@@ -1261,11 +1302,19 @@ def role_update(request, role_id):
         request,
         module='role',
         action='update',
-        description=f'Role "{previous_name}" updated.',
+        description=f'Role "{previous_role["name"]}" updated.',
         entity_type='role',
         entity_id=role.id,
         entity_label=role.name,
-        details={'previous_name': previous_name, 'status': role.status, 'permission_ids': permission_ids},
+        details=_build_audit_change_details(
+            previous_role,
+            {
+                'name': role.name,
+                'description': role.description,
+                'status': role.status,
+                'permission_ids': previous_role['permission_ids'] if permission_ids is None else permission_ids,
+            },
+        ),
     )
 
     return Response(
@@ -1834,17 +1883,16 @@ def broker_update(request, broker_id):
         entity_type='broker',
         entity_id=broker.id,
         entity_label=broker.name,
-        details={
-            'previous_name': previous_broker['name'],
-            'previous_arc_id': previous_broker['arc_id'],
-            'previous_brand': previous_broker['brand'],
-            'previous_status': previous_broker['status'],
-            'previous_rm_user': previous_broker['rm_user'],
-            'current_arc_id': broker.arc_id,
-            'current_brand': broker.brand.name if broker.brand_id else None,
-            'current_status': broker.status,
-            'current_rm_user': broker.rm_user.username if broker.rm_user_id else None,
-        },
+        details=_build_audit_change_details(
+            previous_broker,
+            {
+                'name': broker.name,
+                'arc_id': broker.arc_id,
+                'brand': broker.brand.name if broker.brand_id else None,
+                'status': broker.status,
+                'rm_user': broker.rm_user.username if broker.rm_user_id else None,
+            },
+        ),
     )
     return Response(
         {'success': True, 'message': 'Broker updated successfully.', 'data': format_broker(broker)},
@@ -2265,17 +2313,16 @@ def client_update(request, client_id):
         entity_type='client',
         entity_id=client.id,
         entity_label=client.name,
-        details={
-            'previous_name': previous_client['name'],
-            'previous_arc_id': previous_client['arc_id'],
-            'previous_status': previous_client['status'],
-            'previous_legitimacy_status': previous_client['legitimacy_status'],
-            'previous_is_legitimate': previous_client['is_legitimate'],
-            'current_arc_id': client.arc_id,
-            'current_status': client.status,
-            'current_legitimacy_status': client.legitimacy_status,
-            'current_is_legitimate': client.is_legitimate,
-        },
+        details=_build_audit_change_details(
+            previous_client,
+            {
+                'name': client.name,
+                'arc_id': client.arc_id,
+                'status': client.status,
+                'legitimacy_status': client.legitimacy_status,
+                'is_legitimate': client.is_legitimate,
+            },
+        ),
     )
     return Response(
         {'success': True, 'message': 'Client updated successfully.', 'data': format_client(client)},
