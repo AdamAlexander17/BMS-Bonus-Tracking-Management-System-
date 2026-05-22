@@ -103,41 +103,37 @@ export default function ClientTransactions() {
         }
       />
 
-      <div className="um__card" style={{ marginBottom: 20 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 2fr) repeat(2, minmax(180px, 1fr))', gap: 16, padding: 20 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Search</label>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by type, amount, user, or date"
-              style={{ width: '100%', height: 40, padding: '0 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, color: '#111827', background: '#fff', outline: 'none', boxSizing: 'border-box' }}
-            />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>From Date</label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              style={{ width: '100%', height: 40, padding: '0 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, color: '#111827', background: '#fff', outline: 'none', boxSizing: 'border-box' }}
-            />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>To Date</label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              style={{ width: '100%', height: 40, padding: '0 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, color: '#111827', background: '#fff', outline: 'none', boxSizing: 'border-box' }}
-            />
-          </div>
-        </div>
-      </div>
-
       <div className="um__card">
-        <div className="um__toolbar">
+        <div className="um__toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Transaction History</h3>
+          <div className="bph-filters">
+            <div className="bph-filters__group">
+              <input
+                className="bph-input"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by type, amount, user, or date"
+              />
+            </div>
+            <div className="bph-filters__group">
+              <label className="bph-filters__label">From</label>
+              <input
+                type="date"
+                className="bph-input bph-input--date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+              />
+            </div>
+            <div className="bph-filters__group">
+              <label className="bph-filters__label">To</label>
+              <input
+                type="date"
+                className="bph-input bph-input--date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
         <table className="um__table">
           <thead>

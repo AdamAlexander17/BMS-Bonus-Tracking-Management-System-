@@ -147,7 +147,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
   return (
     <div
       onClick={onClose}
-      style={{
+      className="bd-modal-overlay" style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(15,23,42,0.45)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -156,7 +156,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{
+        className="bd-modal" style={{
           background: '#fff',
           borderRadius: 14,
           width: '100%',
@@ -166,11 +166,9 @@ function AddClientModal({ broker, onClose, onCreated }) {
         }}
       >
         {/* Header */}
-        <div style={{
+        <div className="bms-dialog__header" style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '20px 24px 18px',
-          borderBottom: 'none',
-          background: '#004B4E',
         }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Add Client</h2>
@@ -307,7 +305,7 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
   return (
     <div
       onClick={onClose}
-      style={{
+      className="bd-modal-overlay" style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(15,23,42,0.45)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -316,7 +314,7 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{
+        className="bd-modal" style={{
           background: '#fff',
           borderRadius: 14,
           width: '100%',
@@ -326,11 +324,9 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
         }}
       >
         {/* Header */}
-        <div style={{
+        <div className="bms-dialog__header" style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '20px 24px 18px',
-          borderBottom: 'none',
-          background: '#004B4E',
         }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Edit Client</h2>
@@ -448,7 +444,7 @@ function AddAmountModal({ client, mode, onClose, onUpdated }) {
   return (
     <div
       onClick={onClose}
-      style={{
+      className="bd-modal-overlay" style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(15,23,42,0.45)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -457,13 +453,13 @@ function AddAmountModal({ client, mode, onClose, onUpdated }) {
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{
+        className="bd-modal" style={{
           background: '#fff', borderRadius: 14, width: '100%', maxWidth: 500,
           boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden',
         }}
       >
         {/* Header */}
-        <div style={{
+        <div className="bd-modal__header" style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '20px 24px 18px', borderBottom: '1px solid #f1f5f9',
         }}>
@@ -557,7 +553,7 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
   return (
     <div
       onClick={onClose}
-      style={{
+      className="bd-modal-overlay" style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(15,23,42,0.45)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -566,15 +562,15 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{
+        className="bd-modal" style={{
           background: '#fff', borderRadius: 14, width: '100%', maxWidth: 620,
           boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden',
         }}
       >
         {/* Header */}
-        <div style={{
+        <div className="bms-dialog__header" style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '20px 24px 18px', borderBottom: 'none', background: '#004B4E',
+          padding: '20px 24px 18px',
         }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Edit Broker</h2>
@@ -965,11 +961,9 @@ export default function BrokerDetail() {
 
 function InfoCard({ label, value, accent }) {
   return (
-    <div className="um__card" style={{ padding: '8px 10px', minHeight: 70, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-      <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.4 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: accent || '#111827', lineHeight: 1.2, wordBreak: 'break-word', margin: '4px 0 2px' }}>
+    <div className="um__card info-card info-card--sm">
+      <div className="info-card__label">{label}</div>
+      <div className="info-card__value" style={accent ? { color: accent } : undefined}>
         {value}
       </div>
     </div>

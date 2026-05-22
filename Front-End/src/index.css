@@ -899,3 +899,199 @@ html[data-theme="dark"] .rm .rm__perms-header-left p { color: var(--dm-text-2) !
 }
 
 
+
+
+/* ============================================================
+   InfoCard (broker / broker-user / payout history KPIs)
+   ============================================================ */
+.info-card {
+  padding: 10px 12px;
+  min-height: 78px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.info-card.info-card--sm {
+  padding: 8px 10px;
+  min-height: 70px;
+}
+.info-card__label {
+  font-size: 11px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+  font-weight: 600;
+}
+.info-card.info-card--sm .info-card__label {
+  font-size: 10px;
+  letter-spacing: 0.4px;
+}
+.info-card__value {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.2;
+  word-break: break-word;
+  margin: 5px 0 4px;
+}
+.info-card.info-card--sm .info-card__value { font-size: 13px; margin: 4px 0 2px; }
+
+[data-theme="dark"] .info-card__label { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .info-card__value { color: var(--dm-text) !important; }
+
+/* ============================================================
+   Broker module inline-styled modals (Add/Edit Client, Edit Broker, Pay Broker)
+   The JSX uses inline styles with light backgrounds. In dark mode we
+   override them via !important on a wrapper class.
+   ============================================================ */
+[data-theme="dark"] .bd-modal-overlay {
+  background: rgba(0, 0, 0, 0.65) !important;
+}
+[data-theme="dark"] .bd-modal,
+[data-theme="dark"] .bms-dialog {
+  background: var(--dm-surface) !important;
+  border: 1px solid var(--dm-border) !important;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6) !important;
+  color: var(--dm-text) !important;
+}
+[data-theme="dark"] .bd-modal label,
+[data-theme="dark"] .bd-modal p,
+[data-theme="dark"] .bms-dialog p,
+[data-theme="dark"] .bd-modal span,
+[data-theme="dark"] .bms-dialog span,
+[data-theme="dark"] .bd-modal h2,
+[data-theme="dark"] .bms-dialog h2,
+[data-theme="dark"] .bd-modal h3,
+[data-theme="dark"] .bms-dialog h3 { color: var(--dm-text) !important; }
+[data-theme="dark"] .bd-modal__header { background: #0a1a14 !important; border-bottom: 1px solid var(--dm-border) !important; }
+[data-theme="dark"] .bd-modal__header h2,
+[data-theme="dark"] .bd-modal__header p,
+[data-theme="dark"] .bd-modal__header button { color: var(--dm-text) !important; }
+[data-theme="dark"] .bd-modal__header p { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .bd-modal input,
+[data-theme="dark"] .bms-dialog input,
+[data-theme="dark"] .bd-modal select,
+[data-theme="dark"] .bms-dialog select,
+[data-theme="dark"] .bd-modal textarea,
+[data-theme="dark"] .bms-dialog textarea {
+  background: var(--dm-surface-2) !important;
+  color: var(--dm-text) !important;
+  border-color: var(--dm-border) !important;
+}
+[data-theme="dark"] .bd-modal input::placeholder,
+[data-theme="dark"] .bms-dialog input::placeholder,
+[data-theme="dark"] .bd-modal textarea::placeholder,
+[data-theme="dark"] .bms-dialog textarea::placeholder { color: var(--dm-text-3) !important; }
+[data-theme="dark"] .bd-modal input:focus,
+[data-theme="dark"] .bms-dialog input:focus,
+[data-theme="dark"] .bd-modal select:focus,
+[data-theme="dark"] .bms-dialog select:focus,
+[data-theme="dark"] .bd-modal textarea:focus,
+[data-theme="dark"] .bms-dialog textarea:focus { border-color: var(--dm-accent) !important; }
+[data-theme="dark"] .bd-modal__footer {
+  border-top: 1px solid var(--dm-border) !important;
+}
+
+/* ============================================================
+   Dialog header (Add/Edit Client, Edit Broker, Pay Broker, Bulk Upload,
+   Add Deposit/Withdrawal). Light: teal. Dark: surface-2, no hard border.
+   ============================================================ */
+.bms-dialog__header {
+  background: #004B4E;
+  border-bottom: none;
+}
+[data-theme="dark"] .bms-dialog__header {
+  background: var(--dm-surface-2) !important;
+  border-bottom: none !important;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+[data-theme="dark"] .bd-modal__header {
+  border-bottom: none !important;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+
+/* ============================================================
+   Broker module modals: override inline footer borderTop
+   (covers <form><div>…fields…</div><div style="borderTop: #f1f5f9">…</div></form>)
+   ============================================================ */
+[data-theme="dark"] .bd-modal form > div:last-child,
+[data-theme="dark"] .bms-dialog form > div:last-child,
+[data-theme="dark"] .bms-dialog__footer {
+  border-top-color: var(--dm-border) !important;
+  background: transparent !important;
+}
+
+/* Pay-Broker mini-cards & InfoCard chrome in dark mode (transparent inline bg) */
+[data-theme="dark"] .um__card.info-card {
+  background: transparent !important;
+  border-color: var(--dm-border) !important;
+}
+[data-theme="dark"] .um__card.info-card .info-card__label { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .um__card.info-card .info-card__value { color: var(--dm-text) !important; }
+
+
+/* ============================================================
+   BROKER PAYOUT HISTORY � search/filter toolbar
+   ============================================================ */
+.bph-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.bph-filters__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bph-filters__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.bph-input {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #111827;
+  background: #f9fafb;
+  outline: none;
+  box-sizing: border-box;
+  min-width: 220px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.bph-input:focus {
+  border-color: #004B4E;
+  background: #fff;
+}
+.bph-input--date {
+  min-width: 150px;
+}
+
+[data-theme="dark"] .bph-filters__label {
+  color: var(--dm-text-2) !important;
+}
+[data-theme="dark"] .bph-input {
+  background: var(--dm-surface-2) !important;
+  border-color: var(--dm-border) !important;
+  color: var(--dm-text) !important;
+}
+[data-theme="dark"] .bph-input::placeholder {
+  color: var(--dm-text-3) !important;
+}
+[data-theme="dark"] .bph-input:focus {
+  border-color: var(--dm-accent) !important;
+  background: var(--dm-surface) !important;
+}
+[data-theme="dark"] .bph-input::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.5);
+  opacity: 0.7;
+  cursor: pointer;
+}
+[data-theme="dark"] .bph-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}

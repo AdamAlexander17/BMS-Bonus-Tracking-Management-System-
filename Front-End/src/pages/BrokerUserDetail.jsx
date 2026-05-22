@@ -102,7 +102,7 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
     /* Backdrop */
     <div
       onClick={onClose}
-      style={{
+      className="bd-modal-overlay" style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(15,23,42,0.45)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -259,7 +259,7 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
   return (
     <div
       onClick={onClose}
-      style={{
+      className="bd-modal-overlay" style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(15,23,42,0.45)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -353,9 +353,9 @@ function PayBrokerModal({ broker, onClose, onPaid }) {
   };
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+    <div onClick={onClose} className="bd-modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div className="bms-dialog" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 18px', borderBottom: 'none', background: '#004B4E' }}>
+        <div className="bms-dialog__header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 18px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Pay Broker Earned Amount</h2>
             <p style={{ margin: '3px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>{broker.name} · Pending {formatINR(broker.pending_payout)}</p>
@@ -368,9 +368,9 @@ function PayBrokerModal({ broker, onClose, onPaid }) {
           <div style={{ padding: '24px 24px 8px' }}>
             {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: 18 }}>
-              <div className="um__card" style={{ padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>Earned</div><div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginTop: 6 }}>{formatINR(broker.amount_earned)}</div></div>
-              <div className="um__card" style={{ padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>Paid</div><div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginTop: 6 }}>{formatINR(broker.amount_paid)}</div></div>
-              <div className="um__card" style={{ padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>Pending</div><div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginTop: 6 }}>{formatINR(broker.pending_payout)}</div></div>
+              <div className="um__card info-card info-card--sm"><div className="info-card__label">Earned</div><div className="info-card__value">{formatINR(broker.amount_earned)}</div></div>
+              <div className="um__card info-card info-card--sm"><div className="info-card__label">Paid</div><div className="info-card__value">{formatINR(broker.amount_paid)}</div></div>
+              <div className="um__card info-card info-card--sm"><div className="info-card__label">Pending</div><div className="info-card__value">{formatINR(broker.pending_payout)}</div></div>
             </div>
             <Field label="Payout Amount" required>
               <input type="number" min="0.01" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} onFocus={(e) => e.target.style.borderColor = '#004B4E'} onBlur={(e) => e.target.style.borderColor = '#d1d5db'} required />
@@ -418,7 +418,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
   return (
     <div
       onClick={onClose}
-      style={{
+      className="bd-modal-overlay" style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(15,23,42,0.45)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -427,7 +427,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{
+        className="bd-modal" style={{
           background: '#fff',
           borderRadius: 14,
           width: '100%',
@@ -437,7 +437,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
         }}
       >
         {/* Header */}
-        <div style={{
+        <div className="bd-modal__header" style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '20px 24px 18px',
           borderBottom: '1px solid #f1f5f9',
@@ -807,11 +807,9 @@ export default function BrokerUserDetail() {
 
 function InfoCard({ label, value, accent }) {
   return (
-    <div className="um__card" style={{ padding: '10px 12px', minHeight: 78, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-      <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: accent || '#111827', lineHeight: 1.2, wordBreak: 'break-word', margin: '5px 0 4px' }}>
+    <div className="um__card info-card">
+      <div className="info-card__label">{label}</div>
+      <div className="info-card__value" style={accent ? { color: accent } : undefined}>
         {value}
       </div>
     </div>

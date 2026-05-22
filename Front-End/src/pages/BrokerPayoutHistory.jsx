@@ -57,9 +57,9 @@ function Field({ label, required, children }) {
 
 function InfoCard({ label, value, accent }) {
   return (
-    <div className="um__card" style={{ padding: '10px 12px', minHeight: 76, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-      <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>{label}</div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: accent || '#111827', lineHeight: 1.2, margin: '5px 0 4px' }}>{value}</div>
+    <div className="um__card info-card">
+      <div className="info-card__label">{label}</div>
+      <div className="info-card__value" style={accent ? { color: accent } : undefined}>{value}</div>
     </div>
   );
 }
@@ -93,9 +93,9 @@ function PayBrokerModal({ broker, onClose, onPaid }) {
   };
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 18px', borderBottom: 'none', background: '#004B4E' }}>
+    <div onClick={onClose} className="bd-modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div onClick={(e) => e.stopPropagation()} className="bms-dialog" style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+        <div className="bms-dialog__header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 18px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Pay Broker Earned Amount</h2>
             <p style={{ margin: '3px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>{broker.name} · Pending {formatINR(broker.pending_payout)}</p>
@@ -108,16 +108,16 @@ function PayBrokerModal({ broker, onClose, onPaid }) {
           <div style={{ padding: '24px 24px 8px' }}>
             {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: 18 }}>
-              <div className="um__card" style={{ padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>Earned</div><div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginTop: 6 }}>{formatINR(broker.amount_earned)}</div></div>
-              <div className="um__card" style={{ padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>Paid</div><div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginTop: 6 }}>{formatINR(broker.amount_paid)}</div></div>
-              <div className="um__card" style={{ padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>Pending</div><div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginTop: 6 }}>{formatINR(broker.pending_payout)}</div></div>
+              <div className="um__card info-card info-card--sm"><div className="info-card__label">Earned</div><div className="info-card__value">{formatINR(broker.amount_earned)}</div></div>
+              <div className="um__card info-card info-card--sm"><div className="info-card__label">Paid</div><div className="info-card__value">{formatINR(broker.amount_paid)}</div></div>
+              <div className="um__card info-card info-card--sm"><div className="info-card__label">Pending</div><div className="info-card__value">{formatINR(broker.pending_payout)}</div></div>
             </div>
             <Field label="Payout Amount" required>
               <input type="number" min="0.01" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} onFocus={(e) => e.target.style.borderColor = '#004B4E'} onBlur={(e) => e.target.style.borderColor = '#d1d5db'} required />
             </Field>
             <div style={{ marginTop: 12, fontSize: 12, color: '#6b7280' }}>Last paid: {formatDateTime(broker.last_paid_at)}</div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
+          <div className="bms-dialog__footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
             <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Recording...' : 'Record Payout'}</button>
           </div>
@@ -208,30 +208,36 @@ export default function BrokerPayoutHistory() {
       </div>
 
       <div className="um__card" style={{ marginBottom: 20 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 2fr) repeat(2, minmax(180px, 1fr))', gap: 16, padding: 20 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Search</label>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by amount, user, or date"
-              style={inputStyle}
-            />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>From Date</label>
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={inputStyle} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>To Date</label>
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={inputStyle} />
-          </div>
-        </div>
-      </div>
-
-      <div className="um__card">
-        <div className="um__toolbar">
+        <div className="um__toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Paid Amount History</h3>
+          <div className="bph-filters">
+            <div className="bph-filters__group">
+              <input
+                className="bph-input"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by amount, user, or date"
+              />
+            </div>
+            <div className="bph-filters__group">
+              <label className="bph-filters__label">From</label>
+              <input
+                type="date"
+                className="bph-input bph-input--date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+              />
+            </div>
+            <div className="bph-filters__group">
+              <label className="bph-filters__label">To</label>
+              <input
+                type="date"
+                className="bph-input bph-input--date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
         <table className="um__table">
           <thead>
@@ -248,7 +254,7 @@ export default function BrokerPayoutHistory() {
               </tr>
             ) : filteredPayouts.map((payout) => (
               <tr key={payout.id}>
-                <td style={{ fontWeight: 700, color: '#111827' }}>{formatINR(payout.amount)}</td>
+                <td style={{ fontWeight: 700 }}>{formatINR(payout.amount)}</td>
                 <td>{payout.paid_by || 'Unknown'}</td>
                 <td>{formatDateTime(payout.created_at)}</td>
               </tr>
