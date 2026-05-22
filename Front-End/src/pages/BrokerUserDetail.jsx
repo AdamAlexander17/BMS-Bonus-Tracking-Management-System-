@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
-import { getBrokersByRmUser, createBroker, updateBroker, createBrokerPayout, deleteBroker } from '../api/brokers';
+import { getBrokersByRmUser, createBroker, updateBroker, deleteBroker } from '../api/brokers';
 import { createClient } from '../api/clients';
 import './Users.css';
 
@@ -324,68 +324,6 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
   );
 }
 
-function PayBrokerModal({ broker, onClose, onPaid }) {
-  const pendingAmount = Number(broker.pending_payout || 0);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [amount, setAmount] = useState(pendingAmount > 0 ? pendingAmount.toFixed(2) : '');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    const numericAmount = Number(amount);
-    if (!numericAmount || numericAmount <= 0) {
-      setError('Enter a valid payout amount.');
-      return;
-    }
-    if (numericAmount > pendingAmount) {
-      setError('Payout amount cannot be greater than pending payout.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await createBrokerPayout(broker.id, { amount: numericAmount });
-      onPaid();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to record broker payout.');
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div onClick={onClose} className="bd-modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div className="bms-dialog" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
-        <div className="bms-dialog__header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 18px' }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Pay Broker Earned Amount</h2>
-            <p style={{ margin: '3px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>{broker.name} · Pending {formatINR(broker.pending_payout)}</p>
-          </div>
-          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.8)', padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <form onSubmit={handleSubmit}>
-          <div style={{ padding: '24px 24px 8px' }}>
-            {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: 18 }}>
-              <div className="um__card info-card info-card--sm"><div className="info-card__label">Earned</div><div className="info-card__value">{formatINR(broker.amount_earned)}</div></div>
-              <div className="um__card info-card info-card--sm"><div className="info-card__label">Paid</div><div className="info-card__value">{formatINR(broker.amount_paid)}</div></div>
-              <div className="um__card info-card info-card--sm"><div className="info-card__label">Pending</div><div className="info-card__value">{formatINR(broker.pending_payout)}</div></div>
-            </div>
-            <Field label="Payout Amount" required>
-              <input type="number" min="0.01" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} onFocus={(e) => e.target.style.borderColor = '#004B4E'} onBlur={(e) => e.target.style.borderColor = '#d1d5db'} required />
-            </Field>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
-            <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Recording...' : 'Record Payout'}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 /* ── Add Client Modal ────────────────────────────────────────── */
 function AddClientModal({ broker, onClose, onCreated }) {
   const [saving, setSaving] = useState(false);
@@ -554,11 +492,11 @@ export default function BrokerUserDetail() {
   const [brokers, setBrokers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
+  const [search, setSearch]   = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
   const [selectedBroker, setSelectedBroker]   = useState(null);
   const [editBroker, setEditBroker]           = useState(null);
-  const [payoutBroker, setPayoutBroker]       = useState(null);
   const [confirmState, setConfirmState]       = useState(null);
   const [pageError, setPageError]             = useState('');
 
@@ -600,17 +538,24 @@ export default function BrokerUserDetail() {
   if (error)   return <div className="um"><div className="um__error">{error}</div></div>;
   if (!rmUser) return null;
 
-  const totalClients = brokers.reduce((s, b) => s + (b.client_count || 0), 0);
-  const totalEarned = brokers.reduce((sum, broker) => sum + Number(broker.amount_earned || 0), 0);
-  const totalPaid = brokers.reduce((sum, broker) => sum + Number(broker.amount_paid || 0), 0);
-  const totalPending = brokers.reduce((sum, broker) => sum + Number(broker.pending_payout || 0), 0);
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredBrokers = brokers.filter((broker) => {
+    if (!normalizedSearch) return true;
+    return [broker.name, broker.arc_id, broker.brand?.name, broker.created_by, broker.status]
+      .some((value) => String(value || '').toLowerCase().includes(normalizedSearch));
+  });
+
+  const totalClients = filteredBrokers.reduce((s, b) => s + (b.client_count || 0), 0);
+  const totalEarned = filteredBrokers.reduce((sum, broker) => sum + Number(broker.amount_earned || 0), 0);
+  const totalPaid = filteredBrokers.reduce((sum, broker) => sum + Number(broker.amount_paid || 0), 0);
+  const totalPending = filteredBrokers.reduce((sum, broker) => sum + Number(broker.pending_payout || 0), 0);
 
   return (
     <div className="um">
       <PageHeader
         icon={<UserIcon />}
         title={rmUser.username}
-        subtitle={`${(rmUser.roles || []).join('/')} • ${brokers.length} broker compan${brokers.length !== 1 ? 'ies' : 'y'} • ${totalClients} client${totalClients !== 1 ? 's' : ''}`}
+        subtitle={`${(rmUser.roles || []).join('/')} • ${filteredBrokers.length} broker compan${filteredBrokers.length !== 1 ? 'ies' : 'y'} • ${totalClients} client${totalClients !== 1 ? 's' : ''}`}
         actions={
           <>
             <button className="ph-btn ph-btn--ghost" onClick={() => navigate('/brokers')}>
@@ -642,9 +587,17 @@ export default function BrokerUserDetail() {
       {/* Broker companies table */}
       <div className="um__card">
         <div className="um__toolbar">
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
-            Broker Companies assigned to {rmUser.username}
-          </h3>
+          <div className="um__search" style={{ maxWidth: 360 }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="7" />
+              <line x1="16.65" y1="16.65" x2="21" y2="21" />
+            </svg>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search broker, ARC ID, brand, creator, or status"
+            />
+          </div>
         </div>
 
         <table className="um__table">
@@ -664,13 +617,13 @@ export default function BrokerUserDetail() {
             </tr>
           </thead>
           <tbody>
-            {brokers.length === 0 ? (
+            {filteredBrokers.length === 0 ? (
               <tr>
                 <td colSpan={canActions ? 11 : 10} className="um__empty">
                   No broker companies assigned yet. Click "Add Broker" to get started.
                 </td>
               </tr>
-            ) : brokers.map(b => (
+            ) : filteredBrokers.map(b => (
               <tr
                 key={b.id}
                 style={{ cursor: 'pointer' }}
@@ -701,20 +654,6 @@ export default function BrokerUserDetail() {
                 <td onClick={e => e.stopPropagation()}>
                   {canActions && (
                     <div className="um__actions">
-                      {canUpdate && Number(b.pending_payout || 0) > 0 && (
-                        <button
-                          className="um__action-btn"
-                          title="Record payout"
-                          style={{ color: '#10b981' }}
-                          onClick={() => setPayoutBroker(b)}
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-                            <path d="M3 7h18v10H3z"/>
-                            <path d="M7 12h10"/>
-                            <path d="M12 9v6"/>
-                          </svg>
-                        </button>
-                      )}
                       {canUpdate && (
                         <button
                           className="um__action-btn um__action-btn--edit"
@@ -771,13 +710,6 @@ export default function BrokerUserDetail() {
           broker={editBroker}
           onClose={() => setEditBroker(null)}
           onUpdated={() => { setEditBroker(null); fetchAll(); }}
-        />
-      )}
-      {payoutBroker && (
-        <PayBrokerModal
-          broker={payoutBroker}
-          onClose={() => setPayoutBroker(null)}
-          onPaid={() => { setPayoutBroker(null); fetchAll(); }}
         />
       )}
       {confirmState && (

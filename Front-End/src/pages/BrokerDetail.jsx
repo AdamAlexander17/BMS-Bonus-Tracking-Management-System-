@@ -270,7 +270,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
   );
 }
 
-function EditClientModal({ client, broker, onClose, onUpdated }) {
+function EditClientModal({ client, broker, canTradingOk, onClose, onUpdated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
   const [form, setForm]     = useState({
@@ -290,11 +290,14 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
     }
     setSaving(true);
     try {
-      await updateClient(client.id, {
+      const payload = {
         name:              form.name.trim(),
         arc_id:            form.arc_id.trim(),
-        legitimacy_status: form.legitimacy_status,
-      });
+      };
+      if (canTradingOk) {
+        payload.legitimacy_status = form.legitimacy_status;
+      }
+      await updateClient(client.id, payload);
       onUpdated();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update client.');
@@ -385,14 +388,16 @@ function EditClientModal({ client, broker, onClose, onUpdated }) {
                   />
                 </Field>
               </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <Field label="Legitimate Client Status">
-                  <LegitimacyCheckboxGroup
-                    value={form.legitimacy_status}
-                    onChange={(legitimacyStatus) => setForm((current) => ({ ...current, legitimacy_status: legitimacyStatus }))}
-                  />
-                </Field>
-              </div>
+              {canTradingOk && (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <Field label="Legitimate Client Status">
+                    <LegitimacyCheckboxGroup
+                      value={form.legitimacy_status}
+                      onChange={(legitimacyStatus) => setForm((current) => ({ ...current, legitimacy_status: legitimacyStatus }))}
+                    />
+                  </Field>
+                </div>
+              )}
             </div>
           </div>
 
@@ -784,6 +789,7 @@ export default function BrokerDetail() {
         <EditClientModal
           client={editClient}
           broker={broker}
+          canTradingOk={canTradingOk}
           onClose={() => setEditClient(null)}
           onUpdated={() => { setEditClient(null); fetchAll(); }}
         />

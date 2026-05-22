@@ -51,7 +51,15 @@ export default function Brokers() {
 
   useEffect(() => { fetchAll(); }, []);
 
+  const availableRoles = [...new Set(users.flatMap(u => u.roles || []).filter(Boolean))].sort();
   const allBrands = [...new Set(users.map(u => u.brand).filter(Boolean))].sort();
+
+  useEffect(() => {
+    if (roleFilter !== 'all' && !availableRoles.includes(roleFilter)) {
+      setRoleFilter('all');
+      setPage(1);
+    }
+  }, [availableRoles, roleFilter]);
 
   const filtered = users.filter(u => {
     const q = search.toLowerCase();
@@ -83,12 +91,9 @@ export default function Brokers() {
           <>
             <CustomSelect
               value={roleFilter}
-              onChange={setRoleFilter}
+              onChange={(value) => { setRoleFilter(value); setPage(1); }}
               placeholder="All Roles"
-              options={[
-                { value: 'RM',  label: 'RM'  },
-                { value: 'JRM', label: 'JRM' },
-              ]}
+              options={availableRoles.map(role => ({ value: role, label: role }))}
             />
             <CustomSelect
               value={brandFilter}
