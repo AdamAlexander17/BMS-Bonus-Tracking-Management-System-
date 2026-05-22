@@ -131,7 +131,7 @@ function buildCsv(rows) {
   return [
     headers.map(escapeCell).join(','),
     ...rows.map((row) => [
-      row.created_at,
+      formatDateTime(row.created_at),
       row.username,
       row.module,
       row.action,
@@ -167,6 +167,7 @@ export default function AuditLog() {
   const [error, setError] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -214,16 +215,59 @@ export default function AuditLog() {
     update();
   }
 
-  function handleExport() {
-    if (!rows.length) return;
+  async function handleExport() {
+    if (!totalRows) return;
 
-    const blob = new Blob([buildCsv(rows)], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `audit-log-page-${pagination.page}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    setExporting(true);
+    try {
+      const firstResponse = await getAuditLogs({
+        search: search.trim(),
+        module: moduleFilter,
+        action: actionFilter,
+        from_date: fromDate,
+        to_date: toDate,
+        page: 1,
+        page_size: 100,
+      });
+
+      const firstPageRows = firstResponse.data?.data || [];
+      const exportPagination = firstResponse.data?.pagination || { total_pages: 1 };
+      let exportRows = [...firstPageRows];
+
+      if ((exportPagination.total_pages || 1) > 1) {
+        const pageRequests = [];
+        for (let exportPage = 2; exportPage <= exportPagination.total_pages; exportPage += 1) {
+          pageRequests.push(
+            getAuditLogs({
+              search: search.trim(),
+              module: moduleFilter,
+              action: actionFilter,
+              from_date: fromDate,
+              to_date: toDate,
+              page: exportPage,
+              page_size: 100,
+            })
+          );
+        }
+
+        const pageResponses = await Promise.all(pageRequests);
+        pageResponses.forEach((response) => {
+          exportRows = exportRows.concat(response.data?.data || []);
+        });
+      }
+
+      const blob = new Blob([buildCsv(exportRows)], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'audit-log-export.csv';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to export audit logs.');
+    } finally {
+      setExporting(false);
+    }
   }
 
   const totalRows = pagination.total_rows || 0;
@@ -320,8 +364,8 @@ export default function AuditLog() {
               onChange={v => { setPage(1); setPageSize(Number(v)); }}
               options={pageSizeOptions.map(s => ({ value: String(s), label: `${s} rows` }))}
             />
-            <button type="button" className="ph-btn ph-btn--ghost" onClick={handleExport} disabled={!rows.length}>
-              Export CSV
+            <button type="button" className="ph-btn ph-btn--ghost" onClick={handleExport} disabled={!totalRows || exporting}>
+              {exporting ? 'Exporting...' : 'Export CSV'}
             </button>
           </div>
         </div>
