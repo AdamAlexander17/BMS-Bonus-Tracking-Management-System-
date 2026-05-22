@@ -1689,6 +1689,15 @@ def format_broker(broker):
     }
 
 
+def format_broker_payout(payout):
+    return {
+        'id': payout.id,
+        'amount': str(payout.amount),
+        'paid_by': payout.paid_by.username if payout.paid_by_id else None,
+        'created_at': payout.created_at.isoformat() if payout.created_at else None,
+    }
+
+
 def _user_sees_all_brokers(request):
     """Admin, FM and Checker can see brokers/clients across all users."""
     role_names = set(getattr(request.user, 'role_names', []) or [])
@@ -1953,6 +1962,46 @@ def broker_update(request, broker_id):
     )
     return Response(
         {'success': True, 'message': 'Broker updated successfully.', 'data': format_broker(broker)},
+        status=status.HTTP_200_OK
+    )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def broker_payout_list(request, broker_id):
+    if not has_perm(request, 'broker:view'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    try:
+        broker = (
+            Broker.objects
+            .select_related('brand', 'created_by', 'rm_user')
+            .prefetch_related('payouts__paid_by')
+            .annotate(client_count=Count('clients'))
+            .get(id=broker_id)
+        )
+    except Broker.DoesNotExist:
+        return Response(
+            {'success': False, 'message': 'Broker not found.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not _check_broker_access(request, broker):
+        return Response(
+            {'success': False, 'message': 'Access denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    payouts = broker.payouts.select_related('paid_by').all()
+    return Response(
+        {
+            'success': True,
+            'broker': format_broker(broker),
+            'data': [format_broker_payout(payout) for payout in payouts],
+        },
         status=status.HTTP_200_OK
     )
 

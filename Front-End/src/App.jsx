@@ -10,6 +10,7 @@ import Roles     from './pages/Roles';
 import Brokers   from './pages/Brokers';
 import BrokerForm   from './pages/BrokerForm';
 import BrokerDetail from './pages/BrokerDetail';
+import BrokerPayoutHistory from './pages/BrokerPayoutHistory';
 import ClientTransactions from './pages/ClientTransactions';
 import BrokerUserDetail from './pages/BrokerUserDetail';
 import Brands    from './pages/Brands';
@@ -39,6 +40,7 @@ export default function App() {
             <Route path="brokers/new"          element={<BrokerForm />} />
             <Route path="brokers/rm/:userId"   element={<BrokerUserDetail />} />
             <Route path="brokers/:id"          element={<BrokerDetail />} />
+            <Route path="brokers/:id/payouts"  element={<BrokerPayoutHistory />} />
             <Route path="clients/:clientId/transactions" element={<ClientTransactions />} />
             <Route path="brokers/:id/edit"     element={<BrokerForm />} />
             <Route path="brands"  element={<Brands />} />

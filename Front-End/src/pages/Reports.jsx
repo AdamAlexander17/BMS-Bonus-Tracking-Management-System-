@@ -28,6 +28,17 @@ function formatMoney(value) {
   })}`;
 }
 
+function formatAmountForCsv(value) {
+  if (value == null || value === '') return '';
+  const numericValue = Number(value);
+  if (Number.isNaN(numericValue)) return String(value);
+  return numericValue.toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    useGrouping: true,
+  });
+}
+
 function formatCount(value) {
   return Number(value || 0).toLocaleString('en-IN');
 }
@@ -64,7 +75,9 @@ function escapeCsvValue(value) {
 
 function exportRowsToCsv(fileName, columns, rows) {
   const header = columns.map((column) => escapeCsvValue(column.label)).join(',');
-  const body = rows.map((row) => columns.map((column) => escapeCsvValue(column.value(row))).join(',')).join('\n');
+  const body = rows
+    .map((row) => columns.map((column) => escapeCsvValue((column.exportValue || column.value)(row))).join(','))
+    .join('\n');
   const csv = [header, body].filter(Boolean).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -401,12 +414,12 @@ export default function Reports() {
     { label: 'RM', value: (row) => row.rm_user_name },
     { label: 'Clients', value: (row) => row.client_count },
     { label: 'LEGITIMATE CLIENT', value: (row) => row.legitimate_count },
-    { label: 'Deposited', value: (row) => row.deposited_amount },
-    { label: 'Withdrawn', value: (row) => row.withdrawal_amount },
-    { label: 'Earned', value: (row) => row.earned_amount },
-    { label: 'Paid', value: (row) => row.amount_paid },
-    { label: 'Pending Payout', value: (row) => row.pending_payout },
-    { label: 'Last Paid', value: (row) => row.last_paid_at },
+    { label: 'Deposited', value: (row) => row.deposited_amount, exportValue: (row) => formatAmountForCsv(row.deposited_amount) },
+    { label: 'Withdrawn', value: (row) => row.withdrawal_amount, exportValue: (row) => formatAmountForCsv(row.withdrawal_amount) },
+    { label: 'Earned', value: (row) => row.earned_amount, exportValue: (row) => formatAmountForCsv(row.earned_amount) },
+    { label: 'Paid', value: (row) => row.amount_paid, exportValue: (row) => formatAmountForCsv(row.amount_paid) },
+    { label: 'Pending Payout', value: (row) => row.pending_payout, exportValue: (row) => formatAmountForCsv(row.pending_payout) },
+    { label: 'Last Paid', value: (row) => row.last_paid_at, exportValue: (row) => row.last_paid_at ? formatDateTime(row.last_paid_at) : '' },
   ], []);
 
   const clientColumns = useMemo(() => [
@@ -416,10 +429,10 @@ export default function Reports() {
     { label: 'Brand', value: (row) => row.brand_name },
     { label: 'Status', value: (row) => row.status },
     { label: 'LEGITIMATE CLIENT', value: (row) => row.is_legitimate ? 'Yes' : 'No' },
-    { label: 'Deposited', value: (row) => row.deposited_amount },
-    { label: 'Withdrawn', value: (row) => row.withdrawal_amount },
-    { label: 'Earned', value: (row) => row.earned_amount },
-    { label: 'Created', value: (row) => row.created_at },
+    { label: 'Deposited', value: (row) => row.deposited_amount, exportValue: (row) => formatAmountForCsv(row.deposited_amount) },
+    { label: 'Withdrawn', value: (row) => row.withdrawal_amount, exportValue: (row) => formatAmountForCsv(row.withdrawal_amount) },
+    { label: 'Earned', value: (row) => row.earned_amount, exportValue: (row) => formatAmountForCsv(row.earned_amount) },
+    { label: 'Created', value: (row) => row.created_at, exportValue: (row) => formatDateTime(row.created_at) },
   ], []);
 
   const transactionColumns = useMemo(() => [
@@ -428,9 +441,9 @@ export default function Reports() {
     { label: 'Broker', value: (row) => row.broker_name },
     { label: 'Brand', value: (row) => row.brand_name },
     { label: 'Type', value: (row) => row.transaction_type },
-    { label: 'Amount', value: (row) => row.amount },
+    { label: 'Amount', value: (row) => row.amount, exportValue: (row) => formatAmountForCsv(row.amount) },
     { label: 'Entered By', value: (row) => row.entered_by || 'Unknown' },
-    { label: 'Date Time', value: (row) => row.created_at },
+    { label: 'Date Time', value: (row) => row.created_at, exportValue: (row) => formatDateTime(row.created_at) },
   ], []);
 
   useEffect(() => { setBrokerPage(1); }, [brokerSummary.length, brokerPageSize]);

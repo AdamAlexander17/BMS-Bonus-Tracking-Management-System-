@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
-import { getBroker, updateBroker, createBrokerPayout } from '../api/brokers';
+import { getBroker, updateBroker } from '../api/brokers';
 import { getBrands } from '../api/brands';
 import { getRmJrmUsers } from '../api/users';
 import { getClientsByBroker, createClient, updateClient, deleteClient, createClientTransaction } from '../api/clients';
@@ -635,69 +635,6 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
   );
 }
 
-function PayBrokerModal({ broker, onClose, onPaid }) {
-  const pendingAmount = Number(broker.pending_payout || 0);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [amount, setAmount] = useState(pendingAmount > 0 ? pendingAmount.toFixed(2) : '');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    const numericAmount = Number(amount);
-    if (!numericAmount || numericAmount <= 0) {
-      setError('Enter a valid payout amount.');
-      return;
-    }
-    if (numericAmount > pendingAmount) {
-      setError('Payout amount cannot be greater than pending payout.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await createBrokerPayout(broker.id, { amount: numericAmount });
-      onPaid();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to record broker payout.');
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 18px', borderBottom: 'none', background: '#004B4E' }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Pay Broker Earned Amount</h2>
-            <p style={{ margin: '3px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>{broker.name} · Pending {formatINR(broker.pending_payout)}</p>
-          </div>
-          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.8)', padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <form onSubmit={handleSubmit}>
-          <div style={{ padding: '24px 24px 8px' }}>
-            {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: 18 }}>
-              <div className="um__card" style={{ padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>Earned</div><div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginTop: 6 }}>{formatINR(broker.amount_earned)}</div></div>
-              <div className="um__card" style={{ padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>Paid</div><div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginTop: 6 }}>{formatINR(broker.amount_paid)}</div></div>
-              <div className="um__card" style={{ padding: '10px 12px' }}><div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>Pending</div><div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginTop: 6 }}>{formatINR(broker.pending_payout)}</div></div>
-            </div>
-            <Field label="Payout Amount" required>
-              <input type="number" min="0.01" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} onFocus={(e) => e.target.style.borderColor = '#004B4E'} onBlur={(e) => e.target.style.borderColor = '#d1d5db'} required />
-            </Field>
-            <div style={{ marginTop: 12, fontSize: 12, color: '#6b7280' }}>Last paid: {formatDateTime(broker.last_paid_at)}</div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
-            <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Recording...' : 'Record Payout'}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 export default function BrokerDetail() {
   const { id }   = useParams();
   const navigate = useNavigate();
@@ -718,7 +655,6 @@ export default function BrokerDetail() {
   const [showModal, setShowModal]             = useState(false);
   const [editClient, setEditClient]           = useState(null);
   const [amountAction, setAmountAction]       = useState(null);
-  const [payoutBroker, setPayoutBroker]       = useState(null);
   const [showEditBroker, setShowEditBroker]   = useState(false);
   const [confirmState, setConfirmState]       = useState(null);
   const [pageError, setPageError]             = useState('');
@@ -802,14 +738,14 @@ export default function BrokerDetail() {
             <button className="ph-btn ph-btn--ghost" onClick={() => broker.rm_user ? navigate(`/brokers/rm/${broker.rm_user.id}`) : navigate('/brokers')}>
               <BackIcon /> Back
             </button>
-            {canBrokerUpdate && pendingPayout > 0 && (
-              <button className="ph-btn ph-btn--ghost" onClick={() => setPayoutBroker(broker)}>
+            {canBrokerUpdate && (
+              <button className="ph-btn ph-btn--ghost" onClick={() => navigate(`/brokers/${broker.id}/payouts`)}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
                   <path d="M3 7h18v10H3z"/>
                   <path d="M7 12h10"/>
                   <path d="M12 9v6"/>
                 </svg>
-                Pay Earned
+                Add Expence
               </button>
             )}
             {canClientCreate && (
@@ -861,13 +797,6 @@ export default function BrokerDetail() {
           broker={broker}
           onClose={() => setShowEditBroker(false)}
           onUpdated={() => { setShowEditBroker(false); fetchAll(); }}
-        />
-      )}
-      {payoutBroker && (
-        <PayBrokerModal
-          broker={payoutBroker}
-          onClose={() => setPayoutBroker(null)}
-          onPaid={() => { setPayoutBroker(null); fetchAll(); }}
         />
       )}
       {confirmState && (
