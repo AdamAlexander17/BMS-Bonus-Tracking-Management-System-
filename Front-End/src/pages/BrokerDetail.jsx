@@ -822,15 +822,14 @@ export default function BrokerDetail() {
       />
       
       {/* Broker info cards */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
-        <div style={{ flex: '1 0 180px' }}><InfoCard label="Designation" value={broker.rm_user ? `${broker.rm_user.username} (${(broker.rm_user.roles || []).join('/')})` : 'Unassigned'} /></div>
-        <div style={{ flex: '1 0 180px' }}><InfoCard label="Status" value={broker.status} accent={broker.status === 'Active' ? '#10b981' : '#9ca3af'} /></div>
-        <div style={{ flex: '1 0 180px' }}><InfoCard label="Broker Earned" value={formatINR(totalEarned)} /></div>
-        <div style={{ flex: '1 0 180px' }}><InfoCard label="Paid to Broker" value={formatINR(amountPaid)} /></div>
-        <div style={{ flex: '1 0 180px' }}><InfoCard label="Pending Payout" value={formatINR(pendingPayout)} /></div>
-        <div style={{ flex: '1 0 180px' }}><InfoCard label="Total Deposited" value={formatINR(totalDeposited)} /></div>
-        <div style={{ flex: '1 0 180px' }}><InfoCard label="Total Withdrawn" value={formatINR(totalWithdrawn)} /></div>
-        <div style={{ flex: '1 0 180px' }}><InfoCard label="Net P&L" value={formatINR(totalNetPnl)} /></div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 12, marginBottom: 20 }}>
+        <InfoCard label="Designation" value={broker.rm_user ? `${broker.rm_user.username} (${(broker.rm_user.roles || []).join('/')})` : 'Unassigned'} />
+        <InfoCard label="Broker Earned" value={formatINR(totalEarned)} />
+        <InfoCard label="Paid to Broker" value={formatINR(amountPaid)} />
+        <InfoCard label="Pending Payout" value={formatINR(pendingPayout)} />
+        <InfoCard label="Total Deposited" value={formatINR(totalDeposited)} />
+        <InfoCard label="Total Withdrawn" value={formatINR(totalWithdrawn)} />
+        <InfoCard label="Net P&L" value={formatINR(totalNetPnl)} />
       </div>
 
       {/* Modals */}
@@ -1037,11 +1036,11 @@ export default function BrokerDetail() {
 
 function InfoCard({ label, value, accent }) {
   return (
-    <div className="um__card" style={{ padding: '10px 12px', minHeight: 78, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-      <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.45 }}>
+    <div className="um__card" style={{ padding: '8px 10px', minHeight: 70, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+      <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.4 }}>
         {label}
       </div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: accent || '#111827', lineHeight: 1.2, wordBreak: 'break-word', margin: '5px 0 4px' }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: accent || '#111827', lineHeight: 1.2, wordBreak: 'break-word', margin: '4px 0 2px' }}>
         {value}
       </div>
     </div>
