@@ -5,5 +5,7 @@ export const createClient       = (brokerId, data) => axiosInstance.post(`broker
 export const getClient          = (id)             => axiosInstance.get(`clients/${id}/`);
 export const getClientTransactions = (id)          => axiosInstance.get(`clients/${id}/transactions/`);
 export const createClientTransaction = (id, data)  => axiosInstance.post(`clients/${id}/transactions/create/`, data);
+export const updateClientTransaction = (clientId, transactionId, data) => axiosInstance.put(`clients/${clientId}/transactions/${transactionId}/update/`, data);
+export const deleteClientTransaction = (clientId, transactionId) => axiosInstance.delete(`clients/${clientId}/transactions/${transactionId}/delete/`);
 export const updateClient       = (id, data)       => axiosInstance.put(`clients/${id}/update/`, data);
 export const deleteClient       = (id)             => axiosInstance.delete(`clients/${id}/delete/`);

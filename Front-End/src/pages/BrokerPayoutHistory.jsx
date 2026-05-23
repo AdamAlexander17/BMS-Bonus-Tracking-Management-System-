@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
-import { getBrokerPayouts, createBrokerPayout } from '../api/brokers';
+import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
+import { getBrokerPayouts, createBrokerPayout, updateBrokerPayout, deleteBrokerPayout } from '../api/brokers';
 import { formatINR } from './Brokers';
 import './Users.css';
 
@@ -60,6 +61,17 @@ function InfoCard({ label, value, accent }) {
     <div className="um__card info-card">
       <div className="info-card__label">{label}</div>
       <div className="info-card__value" style={accent ? { color: accent } : undefined}>{value}</div>
+    </div>
+  );
+}
+
+function SuccessChip({ message, onClose }) {
+  if (!message) return null;
+
+  return (
+    <div style={{ marginLeft: 'auto', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', borderRadius: 999, padding: '8px 12px', fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 10, maxWidth: '100%' }}>
+      <span>{message}</span>
+      <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 700, fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
     </div>
   );
 }
@@ -127,12 +139,76 @@ function PayBrokerModal({ broker, onClose, onPaid }) {
   );
 }
 
+function EditPayoutModal({ broker, payout, onClose, onUpdated }) {
+  const allowedMax = Number(broker.pending_payout || 0) + Number(payout.amount || 0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [amount, setAmount] = useState(Number(payout.amount || 0) > 0 ? Number(payout.amount).toFixed(2) : '');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    const numericAmount = Number(amount);
+    if (!numericAmount || numericAmount <= 0) {
+      setError('Enter a valid payout amount.');
+      return;
+    }
+    if (numericAmount > allowedMax) {
+      setError('Payout amount cannot be greater than pending payout.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateBrokerPayout(broker.id, payout.id, { amount: numericAmount });
+      onUpdated();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update broker payout.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div onClick={onClose} className="bd-modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div onClick={(e) => e.stopPropagation()} className="bms-dialog" style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 520, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+        <div className="bms-dialog__header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 18px' }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Edit Payout</h2>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>{broker.name} · Recorded by {payout.paid_by || 'Unknown'}</p>
+          </div>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.8)', padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '24px 24px 8px' }}>
+            {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: 18 }}>
+              <div className="um__card info-card info-card--sm"><div className="info-card__label">Current Amount</div><div className="info-card__value">{formatINR(payout.amount)}</div></div>
+              <div className="um__card info-card info-card--sm"><div className="info-card__label">Pending</div><div className="info-card__value">{formatINR(broker.pending_payout)}</div></div>
+              <div className="um__card info-card info-card--sm"><div className="info-card__label">Allowed Max</div><div className="info-card__value">{formatINR(allowedMax)}</div></div>
+            </div>
+            <Field label="Payout Amount" required>
+              <input type="number" min="0.01" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} onFocus={(e) => e.target.style.borderColor = '#004B4E'} onBlur={(e) => e.target.style.borderColor = '#d1d5db'} required />
+            </Field>
+            <div style={{ marginTop: 12, fontSize: 12, color: '#6b7280' }}>Recorded: {formatDateTime(payout.created_at)}</div>
+          </div>
+          <div className="bms-dialog__footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
+            <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Update Payout'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function BrokerPayoutHistory() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const hasPerm = (key) => !user?.permissions || user.permissions.includes(key);
   const canBrokerUpdate = hasPerm('broker:update');
+  const canBrokerActions = canBrokerUpdate;
 
   const [broker, setBroker] = useState(null);
   const [payouts, setPayouts] = useState([]);
@@ -142,6 +218,10 @@ export default function BrokerPayoutHistory() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [showPayModal, setShowPayModal] = useState(false);
+  const [editPayout, setEditPayout] = useState(null);
+  const [confirmState, setConfirmState] = useState(null);
+  const [pageSuccess, setPageSuccess] = useState('');
+  const [pageError, setPageError] = useState('');
 
   const fetchAll = async () => {
     setLoading(true);
@@ -159,6 +239,12 @@ export default function BrokerPayoutHistory() {
 
   useEffect(() => { fetchAll(); }, [id]);
 
+  useEffect(() => {
+    if (!pageSuccess) return undefined;
+    const timeoutId = window.setTimeout(() => setPageSuccess(''), 2000);
+    return () => window.clearTimeout(timeoutId);
+  }, [pageSuccess]);
+
   const filteredPayouts = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     return payouts.filter((payout) => {
@@ -169,6 +255,26 @@ export default function BrokerPayoutHistory() {
       return matchesSearch && matchesFrom && matchesTo;
     });
   }, [payouts, search, fromDate, toDate]);
+
+  const handleDeletePayout = (payout) => {
+    setPageSuccess('');
+    setPageError('');
+    setConfirmState({
+      title: 'Delete Payout?',
+      itemName: formatINR(payout.amount),
+      bullets: ['Recorded payout amount', `Entered by ${payout.paid_by || 'Unknown'}`, 'Broker payout history entry'],
+      onConfirm: async () => {
+        setConfirmState(null);
+        try {
+          await deleteBrokerPayout(broker.id, payout.id);
+          setPageSuccess('Payout deleted successfully.');
+          fetchAll();
+        } catch (err) {
+          setPageError(err.response?.data?.message || 'Could not delete this payout. Please try again.');
+        }
+      },
+    });
+  };
 
   if (loading) return <div className="um"><div className="um__loading">Loading...</div></div>;
   if (error) return <div className="um"><div className="um__error">{error}</div></div>;
@@ -208,8 +314,7 @@ export default function BrokerPayoutHistory() {
       </div>
 
       <div className="um__card" style={{ marginBottom: 20 }}>
-        <div className="um__toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Paid Amount History</h3>
+        <div className="um__toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
           <div className="bph-filters">
             <div className="bph-filters__group">
               <input
@@ -238,25 +343,61 @@ export default function BrokerPayoutHistory() {
               />
             </div>
           </div>
+          <SuccessChip message={pageSuccess} onClose={() => setPageSuccess('')} />
         </div>
+        {pageError && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 16px', fontSize: 13, margin: '0 16px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{pageError}</span>
+            <button onClick={() => setPageError('')} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#dc2626', fontWeight: 700, fontSize: 16, lineHeight: 1 }}>×</button>
+          </div>
+        )}
         <table className="um__table">
           <thead>
             <tr>
               <th>AMOUNT</th>
               <th>PAID BY</th>
               <th>DATE & TIME</th>
+              {canBrokerActions && <th style={{ minWidth: 124 }}>ACTIONS</th>}
             </tr>
           </thead>
           <tbody>
             {filteredPayouts.length === 0 ? (
               <tr>
-                <td colSpan="3" className="um__empty">No payout history found for the current filters.</td>
+                <td colSpan={canBrokerActions ? 4 : 3} className="um__empty">No payout history found for the current filters.</td>
               </tr>
             ) : filteredPayouts.map((payout) => (
               <tr key={payout.id}>
                 <td style={{ fontWeight: 700 }}>{formatINR(payout.amount)}</td>
                 <td>{payout.paid_by || 'Unknown'}</td>
                 <td>{formatDateTime(payout.created_at)}</td>
+                {canBrokerActions && (
+                  <td>
+                    <div className="um__actions">
+                      <button
+                        className="um__action-btn um__action-btn--edit"
+                        title="Edit payout"
+                        onClick={() => setEditPayout(payout)}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                      </button>
+                      <button
+                        className="um__action-btn um__action-btn--delete"
+                        title="Delete payout"
+                        onClick={() => handleDeletePayout(payout)}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+                          <polyline points="3 6 5 6 21 6"/>
+                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                          <path d="M10 11v6M14 11v6"/>
+                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -267,7 +408,24 @@ export default function BrokerPayoutHistory() {
         <PayBrokerModal
           broker={broker}
           onClose={() => setShowPayModal(false)}
-          onPaid={() => { setShowPayModal(false); fetchAll(); }}
+          onPaid={() => { setShowPayModal(false); setPageError(''); setPageSuccess('Payout recorded successfully.'); fetchAll(); }}
+        />
+      )}
+      {editPayout && (
+        <EditPayoutModal
+          broker={broker}
+          payout={editPayout}
+          onClose={() => setEditPayout(null)}
+          onUpdated={() => { setEditPayout(null); setPageError(''); setPageSuccess('Payout updated successfully.'); fetchAll(); }}
+        />
+      )}
+      {confirmState && (
+        <ConfirmDialog
+          title={confirmState.title}
+          itemName={confirmState.itemName}
+          bullets={confirmState.bullets}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState(null)}
         />
       )}
     </div>

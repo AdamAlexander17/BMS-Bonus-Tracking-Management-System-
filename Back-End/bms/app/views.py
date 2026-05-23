@@ -2226,6 +2226,157 @@ def broker_payout_create(request, broker_id):
     )
 
 
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def broker_payout_update(request, broker_id, payout_id):
+    if not has_perm(request, 'broker:update'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    try:
+        payout = BrokerPayout.objects.select_related('broker__brand', 'broker__created_by', 'broker__rm_user', 'paid_by').get(
+            id=payout_id,
+            broker_id=broker_id,
+        )
+    except BrokerPayout.DoesNotExist:
+        return Response(
+            {'success': False, 'message': 'Broker payout not found.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not _check_broker_access(request, payout.broker):
+        return Response(
+            {'success': False, 'message': 'Access denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    raw_amount = request.data.get('amount')
+    try:
+        amount = Decimal(str(raw_amount))
+    except (InvalidOperation, TypeError, ValueError):
+        return Response(
+            {'success': False, 'message': 'Amount must be a valid number.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if amount <= 0:
+        return Response(
+            {'success': False, 'message': 'Amount must be greater than zero.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    broker = payout.broker
+    pending_before = Decimal(str(broker.pending_payout))
+    allowed_max = pending_before + payout.amount
+    if amount > allowed_max:
+        return Response(
+            {'success': False, 'message': 'Amount exceeds pending payout.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    previous_payout = {
+        'amount': str(payout.amount),
+        'paid_by': payout.paid_by.username if payout.paid_by_id else None,
+        'created_at': payout.created_at.isoformat() if payout.created_at else None,
+    }
+
+    payout.amount = amount
+    payout.save(update_fields=['amount'])
+
+    broker = Broker.objects.select_related('brand', 'created_by', 'rm_user').prefetch_related('payouts').get(id=broker_id)
+
+    log_audit_event(
+        request,
+        module='broker',
+        action='payout_update',
+        description=f'Broker payout updated for "{broker.name}".',
+        entity_type='broker',
+        entity_id=broker.id,
+        entity_label=broker.name,
+        details=_build_audit_change_details(
+            previous_payout,
+            {
+                'amount': str(payout.amount),
+                'paid_by': payout.paid_by.username if payout.paid_by_id else None,
+                'created_at': payout.created_at.isoformat() if payout.created_at else None,
+                'pending_payout': broker.pending_payout,
+            },
+        ),
+    )
+
+    return Response(
+        {
+            'success': True,
+            'message': 'Broker payout updated successfully.',
+            'data': format_broker_payout(payout),
+            'broker': format_broker(broker),
+        },
+        status=status.HTTP_200_OK
+    )
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def broker_payout_delete(request, broker_id, payout_id):
+    if not has_perm(request, 'broker:update'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    try:
+        payout = BrokerPayout.objects.select_related('broker__brand', 'broker__created_by', 'broker__rm_user', 'paid_by').get(
+            id=payout_id,
+            broker_id=broker_id,
+        )
+    except BrokerPayout.DoesNotExist:
+        return Response(
+            {'success': False, 'message': 'Broker payout not found.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not _check_broker_access(request, payout.broker):
+        return Response(
+            {'success': False, 'message': 'Access denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    broker = payout.broker
+    payout_details = {
+        'amount': str(payout.amount),
+        'paid_by': payout.paid_by.username if payout.paid_by_id else None,
+        'paid_at': payout.created_at.isoformat() if payout.created_at else None,
+    }
+    payout.delete()
+
+    broker = Broker.objects.select_related('brand', 'created_by', 'rm_user').prefetch_related('payouts').get(id=broker_id)
+
+    log_audit_event(
+        request,
+        module='broker',
+        action='payout_delete',
+        description=f'Broker payout deleted for "{broker.name}".',
+        entity_type='broker',
+        entity_id=broker.id,
+        entity_label=broker.name,
+        details={
+            **payout_details,
+            'pending_payout': broker.pending_payout,
+        },
+    )
+
+    return Response(
+        {
+            'success': True,
+            'message': 'Broker payout deleted successfully.',
+            'broker': format_broker(broker),
+        },
+        status=status.HTTP_200_OK
+    )
+
+
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def broker_delete(request, broker_id):
@@ -2808,6 +2959,206 @@ def client_transaction_create(request, client_id):
             }
         },
         status=status.HTTP_201_CREATED
+    )
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def client_transaction_update(request, client_id, transaction_id):
+    if not has_perm(request, 'client:update'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    try:
+        transaction = ClientTransaction.objects.select_related('client__broker__brand', 'entered_by').get(
+            id=transaction_id,
+            client_id=client_id,
+        )
+    except ClientTransaction.DoesNotExist:
+        return Response(
+            {'success': False, 'message': 'Client transaction not found.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    client = transaction.client
+    if not _check_client_access(request, client):
+        return Response(
+            {'success': False, 'message': 'Access denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    transaction_type = (request.data.get('transaction_type') or '').strip().lower()
+    amount = request.data.get('amount')
+
+    if transaction_type not in ('deposit', 'withdrawal'):
+        return Response(
+            {'success': False, 'message': 'transaction_type must be deposit or withdrawal.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        amount = Decimal(str(amount))
+    except (InvalidOperation, ValueError, TypeError):
+        return Response(
+            {'success': False, 'message': 'amount must be a number.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if amount <= 0:
+        return Response(
+            {'success': False, 'message': 'amount must be greater than zero.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    previous_transaction = {
+        'transaction_type': transaction.transaction_type,
+        'amount': str(transaction.amount),
+        'entered_by': transaction.entered_by.username if transaction.entered_by else None,
+        'created_at': transaction.created_at.strftime('%Y-%m-%d %H:%M:%S') if transaction.created_at else None,
+    }
+
+    current_deposited = Decimal(str(client.deposited_amount or 0))
+    current_withdrawn = Decimal(str(client.withdrawal_amount or 0))
+
+    if transaction.transaction_type == 'deposit':
+        current_deposited -= Decimal(str(transaction.amount))
+    else:
+        current_withdrawn -= Decimal(str(transaction.amount))
+
+    if transaction_type == 'deposit':
+        current_deposited += amount
+    else:
+        current_withdrawn += amount
+
+    if current_deposited < 0 or current_withdrawn < 0:
+        return Response(
+            {'success': False, 'message': 'Transaction update would make client totals invalid.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    with db_transaction.atomic():
+        client.deposited_amount = current_deposited
+        client.withdrawal_amount = current_withdrawn
+        client.save(update_fields=['deposited_amount', 'withdrawal_amount'])
+
+        transaction.transaction_type = transaction_type
+        transaction.amount = amount
+        transaction.save(update_fields=['transaction_type', 'amount'])
+
+    log_audit_event(
+        request,
+        module='client',
+        action='transaction_update',
+        description=f'Client transaction updated for client "{client.name}".',
+        entity_type='client_transaction',
+        entity_id=transaction.id,
+        entity_label=client.name,
+        details=_build_audit_change_details(
+            previous_transaction,
+            {
+                'transaction_type': transaction.transaction_type,
+                'amount': str(transaction.amount),
+                'entered_by': transaction.entered_by.username if transaction.entered_by else None,
+                'created_at': transaction.created_at.strftime('%Y-%m-%d %H:%M:%S') if transaction.created_at else None,
+                'client_deposited_amount': str(client.deposited_amount),
+                'client_withdrawal_amount': str(client.withdrawal_amount),
+            },
+        ),
+    )
+
+    return Response(
+        {
+            'success': True,
+            'message': 'Client transaction updated successfully.',
+            'data': {
+                'client': format_client(client),
+                'transaction': format_client_transaction(transaction),
+            }
+        },
+        status=status.HTTP_200_OK
+    )
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def client_transaction_delete(request, client_id, transaction_id):
+    if not has_perm(request, 'client:update'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    try:
+        transaction = ClientTransaction.objects.select_related('client__broker__brand', 'entered_by').get(
+            id=transaction_id,
+            client_id=client_id,
+        )
+    except ClientTransaction.DoesNotExist:
+        return Response(
+            {'success': False, 'message': 'Client transaction not found.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    client = transaction.client
+    if not _check_client_access(request, client):
+        return Response(
+            {'success': False, 'message': 'Access denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    new_deposited = Decimal(str(client.deposited_amount or 0))
+    new_withdrawn = Decimal(str(client.withdrawal_amount or 0))
+
+    if transaction.transaction_type == 'deposit':
+        new_deposited -= Decimal(str(transaction.amount))
+    else:
+        new_withdrawn -= Decimal(str(transaction.amount))
+
+    if new_deposited < 0 or new_withdrawn < 0:
+        return Response(
+            {'success': False, 'message': 'Transaction delete would make client totals invalid.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    deleted_transaction = {
+        'transaction_type': transaction.transaction_type,
+        'amount': str(transaction.amount),
+        'entered_by': transaction.entered_by.username if transaction.entered_by else None,
+        'created_at': transaction.created_at.strftime('%Y-%m-%d %H:%M:%S') if transaction.created_at else None,
+    }
+
+    with db_transaction.atomic():
+        client.deposited_amount = new_deposited
+        client.withdrawal_amount = new_withdrawn
+        client.save(update_fields=['deposited_amount', 'withdrawal_amount'])
+        transaction.delete()
+
+    log_audit_event(
+        request,
+        module='client',
+        action='transaction_delete',
+        description=f'Client transaction deleted for client "{client.name}".',
+        entity_type='client_transaction',
+        entity_id=transaction_id,
+        entity_label=client.name,
+        details={
+            **deleted_transaction,
+            'client_deposited_amount': str(client.deposited_amount),
+            'client_withdrawal_amount': str(client.withdrawal_amount),
+        },
+    )
+
+    return Response(
+        {
+            'success': True,
+            'message': 'Client transaction deleted successfully.',
+            'data': {
+                'client': format_client(client),
+            }
+        },
+        status=status.HTTP_200_OK
     )
 
 

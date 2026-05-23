@@ -7,4 +7,6 @@ export const getBrokerPayouts     = (id)       => axiosInstance.get(`brokers/${i
 export const createBroker         = (data)     => axiosInstance.post('brokers/create/', data);
 export const updateBroker         = (id, data) => axiosInstance.put(`brokers/${id}/update/`, data);
 export const createBrokerPayout   = (id, data) => axiosInstance.post(`brokers/${id}/payouts/create/`, data);
+export const updateBrokerPayout   = (brokerId, payoutId, data) => axiosInstance.put(`brokers/${brokerId}/payouts/${payoutId}/update/`, data);
+export const deleteBrokerPayout   = (brokerId, payoutId) => axiosInstance.delete(`brokers/${brokerId}/payouts/${payoutId}/delete/`);
 export const deleteBroker         = (id)       => axiosInstance.delete(`brokers/${id}/delete/`);

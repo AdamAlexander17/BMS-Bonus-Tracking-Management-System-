@@ -636,6 +636,17 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
   );
 }
 
+function SuccessChip({ message, onClose }) {
+  if (!message) return null;
+
+  return (
+    <div style={{ marginLeft: 'auto', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', borderRadius: 999, padding: '8px 12px', fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 10, maxWidth: '100%' }}>
+      <span>{message}</span>
+      <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 700, fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+    </div>
+  );
+}
+
 export default function BrokerDetail() {
   const { id }   = useParams();
   const navigate = useNavigate();
@@ -659,6 +670,7 @@ export default function BrokerDetail() {
   const [amountAction, setAmountAction]       = useState(null);
   const [showEditBroker, setShowEditBroker]   = useState(false);
   const [confirmState, setConfirmState]       = useState(null);
+  const [pageSuccess, setPageSuccess]         = useState('');
   const [pageError, setPageError]             = useState('');
 
   const fetchAll = async () => {
@@ -677,17 +689,27 @@ export default function BrokerDetail() {
 
   useEffect(() => { fetchAll(); }, [id]);
 
+  useEffect(() => {
+    if (!pageSuccess) return undefined;
+    const timeoutId = window.setTimeout(() => setPageSuccess(''), 2000);
+    return () => window.clearTimeout(timeoutId);
+  }, [pageSuccess]);
+
   const handleToggleClient = async (c) => {
     const newStatus = c.status === 'Active' ? 'Inactive' : 'Active';
+    setPageSuccess('');
     try {
       await updateClient(c.id, { status: newStatus });
       setClients(prev => prev.map(x => x.id === c.id ? { ...x, status: newStatus } : x));
+      setPageError('');
+      setPageSuccess(`Client status updated to ${newStatus}.`);
     } catch (err) {
       setPageError(err.response?.data?.message || 'Could not update client status. Please try again.');
     }
   };
 
   const handleSetLegitimacy = async (c, legitimacyStatus) => {
+    setPageSuccess('');
     setPageError('');
     if (normalizeLegitimacyStatus(c) === legitimacyStatus) return;
 
@@ -695,12 +717,14 @@ export default function BrokerDetail() {
       const res = await updateClient(c.id, { legitimacy_status: legitimacyStatus });
       const updated = res.data?.data;
       setClients(prev => prev.map(x => x.id === c.id ? { ...x, ...updated } : x));
+      setPageSuccess('Legitimate client status updated successfully.');
     } catch (err) {
       setPageError(err.response?.data?.message || 'Could not update trading legitimacy. Please try again.');
     }
   };
 
   const handleDeleteClient = (c) => {
+    setPageSuccess('');
     setPageError('');
     setConfirmState({
       title: 'Delete Client?',
@@ -711,6 +735,7 @@ export default function BrokerDetail() {
         try {
           await deleteClient(c.id);
           setClients(prev => prev.filter(x => x.id !== c.id));
+          setPageSuccess('Client deleted successfully.');
         } catch (err) {
           setPageError(err.response?.data?.message || 'Could not delete this client. Please try again.');
         }
@@ -775,7 +800,7 @@ export default function BrokerDetail() {
         <AddClientModal
           broker={broker}
           onClose={() => setShowModal(false)}
-          onCreated={() => { setShowModal(false); fetchAll(); }}
+          onCreated={() => { setShowModal(false); setPageError(''); setPageSuccess('Client added successfully.'); fetchAll(); }}
         />
       )}
       {amountAction && (
@@ -783,7 +808,7 @@ export default function BrokerDetail() {
           client={amountAction.client}
           mode={amountAction.mode}
           onClose={() => setAmountAction(null)}
-          onUpdated={() => { setAmountAction(null); fetchAll(); }}
+          onUpdated={() => { setAmountAction(null); setPageError(''); setPageSuccess(`${amountAction.mode === 'deposit' ? 'Deposit' : 'Withdrawal'} added successfully.`); fetchAll(); }}
         />
       )}
       {editClient && (
@@ -792,14 +817,14 @@ export default function BrokerDetail() {
           broker={broker}
           canTradingOk={canTradingOk}
           onClose={() => setEditClient(null)}
-          onUpdated={() => { setEditClient(null); fetchAll(); }}
+          onUpdated={() => { setEditClient(null); setPageError(''); setPageSuccess('Client updated successfully.'); fetchAll(); }}
         />
       )}
       {showEditBroker && (
         <EditBrokerModal
           broker={broker}
           onClose={() => setShowEditBroker(false)}
-          onUpdated={() => { setShowEditBroker(false); fetchAll(); }}
+          onUpdated={() => { setShowEditBroker(false); setPageError(''); setPageSuccess('Broker updated successfully.'); fetchAll(); }}
         />
       )}
       {confirmState && (
@@ -816,6 +841,7 @@ export default function BrokerDetail() {
       <div className="um__card">
         <div className="um__toolbar">
           <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Clients ({clients.length})</h3>
+          <SuccessChip message={pageSuccess} onClose={() => setPageSuccess('')} />
         </div>
         {pageError && (
           <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 16px', fontSize: 13, margin: '0 16px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

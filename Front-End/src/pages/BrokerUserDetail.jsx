@@ -477,6 +477,17 @@ function AddClientModal({ broker, onClose, onCreated }) {
   );
 }
 
+function SuccessChip({ message, onClose }) {
+  if (!message) return null;
+
+  return (
+    <div style={{ marginLeft: 'auto', background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', borderRadius: 999, padding: '8px 12px', fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 10, maxWidth: '100%' }}>
+      <span>{message}</span>
+      <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 700, fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+    </div>
+  );
+}
+
 /* ── Main page ───────────────────────────────────────────────── */
 export default function BrokerUserDetail() {
   const { userId } = useParams();
@@ -498,6 +509,7 @@ export default function BrokerUserDetail() {
   const [selectedBroker, setSelectedBroker]   = useState(null);
   const [editBroker, setEditBroker]           = useState(null);
   const [confirmState, setConfirmState]       = useState(null);
+  const [pageSuccess, setPageSuccess]         = useState('');
   const [pageError, setPageError]             = useState('');
 
   const fetchAll = async () => {
@@ -516,7 +528,14 @@ export default function BrokerUserDetail() {
 
   useEffect(() => { fetchAll(); }, [userId]);
 
+  useEffect(() => {
+    if (!pageSuccess) return undefined;
+    const timeoutId = window.setTimeout(() => setPageSuccess(''), 2000);
+    return () => window.clearTimeout(timeoutId);
+  }, [pageSuccess]);
+
   const handleDeleteBroker = (b) => {
+    setPageSuccess('');
     setPageError('');
     setConfirmState({
       title: 'Delete Broker?',
@@ -526,6 +545,7 @@ export default function BrokerUserDetail() {
         setConfirmState(null);
         try {
           await deleteBroker(b.id);
+          setPageSuccess('Broker deleted successfully.');
           fetchAll();
         } catch {
           setPageError('Could not delete this broker. Please try again.');
@@ -598,6 +618,7 @@ export default function BrokerUserDetail() {
               placeholder="Search broker, ARC ID, brand, creator, or status"
             />
           </div>
+          <SuccessChip message={pageSuccess} onClose={() => setPageSuccess('')} />
         </div>
 
         <table className="um__table">
@@ -695,21 +716,21 @@ export default function BrokerUserDetail() {
           rmUser={rmUser}
           userId={userId}
           onClose={() => setShowModal(false)}
-          onCreated={() => { setShowModal(false); fetchAll(); }}
+          onCreated={() => { setShowModal(false); setPageError(''); setPageSuccess('Broker created successfully.'); fetchAll(); }}
         />
       )}
       {showClientModal && selectedBroker && (
         <AddClientModal
           broker={selectedBroker}
           onClose={() => { setShowClientModal(false); setSelectedBroker(null); }}
-          onCreated={() => { setShowClientModal(false); setSelectedBroker(null); fetchAll(); }}
+          onCreated={() => { setShowClientModal(false); setSelectedBroker(null); setPageError(''); setPageSuccess('Client added successfully.'); fetchAll(); }}
         />
       )}
       {editBroker && (
         <EditBrokerModal
           broker={editBroker}
           onClose={() => setEditBroker(null)}
-          onUpdated={() => { setEditBroker(null); fetchAll(); }}
+          onUpdated={() => { setEditBroker(null); setPageError(''); setPageSuccess('Broker updated successfully.'); fetchAll(); }}
         />
       )}
       {confirmState && (

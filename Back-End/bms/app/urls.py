@@ -49,6 +49,8 @@ urlpatterns = [
     path('brokers/<int:broker_id>/update/',        views.broker_update, name='broker_update'),
     path('brokers/<int:broker_id>/payouts/',       views.broker_payout_list, name='broker_payout_list'),
     path('brokers/<int:broker_id>/payouts/create/', views.broker_payout_create, name='broker_payout_create'),
+    path('brokers/<int:broker_id>/payouts/<int:payout_id>/update/', views.broker_payout_update, name='broker_payout_update'),
+    path('brokers/<int:broker_id>/payouts/<int:payout_id>/delete/', views.broker_payout_delete, name='broker_payout_delete'),
     path('brokers/<int:broker_id>/delete/',        views.broker_delete, name='broker_delete'),
 
     # Client CRUD (nested under broker for create/list; direct for get/update/delete)
@@ -57,6 +59,8 @@ urlpatterns = [
     path('clients/<int:client_id>/',               views.client_get,    name='client_get'),
     path('clients/<int:client_id>/transactions/',  views.client_transaction_list,   name='client_transaction_list'),
     path('clients/<int:client_id>/transactions/create/', views.client_transaction_create, name='client_transaction_create'),
+    path('clients/<int:client_id>/transactions/<int:transaction_id>/update/', views.client_transaction_update, name='client_transaction_update'),
+    path('clients/<int:client_id>/transactions/<int:transaction_id>/delete/', views.client_transaction_delete, name='client_transaction_delete'),
     path('clients/<int:client_id>/update/',        views.client_update, name='client_update'),
     path('clients/<int:client_id>/delete/',        views.client_delete, name='client_delete'),
 ]
