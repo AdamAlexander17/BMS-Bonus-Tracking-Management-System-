@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { isRmOrJrmOnlyUser, useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
 import { getBrokersByRmUser, createBroker, updateBroker, deleteBroker } from '../api/brokers';
 import { createClient } from '../api/clients';
@@ -493,6 +493,7 @@ export default function BrokerUserDetail() {
   const { userId } = useParams();
   const navigate   = useNavigate();
   const { user }   = useAuth();
+  const isScopedUser = isRmOrJrmOnlyUser(user) && Number(user?.id) === Number(userId);
   const hasPerm    = (key) => !user?.permissions || user.permissions.includes(key);
   const canCreate  = hasPerm('broker:create');
   const canUpdate  = hasPerm('broker:update');
@@ -527,6 +528,12 @@ export default function BrokerUserDetail() {
   };
 
   useEffect(() => { fetchAll(); }, [userId]);
+
+  useEffect(() => {
+    if (isRmOrJrmOnlyUser(user) && user?.id && Number(userId) !== Number(user.id)) {
+      navigate(`/brokers/rm/${user.id}`, { replace: true });
+    }
+  }, [navigate, user, userId]);
 
   useEffect(() => {
     if (!pageSuccess) return undefined;
@@ -578,9 +585,11 @@ export default function BrokerUserDetail() {
         subtitle={`${(rmUser.roles || []).join('/')} • ${filteredBrokers.length} broker compan${filteredBrokers.length !== 1 ? 'ies' : 'y'} • ${totalClients} client${totalClients !== 1 ? 's' : ''}`}
         actions={
           <>
-            <button className="ph-btn ph-btn--ghost" onClick={() => navigate('/brokers')}>
-              <BackIcon /> Back to Brokers
-            </button>
+            {!isScopedUser && (
+              <button className="ph-btn ph-btn--ghost" onClick={() => navigate('/brokers')}>
+                <BackIcon /> Back to Brokers
+              </button>
+            )}
             {canCreate && (
               <button className="ph-btn ph-btn--primary" onClick={() => setShowModal(true)}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">

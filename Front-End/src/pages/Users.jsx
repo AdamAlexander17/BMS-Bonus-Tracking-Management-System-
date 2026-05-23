@@ -505,6 +505,7 @@ function EyeOffIcon() {
 }
 
 function EditUserForm({ user, roles, currentUser, onClose, onSuccess }) {
+  const passwordLocked = !user.last_login;
   const [form, setForm]       = useState({
     username:  user.username || '',
     brandIds:  Array.isArray(user.brand_ids) ? [...user.brand_ids] : (user.brand_id ? [user.brand_id] : []),
@@ -548,7 +549,7 @@ function EditUserForm({ user, roles, currentUser, onClose, onSuccess }) {
         roles:     form.roleNames,
         status:    form.isActive ? 'Active' : 'Inactive',
       };
-      if (form.password) payload.password = form.password;
+      if (!passwordLocked && form.password) payload.password = form.password;
       await updateUser(user.id, payload);
       onSuccess();
     } catch (ex) {
@@ -598,15 +599,21 @@ function EditUserForm({ user, roles, currentUser, onClose, onSuccess }) {
       </div>
 
       <div className="um__form-group">
-        <label>Password <span className="um__label-hint">(leave blank to keep current)</span></label>
+        <label>
+          Password{' '}
+          <span className="um__label-hint">
+            {passwordLocked ? '(disabled until the user logs in once)' : '(leave blank to keep current)'}
+          </span>
+        </label>
         <div className="um__pwd-wrap">
           <input
             type={showPwd ? 'text' : 'password'}
-            placeholder="••••••••"
+            placeholder={passwordLocked ? 'Disabled for never-logged-in users' : '••••••••'}
             value={form.password}
+            disabled={passwordLocked}
             onChange={e => setForm(p => ({...p, password: e.target.value}))}
           />
-          <button type="button" className="um__pwd-eye" onClick={() => setShowPwd(v => !v)}>
+          <button type="button" className="um__pwd-eye" disabled={passwordLocked} onClick={() => setShowPwd(v => !v)}>
             {showPwd ? <EyeOffIcon /> : <EyeIcon />}
           </button>
         </div>

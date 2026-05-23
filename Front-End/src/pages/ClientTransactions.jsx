@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
+import CustomSelect from '../components/CustomSelect/CustomSelect';
 import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
 import { getClient, getClientTransactions, updateClientTransaction, deleteClientTransaction } from '../api/clients';
 import { formatINR } from './Brokers';
@@ -114,10 +115,17 @@ function EditTransactionModal({ transaction, onClose, onUpdated }) {
             {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 20px' }}>
               <Field label="Transaction Type" required>
-                <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.transaction_type} onChange={(e) => setForm((current) => ({ ...current, transaction_type: e.target.value }))}>
-                  <option value="deposit">Deposit</option>
-                  <option value="withdrawal">Withdrawal</option>
-                </select>
+                <CustomSelect
+                  variant="form"
+                  value={form.transaction_type}
+                  onChange={(value) => setForm((current) => ({ ...current, transaction_type: value }))}
+                  options={[
+                    { value: 'deposit', label: 'Deposit' },
+                    { value: 'withdrawal', label: 'Withdrawal' },
+                  ]}
+                  placeholder="Select transaction type"
+                  style={{ width: '100%' }}
+                />
               </Field>
               <Field label="Amount" required>
                 <input type="number" min="0.01" step="0.01" style={inputStyle} value={form.amount} onChange={(e) => setForm((current) => ({ ...current, amount: e.target.value }))} required />

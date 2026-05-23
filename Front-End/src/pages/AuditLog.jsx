@@ -311,24 +311,26 @@ export default function AuditLog() {
             <div className="audit-log-filters">
               <label className="audit-log-field">
                 <span className="audit-log-field__label">Module</span>
-                <select className="audit-log-control" value={moduleFilter} onChange={(event) => resetPage(() => setModuleFilter(event.target.value))}>
-                  {moduleOptions.map((option) => (
-                    <option key={option.value || 'all-modules'} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                <CustomSelect
+                  variant="form"
+                  value={moduleFilter}
+                  onChange={(value) => resetPage(() => setModuleFilter(value))}
+                  options={moduleOptions}
+                  placeholder="All Modules"
+                  style={{ width: '100%' }}
+                />
               </label>
 
               <label className="audit-log-field">
                 <span className="audit-log-field__label">Action</span>
-                <select className="audit-log-control" value={actionFilter} onChange={(event) => resetPage(() => setActionFilter(event.target.value))}>
-                  {actionOptions.map((option) => (
-                    <option key={option.value || 'all-actions'} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                <CustomSelect
+                  variant="form"
+                  value={actionFilter}
+                  onChange={(value) => resetPage(() => setActionFilter(value))}
+                  options={actionOptions}
+                  placeholder="All Actions"
+                  style={{ width: '100%' }}
+                />
               </label>
 
               <label className="audit-log-field">
