@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { isRmOrJrmOnlyUser, useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import './Sidebar.css';
 
@@ -66,19 +66,16 @@ export default function Sidebar({ collapsed, setCollapsed }) {
       {/* Nav */}
       <nav className="sidebar__nav">
         {(() => {
-          const roles = user?.roles || [];
-          const isRmOnly =
-            roles.length > 0 &&
-            roles.every(r => r === 'RM' || r === 'JRM');
+          const isRmOnly = isRmOrJrmOnlyUser(user);
           const hasPerm = (key) => !user?.permissions || user.permissions.includes(key);
           const visibleItems = isRmOnly
-            ? NAV_ITEMS.filter(i => i.path === '/' || i.path === '/brokers')
+            ? NAV_ITEMS.filter(i => i.path === '/brokers')
             : NAV_ITEMS.filter(i => !i.perm || hasPerm(i.perm));
           return visibleItems;
         })().map(({ path, label, icon }) => (
           <NavLink
             key={path}
-            to={path}
+            to={path === '/brokers' && isRmOrJrmOnlyUser(user) && user?.id ? `/brokers/rm/${user.id}` : path}
             end={path === '/'}
             className={({ isActive }) =>
               `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`

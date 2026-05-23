@@ -566,16 +566,19 @@ export default function Reports() {
         </div>
       )}
 
-      <div className="report-section-title" style={{ marginBottom: 12, fontSize: 15, fontWeight: 700 }}>Key Metrics</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: 12, marginBottom: 20 }}>
-        <StatCard label="Brokers In Report" value={formatCount(summary.brokerCount)} />
-        <StatCard label="Clients In Report" value={formatCount(summary.clientCount)} />
-        <StatCard label="Legitimate Clients" value={formatCount(summary.legitimateCount)} />
-        <StatCard label="Total Earned" value={formatMoney(summary.totalEarned)} />
-        <StatCard label="Total Paid" value={formatMoney(summary.totalPaid)} />
-        <StatCard label="Pending Payout" value={formatMoney(summary.totalPending)} />
-        <StatCard label="Client Deposits" value={formatMoney(summary.totalDeposited)} />
-        <StatCard label="Client Withdrawals" value={formatMoney(summary.totalWithdrawn)} />
+      <div style={{ marginBottom: 12 }}>
+        <div className="report-section-title" style={{ marginBottom: 12, fontSize: 15, fontWeight: 700 }}>Broker Performance Summary</div>
+        <div className="um__search" style={{ maxWidth: 460 }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="7" />
+            <line x1="16.65" y1="16.65" x2="21" y2="21" />
+          </svg>
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search broker, client, ARC ID, user, type, or amount"
+          />
+        </div>
       </div>
 
       <div className="um__card" style={{ marginBottom: 20 }}>
@@ -585,19 +588,6 @@ export default function Reports() {
           pageSize={brokerPageSize}
           onPageSizeChange={setBrokerPageSize}
           onExport={canExport ? () => exportRowsToCsv('broker-performance-summary.csv', brokerColumns, brokerSummary) : undefined}
-          leftContent={(
-            <div className="um__search" style={{ maxWidth: 360 }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="7" />
-                <line x1="16.65" y1="16.65" x2="21" y2="21" />
-              </svg>
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search broker, client, ARC ID, user, type, or amount"
-              />
-            </div>
-          )}
         />
         <table className="um__table">
           <thead>

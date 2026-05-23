@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { getDefaultRouteForUser, useAuth } from '../context/AuthContext';
 import './Login.css';
 
 export default function Login() {
@@ -16,7 +16,7 @@ export default function Login() {
 
   useEffect(() => {
     if (user && !user.must_change_password) {
-      navigate('/');
+      navigate(getDefaultRouteForUser(user), { replace: true });
     }
   }, [navigate, user]);
 
@@ -30,7 +30,7 @@ export default function Login() {
     try {
       const userData = await login(form.username, form.password);
       if (!userData.must_change_password) {
-        navigate('/');
+        navigate(getDefaultRouteForUser(userData), { replace: true });
       } else {
         setPasswordForm((prev) => ({ ...prev, currentPassword: form.password }));
       }
@@ -55,7 +55,7 @@ export default function Login() {
     setLoading(true);
     try {
       await changeOwnPassword(passwordForm.currentPassword, passwordForm.newPassword);
-      navigate('/');
+      navigate(getDefaultRouteForUser(user), { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to change password.');
     } finally {

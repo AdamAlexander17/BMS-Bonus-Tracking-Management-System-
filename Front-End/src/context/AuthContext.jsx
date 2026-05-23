@@ -2,6 +2,19 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { login as loginApi, logout as logoutApi, changeOwnPassword as changeOwnPasswordApi } from '../api/auth';
 
 const AuthContext = createContext(null);
+const RM_SCOPED_ROLES = new Set(['RM', 'JRM']);
+
+export function isRmOrJrmOnlyUser(user) {
+  const roles = user?.roles || [];
+  return roles.length > 0 && roles.every((role) => RM_SCOPED_ROLES.has(role));
+}
+
+export function getDefaultRouteForUser(user) {
+  if (isRmOrJrmOnlyUser(user) && user?.id) {
+    return `/brokers/rm/${user.id}`;
+  }
+  return '/';
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser]   = useState(null);
