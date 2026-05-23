@@ -140,6 +140,7 @@ export default function ClientTransactions() {
   const { user } = useAuth();
   const hasPerm = (key) => !user?.permissions || user.permissions.includes(key);
   const canClientUpdate = hasPerm('client:update');
+  const canViewTxns     = hasPerm('transactions:view');
 
   const [client, setClient] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -223,6 +224,7 @@ export default function ClientTransactions() {
 
   if (loading) return <div className="um"><div className="um__loading">Loading...</div></div>;
   if (error) return <div className="um"><div className="um__error">{error}</div></div>;
+  if (!canViewTxns) return <div className="um"><div className="um__error">You do not have permission to view transactions.</div></div>;
   if (!client) return null;
 
   return (

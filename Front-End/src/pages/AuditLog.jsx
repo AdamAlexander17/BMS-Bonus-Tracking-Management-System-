@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import PageHeader from '../components/PageHeader/PageHeader';
 import { getAuditLogs } from '../api/auditLogs';
+import { useAuth } from '../context/AuthContext';
 import CustomSelect from '../components/CustomSelect/CustomSelect';
 import './AuditLog.css';
 
@@ -154,6 +155,9 @@ const RefreshIcon = () => (
 );
 
 export default function AuditLog() {
+  const { user } = useAuth();
+  const hasPerm = (key) => !user?.permissions || user.permissions.includes(key);
+  const canExport = hasPerm('auditlog:export');
   const [rows, setRows] = useState([]);
   const [search, setSearch] = useState('');
   const [moduleFilter, setModuleFilter] = useState('');
@@ -217,6 +221,7 @@ export default function AuditLog() {
 
   async function handleExport() {
     if (!totalRows) return;
+    if (!canExport) return;
 
     setExporting(true);
     try {
@@ -228,6 +233,7 @@ export default function AuditLog() {
         to_date: toDate,
         page: 1,
         page_size: 100,
+        export: 1,
       });
 
       const firstPageRows = firstResponse.data?.data || [];
@@ -246,6 +252,7 @@ export default function AuditLog() {
               to_date: toDate,
               page: exportPage,
               page_size: 100,
+              export: 1,
             })
           );
         }
@@ -364,9 +371,11 @@ export default function AuditLog() {
               onChange={v => { setPage(1); setPageSize(Number(v)); }}
               options={pageSizeOptions.map(s => ({ value: String(s), label: `${s} rows` }))}
             />
+            {canExport && (
             <button type="button" className="ph-btn ph-btn--ghost" onClick={handleExport} disabled={!totalRows || exporting}>
               {exporting ? 'Exporting...' : 'Export CSV'}
             </button>
+            )}
           </div>
         </div>
 

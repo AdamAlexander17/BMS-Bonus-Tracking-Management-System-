@@ -342,7 +342,9 @@ def format_user(user):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def audit_log_list(request):
-    if not has_perm(request, 'auditlog:view'):
+    is_export = str(request.query_params.get('export', '')).lower() in ('1', 'true', 'yes')
+    required_perm = 'auditlog:export' if is_export else 'auditlog:view'
+    if not has_perm(request, required_perm):
         return Response(
             {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
@@ -2159,7 +2161,7 @@ def broker_payout_list(request, broker_id):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def broker_payout_create(request, broker_id):
-    if not has_perm(request, 'broker:update'):
+    if not has_perm(request, 'bonus:pay'):
         return Response(
             {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
@@ -2234,7 +2236,7 @@ def broker_payout_create(request, broker_id):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def broker_payout_update(request, broker_id, payout_id):
-    if not has_perm(request, 'broker:update'):
+    if not has_perm(request, 'bonus:manage'):
         return Response(
             {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
@@ -2325,7 +2327,7 @@ def broker_payout_update(request, broker_id, payout_id):
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def broker_payout_delete(request, broker_id, payout_id):
-    if not has_perm(request, 'broker:update'):
+    if not has_perm(request, 'bonus:manage'):
         return Response(
             {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
@@ -2833,7 +2835,7 @@ def client_update(request, client_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def client_transaction_list(request, client_id):
-    if not has_perm(request, 'client:view'):
+    if not has_perm(request, 'transactions:view'):
         return Response(
             {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN

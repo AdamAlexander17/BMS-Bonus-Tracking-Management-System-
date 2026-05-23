@@ -12,20 +12,20 @@ from app.models import Brand, Permission, Role, RolePermission, User, UserRole
 from app.utils import hash_password
 
 # ─── Brands ──────────────────────────────────────────────────────────────────
-brands_data = ['TK', 'TB', 'BFx']
-for name in brands_data:
-    Brand.objects.get_or_create(name=name)
-print(f'✔ Brands seeded: {brands_data}')
+# Brands are managed via the UI; seed does not create or modify brand records.
+print('• Brands: skipped (managed via UI)')
 
 # ─── Permissions ─────────────────────────────────────────────────────────────
 permissions_data = [
     ('broker', 'create'), ('broker', 'update'), ('broker', 'delete'), ('broker', 'view'),
     ('client', 'create'), ('client', 'update'), ('client', 'delete'), ('client', 'view'), ('client', 'trading_ok'),
     ('report', 'view'),   ('report', 'export'),
-    ('auditlog', 'view'),
+    ('auditlog', 'view'), ('auditlog', 'export'),
     ('user',   'create'), ('user',   'update'),  ('user',   'delete'),  ('user', 'view'),
     ('brand',  'create'), ('brand',  'update'),  ('brand',  'delete'),  ('brand', 'view'),
     ('role',   'create'), ('role',   'update'),  ('role',   'delete'),  ('role', 'view'),
+    ('bonus',  'manage'), ('bonus',  'pay'),
+    ('transactions', 'view'),
 ]
 for module, action in permissions_data:
     Permission.objects.get_or_create(module=module, action=action)
@@ -37,10 +37,12 @@ role_permissions_map = {
         ('broker','create'),('broker','update'),('broker','delete'),('broker','view'),
         ('client','create'),('client','update'),('client','delete'),('client','view'),('client','trading_ok'),
         ('report','view'),  ('report','export'),
-        ('auditlog','view'),
+        ('auditlog','view'),('auditlog','export'),
         ('user','create'),  ('user','update'),  ('user','delete'),  ('user','view'),
         ('brand','create'), ('brand','update'), ('brand','delete'), ('brand','view'),
         ('role','create'),  ('role','update'),  ('role','delete'),  ('role','view'),
+        ('bonus','manage'), ('bonus','pay'),
+        ('transactions','view'),
     ],
     'RM': [
         ('broker','create'),('broker','update'),('broker','delete'),('broker','view'),

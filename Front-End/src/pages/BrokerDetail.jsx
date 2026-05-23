@@ -659,6 +659,8 @@ export default function BrokerDetail() {
   const canClientDelete = hasPerm('client:delete');
   const canClientActions = canClientUpdate || canClientDelete;
   const canBrokerUpdate = hasPerm('broker:update');
+  const canManageBonus  = hasPerm('bonus:manage');
+  const canViewTxns     = hasPerm('transactions:view');
 
   const [broker, setBroker]   = useState(null);
   const [clients, setClients] = useState([]);
@@ -765,7 +767,7 @@ export default function BrokerDetail() {
             <button className="ph-btn ph-btn--ghost" onClick={() => broker.rm_user ? navigate(`/brokers/rm/${broker.rm_user.id}`) : navigate('/brokers')}>
               <BackIcon /> Back
             </button>
-            {canBrokerUpdate && (
+            {canManageBonus && (
               <button className="ph-btn ph-btn--ghost" onClick={() => navigate(`/brokers/${broker.id}/payouts`)}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
                   <path d="M3 7h18v10H3z"/>
@@ -916,6 +918,7 @@ export default function BrokerDetail() {
                           <>
                       {canClientUpdate && (
                         <>
+                          {canViewTxns && (
                           <button
                             className="um__action-btn"
                              title="Transaction History"
@@ -928,6 +931,7 @@ export default function BrokerDetail() {
                               <path d="M3 18h18"/>
                             </svg>
                           </button>
+                          )}
                           {canAdjustAmounts && (
                             <>
                               <button

@@ -208,7 +208,9 @@ export default function BrokerPayoutHistory() {
   const { user } = useAuth();
   const hasPerm = (key) => !user?.permissions || user.permissions.includes(key);
   const canBrokerUpdate = hasPerm('broker:update');
-  const canBrokerActions = canBrokerUpdate;
+  const canPayBonus      = hasPerm('bonus:pay');
+  const canManageBonus   = hasPerm('bonus:manage');
+  const canBrokerActions = canBrokerUpdate || canPayBonus || canManageBonus;
 
   const [broker, setBroker] = useState(null);
   const [payouts, setPayouts] = useState([]);
@@ -291,7 +293,7 @@ export default function BrokerPayoutHistory() {
             <button className="ph-btn ph-btn--ghost" onClick={() => navigate(`/brokers/${broker.id}`)}>
               <BackIcon /> Back to Broker
             </button>
-            {canBrokerUpdate && (
+            {canPayBonus && (
               <button className="ph-btn ph-btn--primary" onClick={() => setShowPayModal(true)}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
                   <path d="M3 7h18v10H3z"/>
