@@ -205,13 +205,15 @@ export default function Dashboard() {
   }, [filteredClients, timeBuckets, period]);
 
   /* ── D) Genuine vs Pending vs Rejected (DONUT) ─────────────── */
+  // Verification flow: broker adds client → 'pending' → checker either
+  // approves (legitimacy_status='approved') or declines ('declined').
   const genuineRejected = useMemo(() => {
     let genuine = 0, pending = 0, rejected = 0;
     filteredClients.forEach(c => {
-      const dep = Number(c.deposited_amount || 0);
-      if (c.status === 'Inactive') rejected += 1;
-      else if (dep <= 0) pending += 1;
-      else genuine += 1;
+      const ls = String(c.legitimacy_status || 'pending').toLowerCase();
+      if (ls === 'approved')      genuine  += 1;
+      else if (ls === 'declined') rejected += 1;
+      else                        pending  += 1;
     });
     return { genuine, pending, rejected };
   }, [filteredClients]);
@@ -224,7 +226,10 @@ export default function Dashboard() {
       if (!map[k]) map[k] = { name: c.broker_name, total: 0, genuine: 0, bonus: 0 };
       map[k].total += 1;
       const dep = Number(c.deposited_amount || 0);
-      if (c.status === 'Active' && dep > 0) map[k].genuine += 1;
+      // Genuine = checker-approved client.
+      if (String(c.legitimacy_status || '').toLowerCase() === 'approved') {
+        map[k].genuine += 1;
+      }
       map[k].bonus += Number(c.earned_amount || dep * 0.01);
     });
     filteredBrokers.forEach(b => {
