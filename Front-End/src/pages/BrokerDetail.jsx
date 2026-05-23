@@ -772,7 +772,7 @@ export default function BrokerDetail() {
                   <path d="M7 12h10"/>
                   <path d="M12 9v6"/>
                 </svg>
-                Add Expence
+                Manage Bonus
               </button>
             )}
             {canClientCreate && (

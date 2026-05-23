@@ -298,7 +298,7 @@ export default function BrokerPayoutHistory() {
                   <path d="M7 12h10"/>
                   <path d="M12 9v6"/>
                 </svg>
-                Record Payout
+                Pay Bonus
               </button>
             )}
           </>
