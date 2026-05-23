@@ -230,7 +230,7 @@ export default function Brands() {
               <div className="um__form-row">
                 <div className="um__form-group">
                   <label>Brand Name <span className="um__required">*</span></label>
-                  <input required placeholder="e.g. Trade Karo" value={newName} onChange={e => setNewName(e.target.value)} />
+                  <input required maxLength={30} placeholder="e.g. Trade Karo" value={newName} onChange={e => setNewName(e.target.value)} />
                 </div>
                 <div className="um__form-group">
                   <label>Code <span className="um__required">*</span></label>
@@ -306,7 +306,7 @@ function EditBrandModal({ brand, onClose, onSuccess }) {
           <div className="um__form-row">
             <div className="um__form-group">
               <label>Brand Name <span className="um__required">*</span></label>
-              <input required placeholder="e.g. Trade Karo" value={name} onChange={e => setName(e.target.value)} />
+              <input required maxLength={30} placeholder="e.g. Trade Karo" value={name} onChange={e => setName(e.target.value)} />
             </div>
             <div className="um__form-group">
               <label>Code <span className="um__required">*</span></label>

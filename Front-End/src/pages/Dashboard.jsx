@@ -151,30 +151,32 @@ export default function Dashboard() {
   };
 
   /* ── Stat totals ───────────────────────────────────────────── */
+  // Bonus is counted ONLY after the Admin actually pays the broker
+  // (BrokerPayout). Checker approval alone does NOT mark bonus as released.
   const stats = useMemo(() => {
     const totalClients   = filteredClients.length;
     const totalReferred  = filteredBrokers.length;
     const totalDeposits  = filteredClients.reduce((s, c) => s + Number(c.deposited_amount || 0), 0);
     const totalWithdraws = filteredClients.reduce((s, c) => s + Number(c.withdrawal_amount || 0), 0);
-    const totalBonus     = filteredClients.reduce(
-      (s, c) => s + Number(c.earned_amount || (Number(c.deposited_amount || 0) * 0.01)),
-      0,
-    );
+    const totalBonus     = filteredBrokers.reduce((s, b) => s + Number(b.amount_paid || 0), 0);
     return { totalClients, totalReferred, totalBonus, totalDeposits, totalWithdraws };
   }, [filteredClients, filteredBrokers]);
 
   /* ── A) Bonus distribution by brand (DONUT) ────────────────── */
+  // Shows released bonus per brand (= sum of BrokerPayout.amount grouped
+  // by brand). A checker-approved-but-not-yet-paid client contributes 0.
   const bonusByBrand = useMemo(() => {
     const map = {};
-    filteredClients.forEach(c => {
-      const key = c.brand_name || 'Other';
-      const bonus = Number(c.earned_amount || (Number(c.deposited_amount || 0) * 0.01));
-      map[key] = (map[key] || 0) + bonus;
+    filteredBrokers.forEach(b => {
+      const paid = Number(b.amount_paid || 0);
+      if (paid <= 0) return;
+      const key = b.brand?.name || b.brand_name || 'Other';
+      map[key] = (map[key] || 0) + paid;
     });
     const labels = Object.keys(map);
     const series = labels.map(l => Number(map[l].toFixed(2)));
     return { labels, series };
-  }, [filteredClients]);
+  }, [filteredBrokers]);
 
   /* ── B) Deposit vs Withdrawal over time (BAR) ──────────────── */
   const monthlyDepWith = useMemo(() => {
@@ -219,21 +221,20 @@ export default function Dashboard() {
   }, [filteredClients]);
 
   /* ── E) Top performing brokers (HORIZONTAL BAR) ────────────── */
+  // Bonus column = amount actually paid to the broker (released).
   const topBrokers = useMemo(() => {
     const map = {};
     filteredClients.forEach(c => {
       const k = c.broker_id;
       if (!map[k]) map[k] = { name: c.broker_name, total: 0, genuine: 0, bonus: 0 };
       map[k].total += 1;
-      const dep = Number(c.deposited_amount || 0);
-      // Genuine = checker-approved client.
       if (String(c.legitimacy_status || '').toLowerCase() === 'approved') {
         map[k].genuine += 1;
       }
-      map[k].bonus += Number(c.earned_amount || dep * 0.01);
     });
     filteredBrokers.forEach(b => {
       if (!map[b.id]) map[b.id] = { name: b.name, total: 0, genuine: 0, bonus: 0 };
+      map[b.id].bonus = Number(b.amount_paid || 0);
     });
     return Object.values(map).sort((a, b) => b.bonus - a.bonus).slice(0, 6);
   }, [filteredClients, filteredBrokers]);
@@ -255,18 +256,37 @@ export default function Dashboard() {
   }, [filteredClients]);
 
   /* ── G) Approval workflow funnel ───────────────────────────── */
+  // Stage-by-stage progression of a client through the bonus pipeline.
+  //   1) Client Added      → client record exists
+  //   2) Trading Verified  → client has actually deposited (> 0)
+  //   3) Checker Approval  → legitimacy_status === 'approved'
+  //   4) Bonus Released    → approved AND broker's pending payout is
+  //                          cleared (Admin has paid the bonus)
   const funnel = useMemo(() => {
-    const added    = filteredClients.length;
-    const verified = filteredClients.filter(c => Number(c.deposited_amount || 0) > 0).length;
-    const checker  = Math.round(verified * 0.9);
-    const released = filteredClients.filter(c => c.status === 'Active' && Number(c.deposited_amount || 0) > 0).length;
+    const added = filteredClients.length;
+    const verified = filteredClients.filter(
+      c => Number(c.deposited_amount || 0) > 0,
+    ).length;
+    const approved = filteredClients.filter(
+      c => String(c.legitimacy_status || '').toLowerCase() === 'approved',
+    ).length;
+    const settledBrokerIds = new Set(
+      filteredBrokers
+        .filter(b => Number(b.amount_paid || 0) > 0 && Number(b.pending_payout || 0) === 0)
+        .map(b => b.id),
+    );
+    const released = filteredClients.filter(
+      c =>
+        String(c.legitimacy_status || '').toLowerCase() === 'approved' &&
+        settledBrokerIds.has(c.broker_id),
+    ).length;
     return [
       { label: 'Client Added',     value: added },
       { label: 'Trading Verified', value: verified },
-      { label: 'Checker Approval', value: checker },
+      { label: 'Checker Approval', value: approved },
       { label: 'Bonus Released',   value: released },
     ];
-  }, [filteredClients]);
+  }, [filteredClients, filteredBrokers]);
 
   /* ── Chart common config ───────────────────────────────────── */
   const baseChart = {
@@ -313,7 +333,7 @@ export default function Dashboard() {
       <div className="dashboard__stats">
         <StatCard label="Total Clients"     value={formatCount(stats.totalClients)}   accent={TEAL}
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>} />
-        <StatCard label="Total Referred"    value={formatCount(stats.totalReferred)}  accent={TEAL_HOVER}
+        <StatCard label="Total Brokers"     value={formatCount(stats.totalReferred)}  accent={TEAL_HOVER}
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>} />
         <StatCard label="Total Bonus"       value={formatMoney(stats.totalBonus)}     accent={AMBER}
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>} />

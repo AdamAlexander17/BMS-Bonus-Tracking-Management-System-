@@ -153,6 +153,10 @@ def login(request):
     access_token  = generate_access_token(user)
     refresh_token = generate_refresh_token(user.id)
 
+    # Stamp last_login on each successful authentication.
+    user.last_login = timezone.now()
+    user.save(update_fields=['last_login'])
+
     # Save refresh token to DB
     expires_at = timezone.now() + timezone.timedelta(
         days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS
@@ -329,6 +333,7 @@ def format_user(user):
         'brand_objects': brand_objs,
         'status':       user.status,
         'must_change_password': user.must_change_password,
+        'last_login':   user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else None,
         'created_by':   user.created_by.username if user.created_by else None,
         'created_at':   user.created_at.strftime('%Y-%m-%d %H:%M:%S'),
     }

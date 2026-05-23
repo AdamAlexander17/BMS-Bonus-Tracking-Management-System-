@@ -89,6 +89,14 @@ export default function Users() {
     return new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  const formatDateTime = (str) => {
+    if (!str) return 'Never';
+    return new Date(str).toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  };
+
   return (
     <div className="um">
       <PageHeader
@@ -167,12 +175,13 @@ export default function Users() {
         {!loading && !error && (
           <table className="um__table">
             <colgroup>
-              <col style={{ width: '25%' }} />
-              <col style={{ width: '18%' }} />
-              <col style={{ width: '14%' }} />
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '16%' }} />
               <col style={{ width: '12%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '15%' }} />
               <col />
-              {canActions && <col style={{ width: '13%' }} />}
+              {canActions && <col style={{ width: '12%' }} />}
             </colgroup>
             <thead>
               <tr>
@@ -180,15 +189,15 @@ export default function Users() {
                 <th>BRAND</th>
                 <th style={{ textAlign: 'center' }}>ROLES</th>
                 <th style={{ textAlign: 'center' }}>STATUS</th>
+                <th>LAST LOGIN</th>
                 <th>CREATED ↓</th>
                 {canActions && <th style={{ textAlign: 'right' }}>ACTIONS</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={canActions ? 6 : 5} className="um__empty">No users found.</td></tr>
-              ) : paged.map(u => (
-                <tr key={u.id}>
+                <tr><td colSpan={canActions ? 7 : 6} className="um__empty">No users found.</td></tr>
+              ) : paged.map(u => (                <tr key={u.id}>
                   <td>
                     <div className="um__user-cell">
                       <div className="um__avatar">{u.username[0].toUpperCase()}</div>
@@ -222,6 +231,15 @@ export default function Users() {
                         {u.status}
                       </span>
                     )}
+                  </td>
+                  <td>
+                    <span className="um__date" title={u.last_login ? new Date(u.last_login).toString() : 'Never logged in'}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                      </svg>
+                      {formatDateTime(u.last_login)}
+                    </span>
                   </td>
                   <td>
                     <span className="um__date">
@@ -404,7 +422,7 @@ function AddUserForm({ roles, currentUser, onClose, onSuccess }) {
       <div className="um__form-row">
         <div className="um__form-group">
           <label>Username <span className="um__required">*</span></label>
-          <input required placeholder=" Name " value={form.username} onChange={e => setForm(p => ({...p, username: e.target.value}))} />
+          <input required maxLength={30} placeholder=" Name " value={form.username} onChange={e => setForm(p => ({...p, username: e.target.value}))} />
         </div>
         <div className="um__form-group">
           <label>Default Password</label>
@@ -551,6 +569,7 @@ function EditUserForm({ user, roles, currentUser, onClose, onSuccess }) {
           <label>Username <span className="um__required">*</span></label>
           <input
             required
+            maxLength={30}
             placeholder=" Name "
             value={form.username}
             onChange={e => setForm(p => ({...p, username: e.target.value}))}

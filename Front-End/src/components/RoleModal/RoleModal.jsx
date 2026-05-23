@@ -125,6 +125,7 @@ export default function RoleModal({ open, role, onClose, onSuccess }) {
                   <label>Role Name <span>*</span></label>
                   <input
                     required
+                    maxLength={30}
                     placeholder="e.g. Marketing Manager"
                     value={roleName}
                     onChange={e => setRoleName(e.target.value)}
