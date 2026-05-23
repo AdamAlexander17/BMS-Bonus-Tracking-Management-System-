@@ -890,7 +890,7 @@ export default function BrokerDetail() {
                         <>
                           <button
                             className="um__action-btn"
-                            title="Transaction History"
+                             title="Transaction History"
                             style={{ color: '#2563eb' }}
                             onClick={() => navigate(`/clients/${c.id}/transactions`)}
                           >

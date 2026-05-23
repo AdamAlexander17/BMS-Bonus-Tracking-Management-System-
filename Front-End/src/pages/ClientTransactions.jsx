@@ -104,8 +104,7 @@ export default function ClientTransactions() {
       />
 
       <div className="um__card">
-        <div className="um__toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Transaction History</h3>
+        <div className="um__toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
           <div className="bph-filters">
             <div className="bph-filters__group">
               <input
