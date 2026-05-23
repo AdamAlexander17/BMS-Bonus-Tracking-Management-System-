@@ -714,11 +714,6 @@ def update_user(request, user_id):
         user.status = normalized_status
 
     if new_password:
-        if not user.last_login:
-            return Response(
-                {'success': False, 'message': 'Password cannot be changed until the user has logged in at least once.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
         user.password = hash_password(new_password)
         user.must_change_password = True
 
