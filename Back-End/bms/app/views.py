@@ -16,6 +16,15 @@ from django.db.models.deletion import ProtectedError
 
 from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, BrokerPayout, Client, ClientTransaction, AuditLog
 from app.utils import verify_password, generate_access_token, generate_refresh_token, decode_token, hash_password
+from app.tenancy import (
+    is_admin,
+    current_brand_ids,
+    scope_to_brand,
+    assert_same_brand,
+    has_brand_access,
+    assert_brand_in_scope,
+    assert_brands_in_scope,
+)
 
 
 DEFAULT_USER_PASSWORD = '123456'
@@ -301,14 +310,23 @@ def format_user(user):
         {'id': r.id, 'name': r.name}
         for r in user.roles.all()
     ]
+    brand_objs = [
+        {'id': b.id, 'name': b.name}
+        for b in user.brands.all()
+    ]
     return {
         'id':           user.id,
         'username':     user.username,
         'roles':        [r['name'] for r in role_objs],
         'role_ids':     [r['id']   for r in role_objs],
         'role_objects': role_objs,
+        # Legacy single-brand fields (kept for backwards compatibility).
         'brand':        user.brand_name,
         'brand_id':     user.brand_id,
+        # Multi-brand access scope (BBAC source of truth).
+        'brands':       [b['name'] for b in brand_objs],
+        'brand_ids':    [b['id']   for b in brand_objs],
+        'brand_objects': brand_objs,
         'status':       user.status,
         'must_change_password': user.must_change_password,
         'created_by':   user.created_by.username if user.created_by else None,
@@ -326,6 +344,9 @@ def audit_log_list(request):
         )
 
     logs = AuditLog.objects.select_related('actor').all().order_by('-created_at', '-id')
+
+    # Tenant isolation: show audit rows whose actor shares any brand with the requester.
+    logs = scope_to_brand(logs, request, brand_field='actor__brands')
 
     search = (request.query_params.get('search') or '').strip()
     module = (request.query_params.get('module') or '').strip()
@@ -387,6 +408,9 @@ def create_user(request):
         )
 
     username   = request.data.get('username', '').strip()
+    # Multi-brand assignment (preferred): list of brand IDs.
+    raw_brand_ids = request.data.get('brand_ids')
+    # Legacy single-brand input (still accepted for backwards compatibility).
     brand_name = (request.data.get('brand') or '').strip()
     # Accept role IDs (most precise) OR role names (now globally unique)
     role_ids   = request.data.get('role_ids')
@@ -407,16 +431,45 @@ def create_user(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Resolve brand (optional)
-    brand_obj = None
-    if brand_name:
+    # Resolve target brands (multi). Prefer `brand_ids`; fall back to legacy `brand`.
+    target_brand_ids = []
+    if raw_brand_ids is not None:
         try:
-            brand_obj = Brand.objects.get(name=brand_name)
+            target_brand_ids = [int(x) for x in raw_brand_ids]
+        except (TypeError, ValueError):
+            return Response(
+                {'success': False, 'message': 'brand_ids must be a list of integers.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    elif brand_name:
+        try:
+            target_brand_ids = [Brand.objects.get(name=brand_name).id]
         except Brand.DoesNotExist:
             return Response(
                 {'success': False, 'message': f'Brand "{brand_name}" not found.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+    if not target_brand_ids:
+        return Response(
+            {'success': False, 'message': 'At least one brand must be assigned.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    target_brands = list(Brand.objects.filter(id__in=target_brand_ids))
+    if len(target_brands) != len(set(target_brand_ids)):
+        return Response(
+            {'success': False, 'message': 'One or more brands not found.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Note: the 'user:create' permission gate above is the authority for who may
+    # assign brands. We intentionally do NOT restrict the assignable set to the
+    # creator's own brands — user managers must be able to grant access to any
+    # brand even if they personally are not assigned to it.
+
+    # Primary brand = first selected (legacy single-FK field).
+    primary_brand = target_brands[0]
 
     if role_ids:
         try:
@@ -446,11 +499,12 @@ def create_user(request):
     new_user = User.objects.create(
         username=username,
         password=hash_password(DEFAULT_USER_PASSWORD),
-        brand=brand_obj,
+        brand=primary_brand,
         status='Active',
         must_change_password=True,
         created_by=request.user,
     )
+    new_user.brands.set(target_brands)
     for role in roles:
         UserRole.objects.create(user=new_user, role=role)
 
@@ -463,7 +517,7 @@ def create_user(request):
         entity_id=new_user.id,
         entity_label=new_user.username,
         details={
-            'brand': new_user.brand_name,
+            'brands': [b.name for b in target_brands],
             'roles': [role.name for role in roles],
             'status': new_user.status,
             'default_password_assigned': True,
@@ -484,7 +538,9 @@ def get_users(request):
             status=status.HTTP_403_FORBIDDEN
         )
 
-    all_users = User.objects.select_related('created_by', 'brand').prefetch_related('roles').all()
+    all_users = User.objects.select_related('created_by', 'brand').prefetch_related('roles', 'brands').all()
+    # Tenant isolation: show users that share any brand with the requester.
+    all_users = scope_to_brand(all_users, request, brand_field='brands')
     return Response({
         'success': True,
         'data': [format_user(u) for u in all_users]
@@ -505,6 +561,8 @@ def get_user(request, user_id):
             {'success': False, 'message': 'User not found.'},
             status=status.HTTP_404_NOT_FOUND
         )
+
+    assert_same_brand(request, user)
 
     return Response({
         'success': True,
@@ -527,14 +585,19 @@ def update_user(request, user_id):
             status=status.HTTP_404_NOT_FOUND
         )
 
+    assert_same_brand(request, user)
+
     previous_user = {
         'username': user.username,
-        'brand': user.brand_name,
-        'roles': list(user.roles.values_list('name', flat=True)),
-        'status': user.status,
+        'brands':   list(user.brands.values_list('name', flat=True)),
+        'roles':    list(user.roles.values_list('name', flat=True)),
+        'status':   user.status,
     }
 
     new_username = request.data.get('username')
+    # Multi-brand assignment (preferred)
+    raw_brand_ids = request.data.get('brand_ids')
+    # Legacy single-brand input (still accepted for backwards compatibility)
     brand_name   = request.data.get('brand')
     # Accept role IDs (most precise) OR role names (globally unique now)
     role_ids     = request.data.get('role_ids')
@@ -553,18 +616,49 @@ def update_user(request, user_id):
             )
         user.username = new_username
 
-    if brand_name is not None:
+    # Brand assignment update (multi-brand). Preferred path: brand_ids list.
+    # Legacy path (single `brand` name) is still honored — treated as a 1-element list.
+    new_brands = None  # type: list[Brand] | None
+    if raw_brand_ids is not None:
+        try:
+            wanted_ids = [int(x) for x in raw_brand_ids]
+        except (TypeError, ValueError):
+            return Response(
+                {'success': False, 'message': 'brand_ids must be a list of integers.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not wanted_ids:
+            return Response(
+                {'success': False, 'message': 'At least one brand must be assigned.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        new_brands = list(Brand.objects.filter(id__in=wanted_ids))
+        if len(new_brands) != len(set(wanted_ids)):
+            return Response(
+                {'success': False, 'message': 'One or more brands not found.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    elif brand_name is not None:
         brand_name = brand_name.strip()
         if brand_name == '':
-            user.brand = None
-        else:
-            try:
-                user.brand = Brand.objects.get(name=brand_name)
-            except Brand.DoesNotExist:
-                return Response(
-                    {'success': False, 'message': f'Brand "{brand_name}" not found.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            return Response(
+                {'success': False, 'message': 'At least one brand must be assigned.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            new_brands = [Brand.objects.get(name=brand_name)]
+        except Brand.DoesNotExist:
+            return Response(
+                {'success': False, 'message': f'Brand "{brand_name}" not found.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    if new_brands is not None:
+        # The 'user:update' permission gate already controls access here; user
+        # managers may grant any brand to a user, regardless of their own scope.
+        user.brands.set(new_brands)
+        # Keep legacy single-FK primary brand in sync with the first assignment.
+        user.brand = new_brands[0]
 
     if role_ids is not None or role_names is not None:
         if role_ids is not None:
@@ -632,9 +726,9 @@ def update_user(request, user_id):
             previous_user,
             {
                 'username': user.username,
-                'brand': user.brand_name,
-                'roles': list(user.roles.values_list('name', flat=True)),
-                'status': user.status,
+                'brands':   list(user.brands.values_list('name', flat=True)),
+                'roles':    list(user.roles.values_list('name', flat=True)),
+                'status':   user.status,
                 'must_change_password': user.must_change_password,
             },
             {'password_changed': True} if new_password else None,
@@ -717,6 +811,8 @@ def delete_user(request, user_id):
             status=status.HTTP_404_NOT_FOUND
         )
 
+    assert_same_brand(request, user)
+
     deleted_username = user.username
     user.delete()
     log_audit_event(
@@ -779,6 +875,10 @@ def user_bulk_upload(request):
     brand_map = {b.name.lower(): b for b in Brand.objects.all()}
     role_map  = {r.name.lower(): r for r in Role.objects.all()}
 
+    # Note: the 'user:create' permission gate above is the authority for who may
+    # bulk-create users. We do not restrict assignable brands to the uploader's
+    # own scope — user managers can onboard staff into any brand.
+
     created_count = 0
     failed = []
     seen_usernames = set()
@@ -820,6 +920,7 @@ def user_bulk_upload(request):
                     must_change_password=True,
                     created_by=request.user,
                 )
+                new_user.brands.add(brand_obj)
                 UserRole.objects.create(user=new_user, role=role_obj)
             created_count += 1
         except Exception as exc:
@@ -878,6 +979,9 @@ def rm_jrm_users(request):
         .distinct()
         .order_by('username')
     )
+
+    # Tenant isolation first.
+    users = scope_to_brand(users, request, brand_field='brands')
 
     # Non-privileged users can only see themselves in this list.
     if not _user_sees_all_brokers(request):
@@ -980,6 +1084,17 @@ def brand_list(request):
         )
 
     brands = Brand.objects.all().order_by('id')
+    # User-management forms need to see every brand so that admins can grant
+    # access to brands they themselves do not yet hold. Anyone allowed to
+    # create users may request the full list via ?scope=all.
+    if request.GET.get('scope') == 'all' and has_perm(request, 'user:create'):
+        return Response(
+            {'success': True, 'data': [format_brand(b) for b in brands]},
+            status=status.HTTP_200_OK
+        )
+    # Default: tenant isolation — every role sees only their assigned brands.
+    ids = current_brand_ids(request)
+    brands = brands.filter(id__in=ids) if ids else brands.none()
     return Response(
         {'success': True, 'data': [format_brand(b) for b in brands]},
         status=status.HTTP_200_OK
@@ -1003,6 +1118,8 @@ def brand_get(request, brand_id):
             status=status.HTTP_404_NOT_FOUND
         )
 
+    assert_same_brand(request, brand)
+
     return Response(
         {'success': True, 'data': format_brand(brand)},
         status=status.HTTP_200_OK
@@ -1025,6 +1142,8 @@ def brand_update(request, brand_id):
             {'success': False, 'message': 'Brand not found.'},
             status=status.HTTP_404_NOT_FOUND
         )
+
+    assert_same_brand(request, brand)
 
     name = request.data.get('name', '').strip()
     code = request.data.get('code', '').strip().upper()
@@ -1095,6 +1214,8 @@ def brand_delete(request, brand_id):
             {'success': False, 'message': 'Brand not found.'},
             status=status.HTTP_404_NOT_FOUND
         )
+
+    assert_same_brand(request, brand)
 
     deleted_brand_name = brand.name
     try:
@@ -1608,11 +1729,15 @@ def has_perm(request, key):
 def user_brand_names(request):
     """Brand names assigned to the current user (JWT payload first, else DB)."""
     if request.auth:
+        names = request.auth.get('brand_names')
+        if names is not None:
+            return list(names)
+        # Fallback for older tokens.
         b = request.auth.get('brand')
         return [b] if b else []
     if not getattr(request, 'user', None):
         return []
-    return [request.user.brand_name] if request.user.brand_name else []
+    return list(request.user.brand_names)
 
 
 # ===========================================================================
@@ -1632,6 +1757,9 @@ def brokers_by_rm_user(request, user_id):
         rm_user = User.objects.prefetch_related('roles').get(id=user_id)
     except User.DoesNotExist:
         return Response({'success': False, 'message': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Tenant isolation: non-Admin cannot drill into a foreign-brand RM.
+    assert_same_brand(request, rm_user)
 
     # Non-privileged users can only drill into themselves, and only see brokers they created.
     if not _user_sees_all_brokers(request):
@@ -1699,16 +1827,21 @@ def format_broker_payout(payout):
 
 
 def _user_sees_all_brokers(request):
-    """Admin, FM and Checker can see brokers/clients across all users."""
+    """Admin and Checker see every row within their brand scope.
+    (Admin's brand scope is global; Checker's is their own brand.)
+    RM/JRM are further narrowed to rows they created."""
     role_names = set(getattr(request.user, 'role_names', []) or [])
-    return bool(role_names & {'Admin', 'FM', 'Checker'})
+    return bool(role_names & {'Admin', 'Checker'})
 
 
 def _check_broker_access(request, broker):
-    """Return True if the current user is allowed to access this broker."""
+    """Tenant + role check for a single broker.
+    1) Brand isolation (Admin bypasses).
+    2) Within the brand, Admin/Checker see all; RM/JRM see only their own."""
+    if not has_brand_access(request, broker):
+        return False
     if _user_sees_all_brokers(request):
         return True
-    # Otherwise the user can only access brokers they created.
     return broker.created_by_id == request.user.id
 
 
@@ -1740,9 +1873,10 @@ def broker_create(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    if not has_perm(request, 'brand:view') and brand_name not in user_brand_names(request):
+    # Tenant isolation: the brand must be within the creator's brand scope.
+    if brand.id not in current_brand_ids(request):
         return Response(
-            {'success': False, 'message': 'You do not have access to this brand.'},
+            {'success': False, 'message': 'You can only create brokers in a brand you are assigned to.'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -1812,6 +1946,10 @@ def broker_list(request):
         .order_by('id')
     )
 
+    # Brand isolation (now applies to everyone, including Admin).
+    brokers = scope_to_brand(brokers, request, brand_field='brand_id')
+
+    # Within the brand, RM/JRM see only their own rows.
     if not _user_sees_all_brokers(request):
         brokers = brokers.filter(created_by=request.user)
 
@@ -1906,12 +2044,19 @@ def broker_update(request, broker_id):
 
     if new_brand_name is not None:
         try:
-            broker.brand = Brand.objects.get(name=new_brand_name.strip())
+            target_brand = Brand.objects.get(name=new_brand_name.strip())
         except Brand.DoesNotExist:
             return Response(
                 {'success': False, 'message': f'Brand "{new_brand_name}" not found.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        # Tenant isolation: target brand must be in the actor's brand scope.
+        if target_brand.id not in current_brand_ids(request):
+            return Response(
+                {'success': False, 'message': 'You cannot move a broker to a brand outside your scope.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        broker.brand = target_brand
 
     if new_rm_user_id is not None:
         if new_rm_user_id == '':

@@ -198,7 +198,7 @@ export default function Users() {
                       </div>
                     </div>
                   </td>
-                  <td className="um__brands">{u.brand || '—'}</td>
+                  <td className="um__brands">{(u.brands && u.brands.length) ? u.brands.join(', ') : (u.brand || '—')}</td>
                   <td style={{ textAlign: 'center' }}>
                     <div className="um__role-badges">
                       {(u.roles || []).length === 0
@@ -302,7 +302,7 @@ export default function Users() {
               </div>
               <button className="um__modal-close" onClick={() => setShowAdd(false)}>✕</button>
             </div>
-            <AddUserForm roles={roles} onClose={() => setShowAdd(false)} onSuccess={() => { setShowAdd(false); fetchAll(); }} />
+            <AddUserForm roles={roles} currentUser={user} onClose={() => setShowAdd(false)} onSuccess={() => { setShowAdd(false); fetchAll(); }} />
           </div>
         </div>
       )}
@@ -321,6 +321,7 @@ export default function Users() {
             <EditUserForm
               user={editUser}
               roles={roles}
+              currentUser={user}
               onClose={() => setEditUser(null)}
               onSuccess={() => { setEditUser(null); fetchAll(); }}
             />
@@ -342,35 +343,52 @@ export default function Users() {
   );
 }
 
-function AddUserForm({ roles, onClose, onSuccess }) {
-  const [form, setForm]       = useState({ username: '', brand: '', roleNames: [] });
+function AddUserForm({ roles, currentUser, onClose, onSuccess }) {
+  // Backend now scopes /brands/ to the current user's brand set for every role,
+  // so we just present whatever the API returns and let the user pick any subset.
+  const initialBrandIds = (currentUser?.brand_ids && currentUser.brand_ids.length === 1)
+    ? [currentUser.brand_ids[0]]
+    : [];
+  const [form, setForm]       = useState({
+    username: '',
+    brandIds: initialBrandIds,
+    roleNames: [],
+  });
   const [brands, setBrands]   = useState([]);
   const [saving, setSaving]   = useState(false);
   const [err, setErr]         = useState('');
 
   useEffect(() => {
     import('../api/brands').then(m => {
-      m.getBrands().then(res => setBrands(res.data.data || []));
+      m.getBrands({ scope: 'all' }).then(res => setBrands(res.data.data || []));
     });
   }, []);
 
   const selectRole = (name) =>
     setForm(p => ({ ...p, roleNames: [name] }));
 
+  const toggleBrand = (id) =>
+    setForm(p => ({
+      ...p,
+      brandIds: p.brandIds.includes(id)
+        ? p.brandIds.filter(x => x !== id)
+        : [...p.brandIds, id],
+    }));
+
   // Roles are global — show all available role names.
   const availableRoleNames = Array.from(new Set(roles.map(r => r.name)));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.brand)              { setErr('Please select a brand.'); return; }
+    if (form.brandIds.length === 0) { setErr('Please select at least one brand.'); return; }
     if (form.roleNames.length === 0) { setErr('Please select a role.'); return; }
     setSaving(true); setErr('');
     try {
       const { createUser } = await import('../api/users');
       await createUser({
-        username: form.username,
-        brand:    form.brand,
-        roles:    form.roleNames,
+        username:  form.username,
+        brand_ids: form.brandIds,
+        roles:     form.roleNames,
       });
       onSuccess();
     } catch (ex) {
@@ -398,13 +416,26 @@ function AddUserForm({ roles, onClose, onSuccess }) {
       </div>
 
       <div className="um__form-group">
-        <label>Brand <span className="um__required">*</span></label>
-        <CustomSelect
-          options={brands.map(b => ({ value: b.name, label: b.name }))}
-          value={form.brand}
-          onChange={val => setForm(p => ({ ...p, brand: val }))}
-          placeholder="— Select a brand —"
-        />
+        <label>Brands <span className="um__required">*</span></label>
+        <div className="um__role-pills">
+          {brands.length === 0 && (
+            <span className="um__label-hint">No brands available in your scope.</span>
+          )}
+          {brands.map(b => (
+            <button
+              key={b.id}
+              type="button"
+              className={`um__role-pill${form.brandIds.includes(b.id) ? ' um__role-pill--active' : ''}`}
+              onClick={() => toggleBrand(b.id)}
+            >
+              {form.brandIds.includes(b.id) && <span className="um__pill-check">✓</span>}
+              {b.name}
+            </button>
+          ))}
+        </div>
+        <div className="um__label-hint" style={{ marginTop: 6 }}>
+          The new user will only see data belonging to the selected brand(s).
+        </div>
       </div>
 
       <div className="um__form-section">Role <span className="um__required">*</span></div>
@@ -455,10 +486,10 @@ function EyeOffIcon() {
   );
 }
 
-function EditUserForm({ user, roles, onClose, onSuccess }) {
+function EditUserForm({ user, roles, currentUser, onClose, onSuccess }) {
   const [form, setForm]       = useState({
     username:  user.username || '',
-    brand:     user.brand || '',
+    brandIds:  Array.isArray(user.brand_ids) ? [...user.brand_ids] : (user.brand_id ? [user.brand_id] : []),
     roleNames: (user.roles || []).slice(0, 1),
     password:  '',
     isActive:  user.status === 'Active',
@@ -470,26 +501,34 @@ function EditUserForm({ user, roles, onClose, onSuccess }) {
 
   useEffect(() => {
     import('../api/brands').then(m => {
-      m.getBrands().then(res => setBrands(res.data.data || []));
+      m.getBrands({ scope: 'all' }).then(res => setBrands(res.data.data || []));
     });
   }, []);
 
   const selectRole = (name) =>
     setForm(p => ({ ...p, roleNames: [name] }));
 
+  const toggleBrand = (id) =>
+    setForm(p => ({
+      ...p,
+      brandIds: p.brandIds.includes(id)
+        ? p.brandIds.filter(x => x !== id)
+        : [...p.brandIds, id],
+    }));
+
   const availableRoleNames = Array.from(new Set(roles.map(r => r.name)));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.brand)                 { setErr('Please select a brand.'); return; }
+    if (form.brandIds.length === 0)  { setErr('Please select at least one brand.'); return; }
     if (form.roleNames.length === 0) { setErr('Please select a role.'); return; }
     setSaving(true); setErr('');
     try {
       const payload = {
-        username: form.username,
-        brand:    form.brand,
-        roles:    form.roleNames,
-        status:   form.isActive ? 'Active' : 'Inactive',
+        username:  form.username,
+        brand_ids: form.brandIds,
+        roles:     form.roleNames,
+        status:    form.isActive ? 'Active' : 'Inactive',
       };
       if (form.password) payload.password = form.password;
       await updateUser(user.id, payload);
@@ -517,14 +556,25 @@ function EditUserForm({ user, roles, onClose, onSuccess }) {
             onChange={e => setForm(p => ({...p, username: e.target.value}))}
           />
         </div>
-        <div className="um__form-group">
-          <label>Brand <span className="um__required">*</span></label>
-          <CustomSelect
-            options={brands.map(b => ({ value: b.name, label: b.name }))}
-            value={form.brand}
-            onChange={val => setForm(p => ({ ...p, brand: val }))}
-            placeholder="— Select a brand —"
-          />
+      </div>
+
+      <div className="um__form-group">
+        <label>Brands <span className="um__required">*</span></label>
+        <div className="um__role-pills">
+          {brands.length === 0 && (
+            <span className="um__label-hint">No brands available in your scope.</span>
+          )}
+          {brands.map(b => (
+            <button
+              key={b.id}
+              type="button"
+              className={`um__role-pill${form.brandIds.includes(b.id) ? ' um__role-pill--active' : ''}`}
+              onClick={() => toggleBrand(b.id)}
+            >
+              {form.brandIds.includes(b.id) && <span className="um__pill-check">✓</span>}
+              {b.name}
+            </button>
+          ))}
         </div>
       </div>
 

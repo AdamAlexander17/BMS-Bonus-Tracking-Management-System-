@@ -96,6 +96,12 @@ class User(models.Model):
         null=True,
         blank=True,
     )
+    brands     = models.ManyToManyField(
+        Brand,
+        related_name='member_users',
+        blank=True,
+        db_table='user_brands',
+    )
     roles      = models.ManyToManyField(
         Role,
         through='UserRole',
@@ -125,6 +131,15 @@ class User(models.Model):
     @property
     def brand_name(self):
         return self.brand.name if self.brand_id else None
+
+    @property
+    def brand_ids(self):
+        """Set of brand IDs this user is assigned to (multi-brand access scope)."""
+        return list(self.brands.values_list('id', flat=True))
+
+    @property
+    def brand_names(self):
+        return list(self.brands.values_list('name', flat=True))
 
 
 class UserRole(models.Model):

@@ -54,12 +54,17 @@ def generate_access_token(user) -> str:
 
     role_names = list(user.roles.values_list('name', flat=True))
     brand_name = user.brand.name if user.brand_id else None
+    brand_ids  = list(user.brands.values_list('id', flat=True))
+    brand_names = list(user.brands.values_list('name', flat=True))
 
     payload = {
         'user_id':     user.id,
         'username':    user.username,
         'roles':       role_names,
-        'brand':       brand_name,
+        'brand':       brand_name,         # legacy primary brand (display)
+        'brand_id':    user.brand_id,      # legacy primary brand_id
+        'brand_ids':   brand_ids,          # multi-brand access scope (BBAC source of truth)
+        'brand_names': brand_names,
         'permissions': permissions,
         'type':        'access',
         'iat':         timezone.now(),

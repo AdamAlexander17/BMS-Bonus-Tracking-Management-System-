@@ -4,6 +4,7 @@ import PageHeader from '../components/PageHeader/PageHeader';
 import { getBroker, createBroker, updateBroker } from '../api/brokers';
 import { getBrands } from '../api/brands';
 import { getRmJrmUsers } from '../api/users';
+import { useAuth } from '../context/AuthContext';
 import './Users.css';
 
 const BackIcon = () => (
@@ -45,7 +46,13 @@ export default function BrokerForm() {
     (async () => {
       try {
         const [bRes] = await Promise.all([getBrands()]);
-        setBrands(bRes.data.data || []);
+        const list = bRes.data.data || [];
+        setBrands(list);
+        // Backend returns only the brands assigned to the current user.
+        // If they only have one, pre-select it on create for convenience.
+        if (!isEdit && list.length === 1) {
+          setForm(prev => ({ ...prev, brand_id: list[0].id }));
+        }
       } catch {
         /* ignore */
       }
