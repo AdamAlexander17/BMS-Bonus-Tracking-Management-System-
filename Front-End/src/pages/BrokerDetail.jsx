@@ -642,6 +642,7 @@ export default function BrokerDetail() {
   const { user } = useAuth();
   const hasPerm         = (key) => !user?.permissions || user.permissions.includes(key);
   const canTradingOk    = hasPerm('client:trading_ok');
+  const canSetLegitimacy = canTradingOk; // owner of legitimacy approval (checker / admin)
   const canClientCreate = hasPerm('client:create');
   const canClientUpdate = hasPerm('client:update');
   const canClientDelete = hasPerm('client:delete');
@@ -870,6 +871,7 @@ export default function BrokerDetail() {
                       <LegitimacyCheckboxGroup
                         value={normalizeLegitimacyStatus(c)}
                         compact
+                        disabled={!canSetLegitimacy}
                         onChange={(legitimacyStatus) => handleSetLegitimacy(c, legitimacyStatus)}
                       />
                     ) : (

@@ -54,7 +54,9 @@ role_permissions_map = {
         ('broker','view'),('client','view'),('report','view'),('report','export'),
     ],
     'Checker': [
-        ('broker','view'),('client','view'),('report','view'),('report','export'),
+        ('broker','view'),
+        ('client','view'),('client','trading_ok'),
+        ('report','view'),('report','export'),
     ],
 }
 
