@@ -2387,7 +2387,15 @@ def client_get(request, client_id):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def client_update(request, client_id):
-    if not has_perm(request, 'client:update'):
+    # Field-aware permission model (maker / checker workflow):
+    #   - Editing name / arc_id / status            → requires 'client:update'
+    #   - Approving / declining / setting pending   → requires 'client:trading_ok'
+    # A request that touches both fieldsets needs BOTH permissions. A user with
+    # only one of the two perms can still call this endpoint for the slice they
+    # are allowed to change.
+    can_update     = has_perm(request, 'client:update')
+    can_trading_ok = has_perm(request, 'client:trading_ok')
+    if not (can_update or can_trading_ok):
         return Response(
             {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
@@ -2412,6 +2420,22 @@ def client_update(request, client_id):
     new_legitimacy_status = request.data.get('legitimacy_status')
     new_is_legitimate     = request.data.get('is_legitimate')
     new_status            = request.data.get('status')
+
+    touches_core_fields = any(
+        v is not None for v in (new_name, new_arc_id, new_status)
+    )
+    touches_legitimacy  = (new_legitimacy_status is not None) or (new_is_legitimate is not None)
+
+    if touches_core_fields and not can_update:
+        return Response(
+            {'success': False, 'message': 'You do not have permission to edit client details.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    if touches_legitimacy and not can_trading_ok:
+        return Response(
+            {'success': False, 'message': 'You do not have permission to update the Legitimate Client status.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
     previous_client = {
         'name': client.name,
         'arc_id': client.arc_id,
@@ -2460,24 +2484,13 @@ def client_update(request, client_id):
             )
 
     if target_legitimacy_status is not None:
-        try:
-            parsed_legitimate = target_legitimacy_status == 'approved'
-        except ValueError as exc:
-            return Response(
-                {'success': False, 'message': str(exc)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        parsed_legitimate = target_legitimacy_status == 'approved'
         if target_legitimacy_status != client.legitimacy_status:
-            if not has_perm(request, 'client:trading_ok'):
+            if client.status != 'Active':
                 return Response(
-                    {'success': False, 'message': 'You do not have permission to update the Legitimate Client status.'},
-                    status=status.HTTP_403_FORBIDDEN
+                    {'success': False, 'message': 'Legitimate Client status can only be updated for active clients.'},
+                    status=status.HTTP_400_BAD_REQUEST
                 )
-                if client.status != 'Active':
-                    return Response(
-                        {'success': False, 'message': 'Legitimate Client status can only be updated for active clients.'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
             client.legitimacy_status = target_legitimacy_status
             client.is_legitimate = parsed_legitimate
 
