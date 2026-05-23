@@ -203,3 +203,45 @@
 @media (max-width: 700px) {
   .funnel__row { grid-template-columns: 1fr; gap: 6px; }
 }
+
+/* ApexCharts tooltip: dark teal background with white text on all dashboard charts */
+.dashboard .apexcharts-tooltip,
+.dashboard .apexcharts-tooltip.apexcharts-theme-light,
+.dashboard .apexcharts-tooltip.apexcharts-theme-dark {
+  background: #004B4E !important;
+  border: 1px solid #003a3c !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18) !important;
+}
+.dashboard .apexcharts-tooltip .apexcharts-tooltip-title {
+  background: #003a3c !important;
+  border-bottom: 1px solid #003a3c !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+.dashboard .apexcharts-tooltip .apexcharts-tooltip-series-group,
+.dashboard .apexcharts-tooltip .apexcharts-tooltip-text,
+.dashboard .apexcharts-tooltip .apexcharts-tooltip-text-y-label,
+.dashboard .apexcharts-tooltip .apexcharts-tooltip-text-y-value,
+.dashboard .apexcharts-tooltip .apexcharts-tooltip-text-x-label,
+.dashboard .apexcharts-tooltip .apexcharts-tooltip-text-x-value,
+.dashboard .apexcharts-tooltip .apexcharts-tooltip-text-goals-label,
+.dashboard .apexcharts-tooltip .apexcharts-tooltip-text-goals-value,
+.dashboard .apexcharts-tooltip .apexcharts-tooltip-text-z-label,
+.dashboard .apexcharts-tooltip .apexcharts-tooltip-text-z-value {
+  color: #ffffff !important;
+}
+.dashboard .apexcharts-xaxistooltip,
+.dashboard .apexcharts-yaxistooltip {
+  background: #004B4E !important;
+  border-color: #003a3c !important;
+  color: #ffffff !important;
+}
+.dashboard .apexcharts-xaxistooltip-bottom:before { border-bottom-color: #003a3c !important; }
+.dashboard .apexcharts-xaxistooltip-bottom:after  { border-bottom-color: #004B4E !important; }
+.dashboard .apexcharts-xaxistooltip-top:before    { border-top-color: #003a3c !important; }
+.dashboard .apexcharts-xaxistooltip-top:after     { border-top-color: #004B4E !important; }
+.dashboard .apexcharts-yaxistooltip-left:before   { border-left-color: #003a3c !important; }
+.dashboard .apexcharts-yaxistooltip-left:after    { border-left-color: #004B4E !important; }
+.dashboard .apexcharts-yaxistooltip-right:before  { border-right-color: #003a3c !important; }
+.dashboard .apexcharts-yaxistooltip-right:after   { border-right-color: #004B4E !important; }
