@@ -1061,12 +1061,22 @@ def user_delete(request, user_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def rm_jrm_users(request):
-    """Return all users whose role is RM or JRM, with their brands and managed-broker count."""
+    """Return every user who can be assigned as a broker's relationship manager.
+
+    A "broker-managing" user is any user whose role grants `broker:create`.
+    This is permission-driven (not role-name driven), so any custom role with
+    that permission shows up here automatically.
+    """
+    rm_role_ids = Role.objects.filter(
+        role_permissions__permission__module='broker',
+        role_permissions__permission__action='create',
+    ).values_list('id', flat=True)
+
     users = (
         User.objects
         .select_related('created_by', 'brand')
         .prefetch_related('roles', 'managed_brokers')
-        .filter(roles__name__in=['RM', 'JRM'])
+        .filter(roles__in=rm_role_ids)
         .distinct()
         .order_by('username')
     )
@@ -1924,11 +1934,15 @@ def format_broker_payout(payout):
 
 
 def _user_sees_all_brokers(request):
-    """Admin and Checker see every row within their brand scope.
-    (Admin's brand scope is global; Checker's is their own brand.)
-    RM/JRM are further narrowed to rows they created."""
-    role_names = set(getattr(request.user, 'role_names', []) or [])
-    return bool(role_names & {'Admin', 'Checker'})
+    """Permission-driven: a user sees every broker within their brand scope
+    when their role grants `broker:view_all`. Otherwise they only see brokers
+    they personally created.
+
+    `broker:view_all` is the explicit "see everyone's brokers in my brand"
+    permission (seeded for Admin and Checker, grantable to any custom role).
+    Without it, even users with `broker:view` only see their own pipeline.
+    """
+    return has_perm(request, 'broker:view_all')
 
 
 def _check_broker_access(request, broker):
@@ -1983,14 +1997,20 @@ def broker_create(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Validate RM/JRM user if provided
+    # Validate the user being assigned as broker manager: they must have a
+    # role that grants `broker:create` (i.e. any RM-equivalent role, built-in
+    # or custom).
     rm_user = None
     if rm_user_id:
         try:
             rm_user = User.objects.prefetch_related('roles').get(id=rm_user_id)
-            if not rm_user.roles.filter(name__in=['RM', 'JRM']).exists():
+            if not RolePermission.objects.filter(
+                role__in=rm_user.roles.all(),
+                permission__module='broker',
+                permission__action='create',
+            ).exists():
                 return Response(
-                    {'success': False, 'message': 'Assigned user must have role RM or JRM.'},
+                    {'success': False, 'message': 'Assigned user must have a role with broker:create permission.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
         except User.DoesNotExist:
@@ -2161,9 +2181,13 @@ def broker_update(request, broker_id):
         else:
             try:
                 rm_user = User.objects.prefetch_related('roles').get(id=new_rm_user_id)
-                if not rm_user.roles.filter(name__in=['RM', 'JRM']).exists():
+                if not RolePermission.objects.filter(
+                    role__in=rm_user.roles.all(),
+                    permission__module='broker',
+                    permission__action='create',
+                ).exists():
                     return Response(
-                        {'success': False, 'message': 'Assigned user must have role RM or JRM.'},
+                        {'success': False, 'message': 'Assigned user must have a role with broker:create permission.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 broker.rm_user = rm_user
