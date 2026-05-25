@@ -7,6 +7,38 @@ import { getBrokerPayouts, createBrokerPayout, updateBrokerPayout, deleteBrokerP
 import { formatINR } from './Brokers';
 import './Users.css';
 
+const sortButtonStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: 0,
+  border: 'none',
+  background: 'none',
+  color: 'inherit',
+  font: 'inherit',
+  letterSpacing: 'inherit',
+  textTransform: 'inherit',
+  cursor: 'pointer',
+};
+
+function compareValues(left, right, direction) {
+  const leftEmpty = left === null || left === undefined || left === '';
+  const rightEmpty = right === null || right === undefined || right === '';
+
+  if (leftEmpty && rightEmpty) return 0;
+  if (leftEmpty) return 1;
+  if (rightEmpty) return -1;
+
+  if (typeof left === 'string' && typeof right === 'string') {
+    const result = left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+    return direction === 'asc' ? result : -result;
+  }
+
+  if (left < right) return direction === 'asc' ? -1 : 1;
+  if (left > right) return direction === 'asc' ? 1 : -1;
+  return 0;
+}
+
 const BackIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
     <line x1="19" y1="12" x2="5" y2="12"/>
@@ -224,6 +256,7 @@ export default function BrokerPayoutHistory() {
   const [confirmState, setConfirmState] = useState(null);
   const [pageSuccess, setPageSuccess] = useState('');
   const [pageError, setPageError] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   const fetchAll = async () => {
     setLoading(true);
@@ -257,6 +290,41 @@ export default function BrokerPayoutHistory() {
       return matchesSearch && matchesFrom && matchesTo;
     });
   }, [payouts, search, fromDate, toDate]);
+
+  const sortedPayouts = useMemo(() => {
+    if (!sortConfig.key) return filteredPayouts;
+
+    const getSortValue = (payout, key) => {
+      switch (key) {
+        case 'amount':
+          return Number(payout.amount ?? 0);
+        case 'paid_by':
+          return payout.paid_by || '';
+        case 'created_at':
+          return payout.created_at ? new Date(payout.created_at).getTime() : null;
+        default:
+          return '';
+      }
+    };
+
+    return [...filteredPayouts].sort((left, right) => (
+      compareValues(
+        getSortValue(left, sortConfig.key),
+        getSortValue(right, sortConfig.key),
+        sortConfig.direction,
+      )
+    ));
+  }, [filteredPayouts, sortConfig]);
+
+  const handleSort = (key) => {
+    setSortConfig((current) => (
+      current.key === key
+        ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: key === 'created_at' ? 'desc' : 'asc' }
+    ));
+  };
+
+  const getSortIndicator = (key) => (sortConfig.key === key ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕');
 
   const handleDeletePayout = (payout) => {
     setPageSuccess('');
@@ -356,18 +424,18 @@ export default function BrokerPayoutHistory() {
         <table className="um__table">
           <thead>
             <tr>
-              <th>AMOUNT</th>
-              <th>PAID BY</th>
-              <th>DATE & TIME</th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('amount')}>AMOUNT <span>{getSortIndicator('amount')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('paid_by')}>PAID BY <span>{getSortIndicator('paid_by')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('created_at')}>DATE & TIME <span>{getSortIndicator('created_at')}</span></button></th>
               {canBrokerActions && <th style={{ minWidth: 124 }}>ACTIONS</th>}
             </tr>
           </thead>
           <tbody>
-            {filteredPayouts.length === 0 ? (
+            {sortedPayouts.length === 0 ? (
               <tr>
                 <td colSpan={canBrokerActions ? 4 : 3} className="um__empty">No payout history found for the current filters.</td>
               </tr>
-            ) : filteredPayouts.map((payout) => (
+            ) : sortedPayouts.map((payout) => (
               <tr key={payout.id}>
                 <td style={{ fontWeight: 700 }}>{formatINR(payout.amount)}</td>
                 <td>{payout.paid_by || 'Unknown'}</td>

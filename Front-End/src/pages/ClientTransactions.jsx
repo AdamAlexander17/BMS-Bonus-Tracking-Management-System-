@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
@@ -6,6 +6,38 @@ import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
 import { getClient, getClientTransactions, updateClientTransaction, deleteClientTransaction } from '../api/clients';
 import { formatINR } from './Brokers';
 import './Users.css';
+
+const sortButtonStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: 0,
+  border: 'none',
+  background: 'none',
+  color: 'inherit',
+  font: 'inherit',
+  letterSpacing: 'inherit',
+  textTransform: 'inherit',
+  cursor: 'pointer',
+};
+
+function compareValues(left, right, direction) {
+  const leftEmpty = left === null || left === undefined || left === '';
+  const rightEmpty = right === null || right === undefined || right === '';
+
+  if (leftEmpty && rightEmpty) return 0;
+  if (leftEmpty) return 1;
+  if (rightEmpty) return -1;
+
+  if (typeof left === 'string' && typeof right === 'string') {
+    const result = left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+    return direction === 'asc' ? result : -result;
+  }
+
+  if (left < right) return direction === 'asc' ? -1 : 1;
+  if (left > right) return direction === 'asc' ? 1 : -1;
+  return 0;
+}
 
 const BackIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
@@ -153,6 +185,7 @@ export default function ClientTransactions() {
   const [confirmState, setConfirmState] = useState(null);
   const [pageSuccess, setPageSuccess] = useState('');
   const [pageError, setPageError] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   const load = async (isActive = () => true) => {
     setLoading(true);
@@ -202,6 +235,43 @@ export default function ClientTransactions() {
     return matchesSearch && matchesFrom && matchesTo;
   });
 
+  const sortedTransactions = useMemo(() => {
+    if (!sortConfig.key) return filteredTransactions;
+
+    const getSortValue = (transaction, key) => {
+      switch (key) {
+        case 'transaction_type':
+          return transaction.transaction_type || '';
+        case 'amount':
+          return Number(transaction.amount ?? 0);
+        case 'entered_by':
+          return transaction.entered_by || '';
+        case 'created_at':
+          return transaction.created_at ? new Date(transaction.created_at.replace(' ', 'T')).getTime() : null;
+        default:
+          return '';
+      }
+    };
+
+    return [...filteredTransactions].sort((left, right) => (
+      compareValues(
+        getSortValue(left, sortConfig.key),
+        getSortValue(right, sortConfig.key),
+        sortConfig.direction,
+      )
+    ));
+  }, [filteredTransactions, sortConfig]);
+
+  const handleSort = (key) => {
+    setSortConfig((current) => (
+      current.key === key
+        ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: key === 'created_at' ? 'desc' : 'asc' }
+    ));
+  };
+
+  const getSortIndicator = (key) => (sortConfig.key === key ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕');
+
   const handleDeleteTransaction = (transaction) => {
     setPageSuccess('');
     setPageError('');
@@ -232,7 +302,7 @@ export default function ClientTransactions() {
       <PageHeader
         icon={<HistoryIcon />}
         title={`${client.name} Transactions`}
-        subtitle={`ARC ID: ${client.arc_id} • ${client.broker?.name || 'Broker'} • ${filteredTransactions.length} record${filteredTransactions.length !== 1 ? 's' : ''}`}
+        subtitle={`ARC ID: ${client.arc_id} • ${client.broker?.name || 'Broker'} • ${sortedTransactions.length} record${sortedTransactions.length !== 1 ? 's' : ''}`}
         actions={
           <button className="ph-btn ph-btn--ghost" onClick={() => navigate(`/brokers/${client.broker.id}`)}>
             <BackIcon /> Back to Broker
@@ -281,19 +351,19 @@ export default function ClientTransactions() {
         <table className="um__table">
           <thead>
             <tr>
-              <th>TYPE</th>
-              <th>AMOUNT</th>
-              <th>ENTERED BY</th>
-              <th>DATE & TIME</th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('transaction_type')}>TYPE <span>{getSortIndicator('transaction_type')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('amount')}>AMOUNT <span>{getSortIndicator('amount')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('entered_by')}>ENTERED BY <span>{getSortIndicator('entered_by')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('created_at')}>DATE & TIME <span>{getSortIndicator('created_at')}</span></button></th>
               {canClientUpdate && <th style={{ minWidth: 124 }}>ACTIONS</th>}
             </tr>
           </thead>
           <tbody>
-            {filteredTransactions.length === 0 ? (
+            {sortedTransactions.length === 0 ? (
               <tr>
                 <td colSpan={canClientUpdate ? 5 : 4} className="um__empty">No transactions match the current search or date filters.</td>
               </tr>
-            ) : filteredTransactions.map((transaction) => (
+            ) : sortedTransactions.map((transaction) => (
               <tr key={transaction.id}>
                 <td style={{ textTransform: 'capitalize' }}>{transaction.transaction_type}</td>
                 <td>{formatINR(transaction.amount)}</td>

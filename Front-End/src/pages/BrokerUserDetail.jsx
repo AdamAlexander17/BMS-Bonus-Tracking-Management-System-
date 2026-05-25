@@ -1,10 +1,43 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
+import CustomSelect from '../components/CustomSelect/CustomSelect';
 import { getBrokersByRmUser, createBroker, updateBroker, deleteBroker } from '../api/brokers';
 import { createClient } from '../api/clients';
 import './Users.css';
+
+const sortButtonStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: 0,
+  border: 'none',
+  background: 'none',
+  color: 'inherit',
+  font: 'inherit',
+  letterSpacing: 'inherit',
+  textTransform: 'inherit',
+  cursor: 'pointer',
+};
+
+function compareValues(left, right, direction) {
+  const leftEmpty = left === null || left === undefined || left === '';
+  const rightEmpty = right === null || right === undefined || right === '';
+
+  if (leftEmpty && rightEmpty) return 0;
+  if (leftEmpty) return 1;
+  if (rightEmpty) return -1;
+
+  if (typeof left === 'string' && typeof right === 'string') {
+    const result = left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+    return direction === 'asc' ? result : -result;
+  }
+
+  if (left < right) return direction === 'asc' ? -1 : 1;
+  if (left > right) return direction === 'asc' ? 1 : -1;
+  return 0;
+}
 
 const BackIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
@@ -189,16 +222,17 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
               </Field>
 
               <Field label="Status">
-                <select
-                  style={{ ...inputStyle, cursor: 'pointer' }}
+                <CustomSelect
+                  variant="form"
                   value={form.status}
-                  onChange={set('status')}
-                  onFocus={e => e.target.style.borderColor = '#004B4E'}
-                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
+                  onChange={(value) => setForm((current) => ({ ...current, status: value }))}
+                  options={[
+                    { value: 'Active', label: 'Active' },
+                    { value: 'Inactive', label: 'Inactive' },
+                  ]}
+                  placeholder="Select status"
+                  style={{ width: '100%' }}
+                />
               </Field>
             </div>
           </div>
@@ -306,11 +340,17 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
                   onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'} />
               </Field>
               <Field label="Status">
-                <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.status} onChange={set('status')}
-                  onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'}>
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
+                <CustomSelect
+                  variant="form"
+                  value={form.status}
+                  onChange={(value) => setForm((current) => ({ ...current, status: value }))}
+                  options={[
+                    { value: 'Active', label: 'Active' },
+                    { value: 'Inactive', label: 'Inactive' },
+                  ]}
+                  placeholder="Select status"
+                  style={{ width: '100%' }}
+                />
               </Field>
             </div>
           </div>
@@ -511,6 +551,7 @@ export default function BrokerUserDetail() {
   const [confirmState, setConfirmState]       = useState(null);
   const [pageSuccess, setPageSuccess]         = useState('');
   const [pageError, setPageError]             = useState('');
+  const [sortConfig, setSortConfig]           = useState({ key: null, direction: 'asc' });
 
   const fetchAll = async () => {
     setLoading(true);
@@ -554,10 +595,6 @@ export default function BrokerUserDetail() {
     });
   };
 
-  if (loading) return <div className="um"><div className="um__loading">Loading...</div></div>;
-  if (error)   return <div className="um"><div className="um__error">{error}</div></div>;
-  if (!rmUser) return null;
-
   const normalizedSearch = search.trim().toLowerCase();
   const filteredBrokers = brokers.filter((broker) => {
     if (!normalizedSearch) return true;
@@ -565,10 +602,63 @@ export default function BrokerUserDetail() {
       .some((value) => String(value || '').toLowerCase().includes(normalizedSearch));
   });
 
+  const sortedBrokers = useMemo(() => {
+    if (!sortConfig.key) return filteredBrokers;
+
+    const getSortValue = (broker, key) => {
+      switch (key) {
+        case 'name':
+          return broker.name || '';
+        case 'arc_id':
+          return broker.arc_id || '';
+        case 'brand':
+          return broker.brand?.name || '';
+        case 'client_count':
+          return Number(broker.client_count ?? 0);
+        case 'amount_earned':
+          return Number(broker.amount_earned ?? 0);
+        case 'amount_paid':
+          return Number(broker.amount_paid ?? 0);
+        case 'pending_payout':
+          return Number(broker.pending_payout ?? 0);
+        case 'last_paid_at':
+          return broker.last_paid_at ? new Date(broker.last_paid_at).getTime() : null;
+        case 'status':
+          return broker.status || '';
+        case 'created_at':
+          return broker.created_at ? new Date(broker.created_at).getTime() : null;
+        default:
+          return '';
+      }
+    };
+
+    return [...filteredBrokers].sort((left, right) => (
+      compareValues(
+        getSortValue(left, sortConfig.key),
+        getSortValue(right, sortConfig.key),
+        sortConfig.direction,
+      )
+    ));
+  }, [filteredBrokers, sortConfig]);
+
+  const handleSort = (key) => {
+    setSortConfig((current) => (
+      current.key === key
+        ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: key === 'created_at' || key === 'last_paid_at' ? 'desc' : 'asc' }
+    ));
+  };
+
+  const getSortIndicator = (key) => (sortConfig.key === key ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕');
+
   const totalClients = filteredBrokers.reduce((s, b) => s + (b.client_count || 0), 0);
   const totalEarned = filteredBrokers.reduce((sum, broker) => sum + Number(broker.amount_earned || 0), 0);
   const totalPaid = filteredBrokers.reduce((sum, broker) => sum + Number(broker.amount_paid || 0), 0);
   const totalPending = filteredBrokers.reduce((sum, broker) => sum + Number(broker.pending_payout || 0), 0);
+
+  if (loading) return <div className="um"><div className="um__loading">Loading...</div></div>;
+  if (error)   return <div className="um"><div className="um__error">{error}</div></div>;
+  if (!rmUser) return null;
 
   return (
     <div className="um">
@@ -624,27 +714,27 @@ export default function BrokerUserDetail() {
         <table className="um__table">
           <thead>
             <tr>
-              <th>BROKER</th>
-              <th>ARC ID</th>
-              <th>BRAND</th>
-              <th>CLIENTS</th>
-              <th>EARNED</th>
-              <th>PAID</th>
-              <th>PENDING</th>
-              <th>LAST PAID</th>
-              <th>STATUS</th>
-              <th>CREATED</th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('name')}>BROKER <span>{getSortIndicator('name')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('arc_id')}>ARC ID <span>{getSortIndicator('arc_id')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('brand')}>BRAND <span>{getSortIndicator('brand')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('client_count')}>CLIENTS <span>{getSortIndicator('client_count')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('amount_earned')}>EARNED <span>{getSortIndicator('amount_earned')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('amount_paid')}>PAID <span>{getSortIndicator('amount_paid')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('pending_payout')}>PENDING <span>{getSortIndicator('pending_payout')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('last_paid_at')}>LAST PAID <span>{getSortIndicator('last_paid_at')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('status')}>STATUS <span>{getSortIndicator('status')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('created_at')}>CREATED <span>{getSortIndicator('created_at')}</span></button></th>
               {canActions && <th>ACTIONS</th>}
             </tr>
           </thead>
           <tbody>
-            {filteredBrokers.length === 0 ? (
+            {sortedBrokers.length === 0 ? (
               <tr>
                 <td colSpan={canActions ? 11 : 10} className="um__empty">
                   No broker companies assigned yet. Click "Add Broker" to get started.
                 </td>
               </tr>
-            ) : filteredBrokers.map(b => (
+            ) : sortedBrokers.map(b => (
               <tr
                 key={b.id}
                 style={{ cursor: 'pointer' }}

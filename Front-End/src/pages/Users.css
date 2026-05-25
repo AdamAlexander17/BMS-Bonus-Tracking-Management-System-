@@ -271,17 +271,17 @@
 .um__date svg { color: #8a94a6; }
 
 /* Actions */
-.um__actions { display: flex; align-items: center; gap: 8px; }
+.um__actions { display: flex; align-items: center; gap: 4px; }
 .um__action-btn {
-  width: 32px; height: 32px;
-  border-radius: 8px;
+  width: 26px; height: 26px;
+  border-radius: 6px;
   border: 1px solid #e8ecf0;
   background: #fff;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.um__action-btn svg { width: 15px; height: 15px; }
+.um__action-btn svg { width: 12px; height: 12px; }
 .um__action-btn--edit  { color: #004B4E; }
 .um__action-btn--edit:hover  { background: #e0f5f5; border-color: #004B4E; }
 .um__action-btn--delete { color: #ef4444; }

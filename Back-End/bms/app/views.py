@@ -364,7 +364,16 @@ def audit_log_list(request):
             status=status.HTTP_403_FORBIDDEN
         )
 
-    logs = AuditLog.objects.select_related('actor').all().order_by('-created_at', '-id')
+    _allowed_sort_fields = {
+        'created_at', '-created_at', 'username', '-username',
+        'module', '-module', 'action', '-action',
+        'entity_label', '-entity_label', 'description', '-description',
+        'ip_address', '-ip_address',
+    }
+    ordering = (request.query_params.get('ordering') or '').strip()
+    if ordering not in _allowed_sort_fields:
+        ordering = '-created_at'
+    logs = AuditLog.objects.select_related('actor').all().order_by(ordering, '-id')
 
     # Tenant isolation: show audit rows whose actor shares any brand with the requester.
     logs = scope_to_brand(logs, request, brand_field='actor__brands')

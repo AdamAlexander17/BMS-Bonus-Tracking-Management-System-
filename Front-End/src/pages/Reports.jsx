@@ -95,6 +95,35 @@ function paginateRows(rows, page, pageSize) {
   return rows.slice(start, start + pageSize);
 }
 
+function compareValues(left, right, direction) {
+  const leftEmpty = left === null || left === undefined || left === '';
+  const rightEmpty = right === null || right === undefined || right === '';
+  if (leftEmpty && rightEmpty) return 0;
+  if (leftEmpty) return 1;
+  if (rightEmpty) return -1;
+  if (typeof left === 'string' && typeof right === 'string') {
+    const result = left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+    return direction === 'asc' ? result : -result;
+  }
+  if (left < right) return direction === 'asc' ? -1 : 1;
+  if (left > right) return direction === 'asc' ? 1 : -1;
+  return 0;
+}
+
+const sortButtonStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: 0,
+  border: 'none',
+  background: 'none',
+  color: 'inherit',
+  font: 'inherit',
+  letterSpacing: 'inherit',
+  textTransform: 'inherit',
+  cursor: 'pointer',
+};
+
 function FilterField({ label, children, span = 1 }) {
   return (
     <div style={{ gridColumn: `span ${span}` }}>
@@ -195,6 +224,10 @@ export default function Reports() {
   const [clientPageSize, setClientPageSize] = useState(10);
   const [transactionPageSize, setTransactionPageSize] = useState(10);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const [brokerSortConfig, setBrokerSortConfig] = useState({ key: null, direction: 'asc' });
+  const [clientSortConfig, setClientSortConfig] = useState({ key: null, direction: 'asc' });
+  const [txSortConfig, setTxSortConfig] = useState({ key: null, direction: 'asc' });
 
   useEffect(() => {
     let active = true;
@@ -446,13 +479,36 @@ export default function Reports() {
     { label: 'Date Time', value: (row) => row.created_at, exportValue: (row) => formatDateTime(row.created_at) },
   ], []);
 
-  useEffect(() => { setBrokerPage(1); }, [brokerSummary.length, brokerPageSize]);
-  useEffect(() => { setClientPage(1); }, [filteredClients.length, clientPageSize]);
-  useEffect(() => { setTransactionPage(1); }, [filteredTransactions.length, transactionPageSize]);
+  useEffect(() => { setBrokerPage(1); }, [brokerSummary.length, brokerPageSize, brokerSortConfig]);
+  useEffect(() => { setClientPage(1); }, [filteredClients.length, clientPageSize, clientSortConfig]);
+  useEffect(() => { setTransactionPage(1); }, [filteredTransactions.length, transactionPageSize, txSortConfig]);
 
-  const pagedBrokerSummary = useMemo(() => paginateRows(brokerSummary, brokerPage, brokerPageSize), [brokerSummary, brokerPage, brokerPageSize]);
-  const pagedClients = useMemo(() => paginateRows(filteredClients, clientPage, clientPageSize), [filteredClients, clientPage, clientPageSize]);
-  const pagedTransactions = useMemo(() => paginateRows(filteredTransactions, transactionPage, transactionPageSize), [filteredTransactions, transactionPage, transactionPageSize]);
+  const sortedBrokerSummary = useMemo(() => {
+    if (!brokerSortConfig.key) return brokerSummary;
+    return [...brokerSummary].sort((a, b) => compareValues(a[brokerSortConfig.key], b[brokerSortConfig.key], brokerSortConfig.direction));
+  }, [brokerSummary, brokerSortConfig]);
+
+  const sortedClients = useMemo(() => {
+    if (!clientSortConfig.key) return filteredClients;
+    return [...filteredClients].sort((a, b) => compareValues(a[clientSortConfig.key], b[clientSortConfig.key], clientSortConfig.direction));
+  }, [filteredClients, clientSortConfig]);
+
+  const sortedTransactions = useMemo(() => {
+    if (!txSortConfig.key) return filteredTransactions;
+    return [...filteredTransactions].sort((a, b) => compareValues(a[txSortConfig.key], b[txSortConfig.key], txSortConfig.direction));
+  }, [filteredTransactions, txSortConfig]);
+
+  const pagedBrokerSummary = useMemo(() => paginateRows(sortedBrokerSummary, brokerPage, brokerPageSize), [sortedBrokerSummary, brokerPage, brokerPageSize]);
+  const pagedClients = useMemo(() => paginateRows(sortedClients, clientPage, clientPageSize), [sortedClients, clientPage, clientPageSize]);
+  const pagedTransactions = useMemo(() => paginateRows(sortedTransactions, transactionPage, transactionPageSize), [sortedTransactions, transactionPage, transactionPageSize]);
+
+  const handleBrokerSort = (key) => setBrokerSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
+  const handleClientSort = (key) => setClientSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
+  const handleTxSort = (key) => setTxSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
+
+  const getBrokerIndicator = (key) => brokerSortConfig.key !== key ? '↕' : brokerSortConfig.direction === 'asc' ? '↑' : '↓';
+  const getClientIndicator = (key) => clientSortConfig.key !== key ? '↕' : clientSortConfig.direction === 'asc' ? '↑' : '↓';
+  const getTxIndicator = (key) => txSortConfig.key !== key ? '↕' : txSortConfig.direction === 'asc' ? '↑' : '↓';
 
   return (
     <div className="um">
@@ -584,7 +640,7 @@ export default function Reports() {
           rowCount={brokerSummary.length}
           pageSize={brokerPageSize}
           onPageSizeChange={setBrokerPageSize}
-          onExport={canExport ? () => exportRowsToCsv('broker-performance-summary.csv', brokerColumns, brokerSummary) : undefined}
+          onExport={canExport ? () => exportRowsToCsv('broker-performance-summary.csv', brokerColumns, sortedBrokerSummary) : undefined}
           leftContent={(
             <div className="um__search" style={{ maxWidth: 360 }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -602,17 +658,17 @@ export default function Reports() {
         <table className="um__table">
           <thead>
             <tr>
-              <th>Broker</th>
-              <th>Brand</th>
-              <th>RM</th>
-              <th>Clients</th>
-              <th>LEGITIMATE CLIENT</th>
-              <th>Deposited</th>
-              <th>Withdrawn</th>
-              <th>Earned</th>
-              <th>Paid</th>
-              <th>Pending</th>
-              <th>Last Paid</th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('broker_name')}>Broker <span>{getBrokerIndicator('broker_name')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('brand_name')}>Brand <span>{getBrokerIndicator('brand_name')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('rm_user_name')}>RM <span>{getBrokerIndicator('rm_user_name')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('client_count')}>Clients <span>{getBrokerIndicator('client_count')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('legitimate_count')}>LEGITIMATE CLIENT <span>{getBrokerIndicator('legitimate_count')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('deposited_amount')}>Deposited <span>{getBrokerIndicator('deposited_amount')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('withdrawal_amount')}>Withdrawn <span>{getBrokerIndicator('withdrawal_amount')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('earned_amount')}>Earned <span>{getBrokerIndicator('earned_amount')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('amount_paid')}>Paid <span>{getBrokerIndicator('amount_paid')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('pending_payout')}>Pending <span>{getBrokerIndicator('pending_payout')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('last_paid_at')}>Last Paid <span>{getBrokerIndicator('last_paid_at')}</span></button></th>
             </tr>
           </thead>
           <tbody>
@@ -644,21 +700,21 @@ export default function Reports() {
           rowCount={filteredClients.length}
           pageSize={clientPageSize}
           onPageSizeChange={setClientPageSize}
-          onExport={canExport ? () => exportRowsToCsv('client-bonus-report.csv', clientColumns, filteredClients) : undefined}
+          onExport={canExport ? () => exportRowsToCsv('client-bonus-report.csv', clientColumns, sortedClients) : undefined}
         />
         <table className="um__table">
           <thead>
             <tr>
-              <th>Client</th>
-              <th>ARC ID</th>
-              <th>Broker</th>
-              <th>Brand</th>
-              <th>Status</th>
-              <th>LEGITIMATE CLIENT</th>
-              <th>Deposited</th>
-              <th>Withdrawn</th>
-              <th>Earned</th>
-              <th>Created</th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('name')}>Client <span>{getClientIndicator('name')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('arc_id')}>ARC ID <span>{getClientIndicator('arc_id')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('broker_name')}>Broker <span>{getClientIndicator('broker_name')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('brand_name')}>Brand <span>{getClientIndicator('brand_name')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('status')}>Status <span>{getClientIndicator('status')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('is_legitimate')}>LEGITIMATE CLIENT <span>{getClientIndicator('is_legitimate')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('deposited_amount')}>Deposited <span>{getClientIndicator('deposited_amount')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('withdrawal_amount')}>Withdrawn <span>{getClientIndicator('withdrawal_amount')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('earned_amount')}>Earned <span>{getClientIndicator('earned_amount')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('created_at')}>Created <span>{getClientIndicator('created_at')}</span></button></th>
             </tr>
           </thead>
           <tbody>
@@ -692,19 +748,19 @@ export default function Reports() {
           rowCount={filteredTransactions.length}
           pageSize={transactionPageSize}
           onPageSizeChange={setTransactionPageSize}
-          onExport={canExport ? () => exportRowsToCsv('transaction-ledger.csv', transactionColumns, filteredTransactions) : undefined}
+          onExport={canExport ? () => exportRowsToCsv('transaction-ledger.csv', transactionColumns, sortedTransactions) : undefined}
         />
         <table className="um__table">
           <thead>
             <tr>
-              <th>Client</th>
-              <th>ARC ID</th>
-              <th>Broker</th>
-              <th>Brand</th>
-              <th>Type</th>
-              <th>Amount</th>
-              <th>Entered By</th>
-              <th>Date & Time</th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleTxSort('client_name')}>Client <span>{getTxIndicator('client_name')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleTxSort('client_arc_id')}>ARC ID <span>{getTxIndicator('client_arc_id')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleTxSort('broker_name')}>Broker <span>{getTxIndicator('broker_name')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleTxSort('brand_name')}>Brand <span>{getTxIndicator('brand_name')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleTxSort('transaction_type')}>Type <span>{getTxIndicator('transaction_type')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleTxSort('amount')}>Amount <span>{getTxIndicator('amount')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleTxSort('entered_by')}>Entered By <span>{getTxIndicator('entered_by')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleTxSort('created_at')}>Date &amp; Time <span>{getTxIndicator('created_at')}</span></button></th>
             </tr>
           </thead>
           <tbody>

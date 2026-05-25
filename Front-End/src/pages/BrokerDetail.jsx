@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
@@ -8,6 +8,38 @@ import { getRmJrmUsers } from '../api/users';
 import { getClientsByBroker, createClient, updateClient, deleteClient, createClientTransaction } from '../api/clients';
 import { formatINR } from './Brokers';
 import './Users.css';
+
+const sortButtonStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: 0,
+  border: 'none',
+  background: 'none',
+  color: 'inherit',
+  font: 'inherit',
+  letterSpacing: 'inherit',
+  textTransform: 'inherit',
+  cursor: 'pointer',
+};
+
+function compareValues(left, right, direction) {
+  const leftEmpty = left === null || left === undefined || left === '';
+  const rightEmpty = right === null || right === undefined || right === '';
+
+  if (leftEmpty && rightEmpty) return 0;
+  if (leftEmpty) return 1;
+  if (rightEmpty) return -1;
+
+  if (typeof left === 'string' && typeof right === 'string') {
+    const result = left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+    return direction === 'asc' ? result : -result;
+  }
+
+  if (left < right) return direction === 'asc' ? -1 : 1;
+  if (left > right) return direction === 'asc' ? 1 : -1;
+  return 0;
+}
 
 const BackIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
@@ -165,7 +197,6 @@ function AddClientModal({ broker, onClose, onCreated }) {
           overflow: 'hidden',
         }}
       >
-        {/* Header */}
         <div className="bms-dialog__header" style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '20px 24px 18px',
@@ -190,7 +221,6 @@ function AddClientModal({ broker, onClose, onCreated }) {
           </button>
         </div>
 
-        {/* Body */}
         <form onSubmit={handleSubmit}>
           <div style={{ padding: '24px 24px 8px' }}>
             {error && (
@@ -252,7 +282,6 @@ function AddClientModal({ broker, onClose, onCreated }) {
             </div>
           </div>
 
-          {/* Footer */}
           <div style={{
             display: 'flex', justifyContent: 'flex-end', gap: 10,
             padding: '20px 24px',
@@ -674,6 +703,7 @@ export default function BrokerDetail() {
   const [confirmState, setConfirmState]       = useState(null);
   const [pageSuccess, setPageSuccess]         = useState('');
   const [pageError, setPageError]             = useState('');
+  const [sortConfig, setSortConfig]           = useState({ key: null, direction: 'asc' });
 
   const fetchAll = async () => {
     setLoading(true);
@@ -745,16 +775,63 @@ export default function BrokerDetail() {
     });
   };
 
-  if (loading) return <div className="um"><div className="um__loading">Loading...</div></div>;
-  if (error)   return <div className="um"><div className="um__error">{error}</div></div>;
-  if (!broker) return null;
-
   const totalDeposited  = clients.reduce((s, c) => s + Number(c.deposited_amount  || 0), 0);
   const totalWithdrawn  = clients.reduce((s, c) => s + Number(c.withdrawal_amount || 0), 0);
   const totalNetPnl     = totalDeposited - totalWithdrawn;
-  const totalEarned     = Number(broker.amount_earned || 0);
-  const amountPaid      = Number(broker.amount_paid || 0);
-  const pendingPayout   = Number(broker.pending_payout || 0);
+  const totalEarned     = Number(broker?.amount_earned || 0);
+  const amountPaid      = Number(broker?.amount_paid || 0);
+  const pendingPayout   = Number(broker?.pending_payout || 0);
+
+  const sortedClients = useMemo(() => {
+    if (!sortConfig.key) return clients;
+
+    const getSortValue = (client, key) => {
+      switch (key) {
+        case 'name':
+          return client.name || '';
+        case 'arc_id':
+          return client.arc_id || '';
+        case 'deposited_amount':
+          return Number(client.deposited_amount ?? 0);
+        case 'withdrawal_amount':
+          return Number(client.withdrawal_amount ?? 0);
+        case 'net_total':
+          return Number(client.net_total ?? 0);
+        case 'earned_amount':
+          return Number(client.earned_amount ?? 0);
+        case 'status':
+          return client.status || '';
+        case 'legitimacy_status':
+          return client.status === 'Active' ? normalizeLegitimacyStatus(client) : '';
+        case 'created_at':
+          return client.created_at ? new Date(client.created_at).getTime() : null;
+        default:
+          return '';
+      }
+    };
+
+    return [...clients].sort((left, right) => (
+      compareValues(
+        getSortValue(left, sortConfig.key),
+        getSortValue(right, sortConfig.key),
+        sortConfig.direction,
+      )
+    ));
+  }, [clients, sortConfig]);
+
+  const handleSort = (key) => {
+    setSortConfig((current) => (
+      current.key === key
+        ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: key === 'created_at' ? 'desc' : 'asc' }
+    ));
+  };
+
+  const getSortIndicator = (key) => (sortConfig.key === key ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕');
+
+  if (loading) return <div className="um"><div className="um__loading">Loading...</div></div>;
+  if (error)   return <div className="um"><div className="um__error">{error}</div></div>;
+  if (!broker) return null;
 
   return (
     <div className="um">
@@ -855,141 +932,138 @@ export default function BrokerDetail() {
         <table className="um__table">
           <thead>
             <tr>
-              <th>NAME</th>
-              <th>ARC ID</th>
-              <th>DEPOSITED</th>
-              <th>WITHDRAWN</th>
-              <th>NET TOTAL</th>
-              <th>EARNED (1%)</th>
-              <th>STATUS</th>
-              {canTradingOk && <th>LEGITIMATE CLIENT</th>}
-              <th>CREATED</th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('name')}>NAME <span>{getSortIndicator('name')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('arc_id')}>ARC ID <span>{getSortIndicator('arc_id')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('deposited_amount')}>DEPOSITED <span>{getSortIndicator('deposited_amount')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('withdrawal_amount')}>WITHDRAWN <span>{getSortIndicator('withdrawal_amount')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('net_total')}>NET TOTAL <span>{getSortIndicator('net_total')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('earned_amount')}>EARNED (1%) <span>{getSortIndicator('earned_amount')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('status')}>STATUS <span>{getSortIndicator('status')}</span></button></th>
+              {canTradingOk && <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('legitimacy_status')}>LEGITIMATE CLIENT <span>{getSortIndicator('legitimacy_status')}</span></button></th>}
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('created_at')}>CREATED <span>{getSortIndicator('created_at')}</span></button></th>
               {canClientActions && <th style={{ minWidth: 186, paddingLeft: 14 }}>ACTIONS</th>}
             </tr>
           </thead>
           <tbody>
-            {clients.length === 0 ? (
+            {sortedClients.length === 0 ? (
               <tr><td colSpan={9 + (canTradingOk ? 1 : 0) + (canClientActions ? 1 : 0)} className="um__empty">No clients yet. Click "Add Client" to create the first one.</td></tr>
-            ) : clients.map(c => (
-              <tr key={c.id}>
-                <td>{c.name}</td>
-                <td><code className="um__handle">{c.arc_id}</code></td>
-                <td>{formatINR(c.deposited_amount)}</td>
-                <td>{formatINR(c.withdrawal_amount)}</td>
-                <td>{formatINR(c.net_total)}</td>
-                <td style={{ fontWeight: 600 }}>{formatINR(c.earned_amount)}</td>
-                <td>
-                  {canClientUpdate ? (
-                    <button
-                      className={`um__toggle ${c.status === 'Active' ? 'um__toggle--on' : ''}`}
-                      onClick={() => handleToggleClient(c)}
-                      title={c.status}
-                    >
-                      <span className="um__toggle-thumb" />
-                    </button>
-                  ) : (
-                    <span className={`um__status-badge ${c.status === 'Active' ? 'um__status-badge--active' : 'um__status-badge--inactive'}`}>
-                      {c.status}
-                    </span>
-                  )}
-                </td>
-                {canTradingOk && (
+            ) : sortedClients.map((c) => {
+              const canAdjustAmounts = c.status === 'Active' && normalizeLegitimacyStatus(c) !== 'declined';
+
+              return (
+                <tr key={c.id}>
+                  <td>{c.name}</td>
+                  <td><code className="um__handle">{c.arc_id}</code></td>
+                  <td>{formatINR(c.deposited_amount)}</td>
+                  <td>{formatINR(c.withdrawal_amount)}</td>
+                  <td>{formatINR(c.net_total)}</td>
+                  <td style={{ fontWeight: 600 }}>{formatINR(c.earned_amount)}</td>
                   <td>
-                    {c.status === 'Active' ? (
-                      <LegitimacyCheckboxGroup
-                        value={normalizeLegitimacyStatus(c)}
-                        compact
-                        disabled={!canSetLegitimacy}
-                        onChange={(legitimacyStatus) => handleSetLegitimacy(c, legitimacyStatus)}
-                      />
+                    {canClientUpdate ? (
+                      <button
+                        className={`um__toggle ${c.status === 'Active' ? 'um__toggle--on' : ''}`}
+                        onClick={() => handleToggleClient(c)}
+                        title={c.status}
+                      >
+                        <span className="um__toggle-thumb" />
+                      </button>
                     ) : (
-                      <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
+                      <span className={`um__status-badge ${c.status === 'Active' ? 'um__status-badge--active' : 'um__status-badge--inactive'}`}>
+                        {c.status}
+                      </span>
                     )}
                   </td>
-                )}
-                <td><span className="um__date">{formatDate(c.created_at)}</span></td>
-                {canClientActions && (
-                  <td style={{ minWidth: 186, whiteSpace: 'nowrap', paddingLeft: 14 }}>
-                    <div className="um__actions" style={{ flexWrap: 'nowrap' }}>
-                      {(() => {
-                        const canAdjustAmounts = c.status === 'Active' && normalizeLegitimacyStatus(c) !== 'declined';
-
-                        return (
+                  {canTradingOk && (
+                    <td>
+                      {c.status === 'Active' ? (
+                        <LegitimacyCheckboxGroup
+                          value={normalizeLegitimacyStatus(c)}
+                          compact
+                          disabled={!canSetLegitimacy}
+                          onChange={(legitimacyStatus) => handleSetLegitimacy(c, legitimacyStatus)}
+                        />
+                      ) : (
+                        <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>
+                      )}
+                    </td>
+                  )}
+                  <td><span className="um__date">{formatDate(c.created_at)}</span></td>
+                  {canClientActions && (
+                    <td style={{ minWidth: 160, whiteSpace: 'nowrap', paddingLeft: 14 }}>
+                      <div className="um__actions" style={{ flexWrap: 'nowrap' }}>
+                        {canClientUpdate && (
                           <>
-                      {canClientUpdate && (
-                        <>
-                          {canViewTxns && (
-                          <button
-                            className="um__action-btn"
-                             title="Transaction History"
-                            style={{ color: '#2563eb' }}
-                            onClick={() => navigate(`/clients/${c.id}/transactions`)}
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                              <path d="M3 12h18"/>
-                              <path d="M3 6h18"/>
-                              <path d="M3 18h18"/>
-                            </svg>
-                          </button>
-                          )}
-                          {canAdjustAmounts && (
-                            <>
+                            {canViewTxns && (
                               <button
                                 className="um__action-btn"
-                                title="Add Deposit"
-                                style={{ color: '#10b981' }}
-                                onClick={() => setAmountAction({ client: c, mode: 'deposit' })}
+                                title="Transaction History"
+                                style={{ color: '#2563eb' }}
+                                onClick={() => navigate(`/clients/${c.id}/transactions`)}
                               >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                                  <line x1="12" y1="5" x2="12" y2="19"/>
-                                  <line x1="5" y1="12" x2="19" y2="12"/>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                                  <path d="M3 12h18"/>
+                                  <path d="M3 6h18"/>
+                                  <path d="M3 18h18"/>
                                 </svg>
                               </button>
-                              <button
-                                className="um__action-btn"
-                                title="Add Withdrawal"
-                                style={{ color: '#f59e0b' }}
-                                onClick={() => setAmountAction({ client: c, mode: 'withdrawal' })}
-                              >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                                  <line x1="5" y1="12" x2="19" y2="12"/>
-                                </svg>
-                              </button>
-                            </>
-                          )}
+                            )}
+                            {canAdjustAmounts && (
+                              <>
+                                <button
+                                  className="um__action-btn"
+                                  title="Add Deposit"
+                                  style={{ color: '#10b981' }}
+                                  onClick={() => setAmountAction({ client: c, mode: 'deposit' })}
+                                >
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                                    <line x1="12" y1="5" x2="12" y2="19"/>
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                  </svg>
+                                </button>
+                                <button
+                                  className="um__action-btn"
+                                  title="Add Withdrawal"
+                                  style={{ color: '#f59e0b' }}
+                                  onClick={() => setAmountAction({ client: c, mode: 'withdrawal' })}
+                                >
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                  </svg>
+                                </button>
+                              </>
+                            )}
+                            <button
+                              className="um__action-btn um__action-btn--edit"
+                              title="Edit"
+                              onClick={() => setEditClient(c)}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                              </svg>
+                            </button>
+                          </>
+                        )}
+                        {canClientDelete && (
                           <button
-                            className="um__action-btn um__action-btn--edit"
-                            title="Edit"
-                            onClick={() => setEditClient(c)}
+                            className="um__action-btn um__action-btn--delete"
+                            title="Delete"
+                            onClick={() => handleDeleteClient(c)}
                           >
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                              <polyline points="3 6 5 6 21 6"/>
+                              <path d="M19 6l-1 14H6L5 6"/>
+                              <path d="M10 11v6M14 11v6"/>
+                              <path d="M9 6V4h6v2"/>
                             </svg>
                           </button>
-                        </>
-                      )}
-                      {canClientDelete && (
-                        <button
-                          className="um__action-btn um__action-btn--delete"
-                          title="Delete"
-                          onClick={() => handleDeleteClient(c)}
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="3 6 5 6 21 6"/>
-                            <path d="M19 6l-1 14H6L5 6"/>
-                            <path d="M10 11v6M14 11v6"/>
-                          </svg>
-                        </button>
-                      )}
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </td>
-                )}
-              </tr>
-            ))}
+                        )}
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

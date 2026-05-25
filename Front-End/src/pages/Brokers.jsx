@@ -1,9 +1,41 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../components/PageHeader/PageHeader';
 import CustomSelect from '../components/CustomSelect/CustomSelect';
 import { getRmJrmUsers } from '../api/users';
 import './Users.css';
+
+const sortButtonStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: 0,
+  border: 'none',
+  background: 'none',
+  color: 'inherit',
+  font: 'inherit',
+  letterSpacing: 'inherit',
+  textTransform: 'inherit',
+  cursor: 'pointer',
+};
+
+function compareValues(left, right, direction) {
+  const leftEmpty = left === null || left === undefined || left === '';
+  const rightEmpty = right === null || right === undefined || right === '';
+
+  if (leftEmpty && rightEmpty) return 0;
+  if (leftEmpty) return 1;
+  if (rightEmpty) return -1;
+
+  if (typeof left === 'string' && typeof right === 'string') {
+    const result = left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+    return direction === 'asc' ? result : -result;
+  }
+
+  if (left < right) return direction === 'asc' ? -1 : 1;
+  if (left > right) return direction === 'asc' ? 1 : -1;
+  return 0;
+}
 
 export const formatINR = (val) => {
   const n = Number(val);
@@ -35,6 +67,7 @@ export default function Brokers() {
   const [brandFilter, setBrandFilter] = useState('all');
   const [pageSize, setPageSize]        = useState(10);
   const [page, setPage]                = useState(1);
+  const [sortConfig, setSortConfig]    = useState({ key: 'created_at', direction: 'desc' });
 
   const fetchAll = async () => {
     setLoading(true);
@@ -73,8 +106,48 @@ export default function Brokers() {
     return matchSearch && matchRole && matchStatus && matchBrand;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const paged      = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const sorted = useMemo(() => {
+    const getSortValue = (user, key) => {
+      switch (key) {
+        case 'username':
+          return user.username || '';
+        case 'brand':
+          return user.brand || '';
+        case 'role':
+          return (user.roles || []).join('/');
+        case 'broker_count':
+          return Number(user.broker_count ?? 0);
+        case 'status':
+          return user.status || '';
+        case 'created_at':
+          return user.created_at ? new Date(user.created_at).getTime() : null;
+        default:
+          return '';
+      }
+    };
+
+    return [...filtered].sort((left, right) => (
+      compareValues(
+        getSortValue(left, sortConfig.key),
+        getSortValue(right, sortConfig.key),
+        sortConfig.direction,
+      )
+    ));
+  }, [filtered, sortConfig]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const paged      = sorted.slice((page - 1) * pageSize, page * pageSize);
+
+  const handleSort = (key) => {
+    setSortConfig((current) => (
+      current.key === key
+        ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: key === 'created_at' ? 'desc' : 'asc' }
+    ));
+    setPage(1);
+  };
+
+  const getSortIndicator = (key) => (sortConfig.key === key ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕');
 
   const formatDate = (str) => {
     if (!str) return '—';
@@ -159,12 +232,12 @@ export default function Brokers() {
             </colgroup>
             <thead>
               <tr>
-                <th>USER</th>
-                <th style={{ textAlign: 'center' }}>BRANDS</th>
-                <th style={{ textAlign: 'center' }}>ROLE</th>
-                <th style={{ textAlign: 'center' }}>BROKER MANAGED</th>
-                <th style={{ textAlign: 'center' }}>STATUS</th>
-                <th>CREATED ↓</th>
+                <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('username')}>USER <span>{getSortIndicator('username')}</span></button></th>
+                <th style={{ textAlign: 'center' }}><button type="button" style={sortButtonStyle} onClick={() => handleSort('brand')}>BRANDS <span>{getSortIndicator('brand')}</span></button></th>
+                <th style={{ textAlign: 'center' }}><button type="button" style={sortButtonStyle} onClick={() => handleSort('role')}>ROLE <span>{getSortIndicator('role')}</span></button></th>
+                <th style={{ textAlign: 'center' }}><button type="button" style={sortButtonStyle} onClick={() => handleSort('broker_count')}>BROKER MANAGED <span>{getSortIndicator('broker_count')}</span></button></th>
+                <th style={{ textAlign: 'center' }}><button type="button" style={sortButtonStyle} onClick={() => handleSort('status')}>STATUS <span>{getSortIndicator('status')}</span></button></th>
+                <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('created_at')}>CREATED <span>{getSortIndicator('created_at')}</span></button></th>
               </tr>
             </thead>
             <tbody>
@@ -219,9 +292,9 @@ export default function Brokers() {
         {!loading && !error && (
           <div className="um__footer">
             <span className="um__footer-info">
-              {filtered.length === 0
+              {sorted.length === 0
                 ? 'No results'
-                : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filtered.length)} of ${filtered.length}`}
+                : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, sorted.length)} of ${sorted.length}`}
             </span>
             <div className="um__footer-nav">
               <button className="ph-btn ph-btn--ghost" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← Prev</button>

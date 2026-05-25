@@ -290,7 +290,7 @@ export default function Dashboard() {
 
   /* ── Chart common config ───────────────────────────────────── */
   const baseChart = {
-    chart:   { fontFamily: 'inherit', toolbar: { show: false }, animations: { easing: 'easeinout', speed: 500 } },
+    chart:   { fontFamily: 'inherit', toolbar: { show: false }, animations: { enabled: false } },
     tooltip: { theme: P.tooltip },
     grid:    { borderColor: P.grid, strokeDashArray: 4 },
   };

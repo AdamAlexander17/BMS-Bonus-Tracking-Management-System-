@@ -154,6 +154,20 @@ const RefreshIcon = () => (
   </svg>
 );
 
+const sortButtonStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: 0,
+  border: 'none',
+  background: 'none',
+  color: 'inherit',
+  font: 'inherit',
+  letterSpacing: 'inherit',
+  textTransform: 'inherit',
+  cursor: 'pointer',
+};
+
 export default function AuditLog() {
   const { user } = useAuth();
   const hasPerm = (key) => !user?.permissions || user.permissions.includes(key);
@@ -172,6 +186,8 @@ export default function AuditLog() {
   const [showFilters, setShowFilters] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
+  const ordering = sortConfig.direction === 'desc' ? `-${sortConfig.key}` : sortConfig.key;
 
   useEffect(() => {
     let cancelled = false;
@@ -189,6 +205,7 @@ export default function AuditLog() {
           to_date: toDate,
           page,
           page_size: pageSize,
+          ordering,
         });
 
         if (cancelled) return;
@@ -212,11 +229,24 @@ export default function AuditLog() {
     return () => {
       cancelled = true;
     };
-  }, [search, moduleFilter, actionFilter, fromDate, toDate, page, pageSize, refreshKey]);
+  }, [search, moduleFilter, actionFilter, fromDate, toDate, page, pageSize, refreshKey, ordering]);
 
   function resetPage(update) {
     setPage(1);
     update();
+  }
+
+  function handleSort(key) {
+    setPage(1);
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  }
+
+  function getSortIndicator(key) {
+    if (sortConfig.key !== key) return '↕';
+    return sortConfig.direction === 'asc' ? '↑' : '↓';
   }
 
   async function handleExport() {
@@ -392,14 +422,14 @@ export default function AuditLog() {
             <table className="audit-log-table">
               <thead>
                 <tr>
-                  <th>Timestamp</th>
-                  <th>User</th>
-                  <th>Module</th>
-                  <th>Action</th>
-                  <th>Target</th>
-                  <th>Description</th>
+                  <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('created_at')}>Timestamp <span>{getSortIndicator('created_at')}</span></button></th>
+                  <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('username')}>User <span>{getSortIndicator('username')}</span></button></th>
+                  <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('module')}>Module <span>{getSortIndicator('module')}</span></button></th>
+                  <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('action')}>Action <span>{getSortIndicator('action')}</span></button></th>
+                  <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('entity_label')}>Target <span>{getSortIndicator('entity_label')}</span></button></th>
+                  <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('description')}>Description <span>{getSortIndicator('description')}</span></button></th>
                   <th>Details</th>
-                  <th>IP</th>
+                  <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('ip_address')}>IP <span>{getSortIndicator('ip_address')}</span></button></th>
                 </tr>
               </thead>
               <tbody>
