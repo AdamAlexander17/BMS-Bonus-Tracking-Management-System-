@@ -33,15 +33,26 @@ export default function Users() {
 
   const fetchAll = async () => {
     setLoading(true);
-    try {
-      const [usersRes, rolesRes] = await Promise.all([getUsers(), getRoles()]);
-      setUsers(usersRes.data.data);
-      setRoles(rolesRes.data.data);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load data.');
-    } finally {
-      setLoading(false);
+    setError('');
+    // Load users and roles independently so a 403 on /roles/ (e.g. when the
+    // viewer has `user:view` but not `role:view`) does not blank out the
+    // entire users table. The role filter just degrades to empty.
+    const [usersRes, rolesRes] = await Promise.allSettled([getUsers(), getRoles()]);
+
+    if (usersRes.status === 'fulfilled') {
+      setUsers(usersRes.value.data.data || []);
+    } else {
+      setUsers([]);
+      setError(usersRes.reason?.response?.data?.message || 'Failed to load users.');
     }
+
+    if (rolesRes.status === 'fulfilled') {
+      setRoles(rolesRes.value.data.data || []);
+    } else {
+      setRoles([]);
+    }
+
+    setLoading(false);
   };
 
   useEffect(() => { fetchAll(); }, []);

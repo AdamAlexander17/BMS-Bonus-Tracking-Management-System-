@@ -17,7 +17,7 @@ print('• Brands: skipped (managed via UI)')
 
 # ─── Permissions ─────────────────────────────────────────────────────────────
 permissions_data = [
-    ('broker', 'create'), ('broker', 'update'), ('broker', 'delete'), ('broker', 'view'),
+    ('broker', 'create'), ('broker', 'update'), ('broker', 'delete'), ('broker', 'view'), ('broker', 'view_all'),
     ('client', 'create'), ('client', 'update'), ('client', 'delete'), ('client', 'view'), ('client', 'trading_ok'),
     ('report', 'view'),   ('report', 'export'),
     ('auditlog', 'view'), ('auditlog', 'export'),
@@ -34,7 +34,7 @@ print(f'✔ Permissions seeded: {len(permissions_data)} entries')
 # ─── Roles & their permissions ───────────────────────────────────────────────
 role_permissions_map = {
     'Admin': [
-        ('broker','create'),('broker','update'),('broker','delete'),('broker','view'),
+        ('broker','create'),('broker','update'),('broker','delete'),('broker','view'),('broker','view_all'),
         ('client','create'),('client','update'),('client','delete'),('client','view'),('client','trading_ok'),
         ('report','view'),  ('report','export'),
         ('auditlog','view'),('auditlog','export'),
@@ -56,7 +56,7 @@ role_permissions_map = {
         ('broker','view'),('client','view'),('report','view'),('report','export'),
     ],
     'Checker': [
-        ('broker','view'),
+        ('broker','view'),('broker','view_all'),
         ('client','view'),('client','trading_ok'),
         ('report','view'),('report','export'),
     ],

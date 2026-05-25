@@ -224,6 +224,42 @@ def login(request):
     }, status=status.HTTP_200_OK)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def me(request):
+    """Return a fresh snapshot of the currently authenticated user.
+
+    The frontend calls this on app boot (and whenever it wants to refresh
+    sidebar / permission state) so that role/permission/brand changes
+    made by an admin propagate without requiring the user to log out.
+
+    Mirrors the `user` object returned by `login`.
+    """
+    user = request.user
+    return Response({
+        'success': True,
+        'data': {
+            'id': user.id,
+            'username': user.username,
+            'roles': user.role_names,
+            'brand': user.brand_name,
+            'brands': list(user.brands.values_list('name', flat=True)),
+            'brand_ids': list(user.brands.values_list('id', flat=True)),
+            'must_change_password': user.must_change_password,
+            'permissions': sorted({
+                f'{m}:{a}'
+                for m, a in user.roles
+                    .values_list(
+                        'role_permissions__permission__module',
+                        'role_permissions__permission__action'
+                    )
+                    .distinct()
+                if m and a
+            }),
+        }
+    }, status=status.HTTP_200_OK)
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def refresh_token(request):
@@ -1025,12 +1061,22 @@ def user_delete(request, user_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def rm_jrm_users(request):
-    """Return all users whose role is RM or JRM, with their brands and managed-broker count."""
+    """Return every user who can be assigned as a broker's relationship manager.
+
+    A "broker-managing" user is any user whose role grants `broker:create`.
+    This is permission-driven (not role-name driven), so any custom role with
+    that permission shows up here automatically.
+    """
+    rm_role_ids = Role.objects.filter(
+        role_permissions__permission__module='broker',
+        role_permissions__permission__action='create',
+    ).values_list('id', flat=True)
+
     users = (
         User.objects
         .select_related('created_by', 'brand')
         .prefetch_related('roles', 'managed_brokers')
-        .filter(roles__name__in=['RM', 'JRM'])
+        .filter(roles__in=rm_role_ids)
         .distinct()
         .order_by('username')
     )
@@ -1763,19 +1809,25 @@ def role_set_permissions(request, role_id):
 # ===========================================================================
 
 def has_perm(request, key):
-    """Return True if any of the user's roles grants the given permission key (e.g. 'broker:create').
-    Checks the JWT payload first; falls back to a DB lookup if no JWT payload is present."""
-    if request.auth:
-        return key in request.auth.get('permissions', [])
-    # Fallback: union of permissions across all of the user's roles
-    if not getattr(request, 'user', None):
+    """Return True if any of the user's roles currently grants the given
+    permission key (e.g. 'broker:create').
+
+    Always evaluated against the database. The JWT is treated as identity
+    only — never as a permission cache — so that any change an admin makes
+    to a role's permission set (or a user's role assignments) takes effect
+    on the very next request, without forcing the affected user to log out
+    and back in. This is what makes "create any role / assign any
+    permission" behave correctly regardless of role name.
+    """
+    user = getattr(request, 'user', None)
+    if user is None or not getattr(user, 'is_authenticated', False):
         return False
     try:
         module, action = key.split(':', 1)
     except ValueError:
         return False
     return RolePermission.objects.filter(
-        role__in=request.user.roles.all(),
+        role__in=user.roles.all(),
         permission__module=module,
         permission__action=action,
     ).exists()
@@ -1882,11 +1934,15 @@ def format_broker_payout(payout):
 
 
 def _user_sees_all_brokers(request):
-    """Admin and Checker see every row within their brand scope.
-    (Admin's brand scope is global; Checker's is their own brand.)
-    RM/JRM are further narrowed to rows they created."""
-    role_names = set(getattr(request.user, 'role_names', []) or [])
-    return bool(role_names & {'Admin', 'Checker'})
+    """Permission-driven: a user sees every broker within their brand scope
+    when their role grants `broker:view_all`. Otherwise they only see brokers
+    they personally created.
+
+    `broker:view_all` is the explicit "see everyone's brokers in my brand"
+    permission (seeded for Admin and Checker, grantable to any custom role).
+    Without it, even users with `broker:view` only see their own pipeline.
+    """
+    return has_perm(request, 'broker:view_all')
 
 
 def _check_broker_access(request, broker):
@@ -1941,14 +1997,20 @@ def broker_create(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Validate RM/JRM user if provided
+    # Validate the user being assigned as broker manager: they must have a
+    # role that grants `broker:create` (i.e. any RM-equivalent role, built-in
+    # or custom).
     rm_user = None
     if rm_user_id:
         try:
             rm_user = User.objects.prefetch_related('roles').get(id=rm_user_id)
-            if not rm_user.roles.filter(name__in=['RM', 'JRM']).exists():
+            if not RolePermission.objects.filter(
+                role__in=rm_user.roles.all(),
+                permission__module='broker',
+                permission__action='create',
+            ).exists():
                 return Response(
-                    {'success': False, 'message': 'Assigned user must have role RM or JRM.'},
+                    {'success': False, 'message': 'Assigned user must have a role with broker:create permission.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
         except User.DoesNotExist:
@@ -2119,9 +2181,13 @@ def broker_update(request, broker_id):
         else:
             try:
                 rm_user = User.objects.prefetch_related('roles').get(id=new_rm_user_id)
-                if not rm_user.roles.filter(name__in=['RM', 'JRM']).exists():
+                if not RolePermission.objects.filter(
+                    role__in=rm_user.roles.all(),
+                    permission__module='broker',
+                    permission__action='create',
+                ).exists():
                     return Response(
-                        {'success': False, 'message': 'Assigned user must have role RM or JRM.'},
+                        {'success': False, 'message': 'Assigned user must have a role with broker:create permission.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 broker.rm_user = rm_user
