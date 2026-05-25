@@ -26,6 +26,29 @@ select:not([multiple]) option {
   color: #1a1f36;
 }
 
+/* Number-input spinner buttons — make them transparent so they blend on any
+   background (including dark rows / modals) and invert the glyphs to white. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: inner-spin-button;
+  appearance: auto;
+  background: transparent;
+  opacity: 0.85;
+}
+
+/* On dark backgrounds the native black arrows disappear — invert them to white.
+   Any ancestor with [data-theme="dark"] OR class "bd-dark" / "dark-surface"
+   flips the spinner glyphs. */
+[data-theme="dark"] input[type="number"]::-webkit-inner-spin-button,
+[data-theme="dark"] input[type="number"]::-webkit-outer-spin-button,
+.bd-dark input[type="number"]::-webkit-inner-spin-button,
+.bd-dark input[type="number"]::-webkit-outer-spin-button,
+.dark-surface input[type="number"]::-webkit-inner-spin-button,
+.dark-surface input[type="number"]::-webkit-outer-spin-button {
+  filter: invert(1) brightness(1.6);
+  background: transparent;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;

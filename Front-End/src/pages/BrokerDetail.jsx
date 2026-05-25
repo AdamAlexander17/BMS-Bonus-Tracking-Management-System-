@@ -113,21 +113,46 @@ function LegitimacyCheckboxGroup({ value, onChange, disabled = false, compact = 
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 10 : 18, flexWrap: compact ? 'nowrap' : 'wrap', flexDirection: 'row', whiteSpace: compact ? 'nowrap' : 'normal' }}>
-      {legitimacyOptions.map((option) => (
-        <label
-          key={option.value}
-          title={option.label}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: compact ? 4 : 6, fontSize: compact ? 12 : 14, color: '#374151', cursor: disabled ? 'default' : 'pointer', fontWeight: 500, whiteSpace: 'nowrap', flex: '0 0 auto' }}
-        >
-          <input
-            type="checkbox"
-            checked={selectedValue === option.value}
-            disabled={disabled}
-            onChange={() => onChange(option.value)}
-          />
-          {compact ? option.shortLabel : option.label}
-        </label>
-      ))}
+      {legitimacyOptions.map((option) => {
+        const isChecked = selectedValue === option.value;
+        return (
+          <label
+            key={option.value}
+            title={option.label}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: compact ? 4 : 6, fontSize: compact ? 12 : 14, color: '#ffffff', cursor: disabled ? 'default' : 'pointer', fontWeight: 600, whiteSpace: 'nowrap', flex: '0 0 auto' }}
+          >
+            <span
+              style={{
+                width: 14,
+                height: 14,
+                borderRadius: 3,
+                border: '1.5px solid rgba(255,255,255,0.75)',
+                background: isChecked ? '#2563eb' : 'transparent',
+                borderColor: isChecked ? '#2563eb' : 'rgba(255,255,255,0.75)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flex: '0 0 auto',
+                transition: 'background 120ms, border-color 120ms',
+              }}
+            >
+              {isChecked && (
+                <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </span>
+            <input
+              type="checkbox"
+              checked={isChecked}
+              disabled={disabled}
+              onChange={() => onChange(option.value)}
+              style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
+            />
+            {compact ? option.shortLabel : option.label}
+          </label>
+        );
+      })}
     </div>
   );
 }
