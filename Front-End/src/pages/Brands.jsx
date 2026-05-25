@@ -8,6 +8,35 @@ import Toast from '../components/Toast/Toast';
 import PageHeader from '../components/PageHeader/PageHeader';
 import './Users.css';
 
+function compareValues(left, right, direction) {
+  const leftEmpty = left === null || left === undefined || left === '';
+  const rightEmpty = right === null || right === undefined || right === '';
+  if (leftEmpty && rightEmpty) return 0;
+  if (leftEmpty) return 1;
+  if (rightEmpty) return -1;
+  if (typeof left === 'string' && typeof right === 'string') {
+    const result = left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+    return direction === 'asc' ? result : -result;
+  }
+  if (left < right) return direction === 'asc' ? -1 : 1;
+  if (left > right) return direction === 'asc' ? 1 : -1;
+  return 0;
+}
+
+const sortButtonStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: 0,
+  border: 'none',
+  background: 'none',
+  color: 'inherit',
+  font: 'inherit',
+  letterSpacing: 'inherit',
+  textTransform: 'inherit',
+  cursor: 'pointer',
+};
+
 export default function Brands() {
   const { user } = useAuth();
   const hasPerm    = (key) => !user?.permissions || user.permissions.includes(key);
@@ -29,6 +58,7 @@ export default function Brands() {
   const [creating, setCreating]   = useState(false);
   const [pageSize, setPageSize]   = useState(10);
   const [page, setPage]           = useState(1);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   const fetchBrands = async () => {
     setLoading(true);
@@ -78,10 +108,19 @@ export default function Brands() {
     });
   };
 
-  const filtered = brands.filter(b => b.name.toLowerCase().includes(search.toLowerCase()));
+  const handleSort = (key) => {
+    setPage(1);
+    setSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
+  };
+  const getSortIndicator = (key) => (sortConfig.key !== key ? '↕' : sortConfig.direction === 'asc' ? '↑' : '↓');
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const paged      = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const filtered = brands.filter(b => b.name.toLowerCase().includes(search.toLowerCase()));
+  const sorted = sortConfig.key
+    ? [...filtered].sort((a, b) => compareValues(a[sortConfig.key], b[sortConfig.key], sortConfig.direction))
+    : filtered;
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const paged = sorted.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="um">
@@ -148,14 +187,14 @@ export default function Brands() {
             </colgroup>
             <thead>
               <tr>
-                <th>BRAND</th>
-                <th style={{ textAlign: 'center' }}>CODE</th>
-                <th style={{ textAlign: 'center' }}>CREATED AT</th>
+                <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('name')}>BRAND <span>{getSortIndicator('name')}</span></button></th>
+                <th style={{ textAlign: 'center' }}><button type="button" style={sortButtonStyle} onClick={() => handleSort('code')}>CODE <span>{getSortIndicator('code')}</span></button></th>
+                <th style={{ textAlign: 'center' }}><button type="button" style={sortButtonStyle} onClick={() => handleSort('created_at')}>CREATED AT <span>{getSortIndicator('created_at')}</span></button></th>
                 {canActions && <th style={{ textAlign: 'right' }}>ACTIONS</th>}
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {sorted.length === 0 ? (
                 <tr><td colSpan={canActions ? 4 : 3} className="um__empty">No brands found.</td></tr>
               ) : paged.map(b => (
                 <tr key={b.id}>
@@ -202,9 +241,9 @@ export default function Brands() {
         {!loading && !error && (
           <div className="um__footer">
             <span className="um__footer-info">
-              {filtered.length === 0
+              {sorted.length === 0
                 ? 'No results'
-                : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filtered.length)} of ${filtered.length}`}
+                : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, sorted.length)} of ${sorted.length}`}
             </span>
             <div className="um__footer-nav">
               <button className="ph-btn ph-btn--ghost" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
