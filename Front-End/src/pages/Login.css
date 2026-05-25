@@ -144,6 +144,12 @@
   margin: 0 0 28px;
   line-height: 1.5;
 }
+.lp__helper {
+  font-size: 0.82rem;
+  color: #004b4e;
+  margin: -16px 0 18px;
+  line-height: 1.5;
+}
 .lp__error {
   background: #fef2f2;
   border: 1px solid #fecaca;

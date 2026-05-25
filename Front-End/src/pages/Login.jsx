@@ -3,6 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Login.css';
 
+const PASSWORD_RULE_MESSAGE = 'Password must be at least 8 characters and include 1 uppercase letter, 1 number, and 1 symbol.';
+
+function getPasswordValidationMessage(password) {
+  if (password.length < 8) return PASSWORD_RULE_MESSAGE;
+  if (!/[A-Z]/.test(password)) return PASSWORD_RULE_MESSAGE;
+  if (!/\d/.test(password)) return PASSWORD_RULE_MESSAGE;
+  if (!/[^A-Za-z0-9]/.test(password)) return PASSWORD_RULE_MESSAGE;
+  return '';
+}
+
 export default function Login() {
   const { user, login, changeOwnPassword, logout } = useAuth();
   const navigate  = useNavigate();
@@ -52,6 +62,11 @@ export default function Login() {
       setError('New password and confirm password must match.');
       return;
     }
+    const passwordValidationMessage = getPasswordValidationMessage(passwordForm.newPassword);
+    if (passwordValidationMessage) {
+      setError(passwordValidationMessage);
+      return;
+    }
     setLoading(true);
     try {
       await changeOwnPassword(passwordForm.currentPassword, passwordForm.newPassword);
@@ -76,6 +91,7 @@ export default function Login() {
               ? 'Your first login uses the default password 123456. Set a new password before continuing.'
               : 'Please enter your username and password to access your account'}
           </p>
+          {forcedPasswordChange ? <p className="lp__helper">Use at least 8 characters with 1 uppercase letter, 1 number, and 1 symbol.</p> : null}
 
           {error && <div className="lp__error">{error}</div>}
 

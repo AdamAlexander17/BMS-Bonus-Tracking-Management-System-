@@ -1,4 +1,5 @@
 import jwt
+import re
 from django.db import transaction as db_transaction
 from decimal import Decimal, InvalidOperation
 from django.core.paginator import Paginator
@@ -28,6 +29,7 @@ from app.tenancy import (
 
 
 DEFAULT_USER_PASSWORD = '123456'
+PASSWORD_COMPLEXITY_MESSAGE = 'Password must be at least 8 characters long and include at least one uppercase letter, one number, and one symbol.'
 
 
 def _extract_ip(request):
@@ -35,6 +37,18 @@ def _extract_ip(request):
     if forwarded:
         return forwarded.split(',')[0].strip()
     return request.META.get('REMOTE_ADDR', '')
+
+
+def _validate_password_strength(password):
+    if len(password) < 8:
+        return PASSWORD_COMPLEXITY_MESSAGE
+    if not re.search(r'[A-Z]', password):
+        return PASSWORD_COMPLEXITY_MESSAGE
+    if not re.search(r'\d', password):
+        return PASSWORD_COMPLEXITY_MESSAGE
+    if not re.search(r'[^A-Za-z0-9]', password):
+        return PASSWORD_COMPLEXITY_MESSAGE
+    return None
 
 
 def _normalize_audit_value(value):
@@ -716,6 +730,12 @@ def update_user(request, user_id):
         user.status = normalized_status
 
     if new_password:
+        password_error = _validate_password_strength(new_password)
+        if password_error:
+            return Response(
+                {'success': False, 'message': password_error},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         user.password = hash_password(new_password)
         user.must_change_password = True
 
@@ -770,6 +790,13 @@ def change_own_password(request):
     if current_password == new_password:
         return Response(
             {'success': False, 'message': 'New password must be different from the current password.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    password_error = _validate_password_strength(new_password)
+    if password_error:
+        return Response(
+            {'success': False, 'message': password_error},
             status=status.HTTP_400_BAD_REQUEST
         )
 
