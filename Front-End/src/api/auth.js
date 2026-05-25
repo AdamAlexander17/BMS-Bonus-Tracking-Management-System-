@@ -12,3 +12,8 @@ export const changeOwnPassword = (payload) =>
 
 export const refreshToken = (refresh_token) =>
   axios.post('http://127.0.0.1:8001/api/token/refresh/', { refresh_token });
+
+// Fetch a fresh snapshot of the authenticated user (permissions, brands, roles).
+// Called by AuthContext on app boot so the sidebar / gating reflects whatever
+// the admin has changed since the user's JWT was minted.
+export const fetchMe = () => axiosInstance.get('me/');
