@@ -75,19 +75,27 @@ print(f'✔ Roles seeded: {list(role_permissions_map.keys())}')
 admin_username = 'admin'
 admin_password = 'Admin@123'
 
-if not User.objects.filter(username=admin_username).exists():
-    admin_role  = Role.objects.get(name='Admin')
-    admin_brand = Brand.objects.get(name='TK')
-    admin_user  = User.objects.create(
-        username=admin_username,
-        password=hash_password(admin_password),
-        brand=admin_brand,
-        status='Active',
-        created_by=None,
-    )
-    UserRole.objects.create(user=admin_user, role=admin_role)
+admin_user, created = User.objects.get_or_create(
+    username=admin_username,
+    defaults={
+        'password': hash_password(admin_password),
+        'status': 'Active',
+        'created_by': None,
+    },
+)
+
+admin_role = Role.objects.get(name='Admin')
+UserRole.objects.get_or_create(user=admin_user, role=admin_role)
+
+# Assign EVERY existing brand to the admin so audit logs / tenant-scoped
+# queries from other users can match against the admin's brand set.
+all_brands = list(Brand.objects.all())
+if all_brands:
+    admin_user.brands.set(all_brands)
+
+if created:
     print(f'✔ Admin user created → username: {admin_username} | password: {admin_password}')
 else:
-    print(f'⚠ Admin user already exists, skipped.')
+    print(f'✔ Admin user already exists → brands re-synced ({len(all_brands)} brand(s))')
 
 print('\n✅ Seed complete.')

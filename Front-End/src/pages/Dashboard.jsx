@@ -383,6 +383,7 @@ export default function Dashboard() {
 
         <div className="chart-card">
           <ChartHeader title=" Deposit vs Withdrawal" subtitle="Compare cash flow across months" />
+          {(monthlyDepWith.dep.length === 0 && monthlyDepWith.wd.length === 0) ? <EmptyState /> : (
           <Chart
             type="bar"
             height={310}
@@ -401,6 +402,7 @@ export default function Dashboard() {
               tooltip: { theme: P.tooltip, y: { formatter: v => formatMoney(v) } },
             }}
           />
+          )}
         </div>
       </div>
 
@@ -408,6 +410,7 @@ export default function Dashboard() {
       <div className="dashboard__grid dashboard__grid--2">
         <div className="chart-card">
           <ChartHeader title="Client Growth Over Time" subtitle="New and cumulative registrations by month" />
+          {(clientGrowth.monthly.length === 0 && clientGrowth.cumulative.length === 0) ? <EmptyState /> : (
           <Chart
             type="area"
             height={310}
@@ -430,6 +433,7 @@ export default function Dashboard() {
               markers: { size: 4, strokeWidth: 2, hover: { size: 6 } },
             }}
           />
+          )}
         </div>
 
         <div className="chart-card">

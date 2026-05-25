@@ -203,7 +203,11 @@ def login(request):
                 'id': user.id,
                 'username': user.username,
                 'roles': user.role_names,
+                # Legacy single-brand field (kept for backwards compatibility).
                 'brand': user.brand_name,
+                # Multi-brand access scope (BBAC source of truth).
+                'brands': list(user.brands.values_list('name', flat=True)),
+                'brand_ids': list(user.brands.values_list('id', flat=True)),
                 'must_change_password': user.must_change_password,
                 'permissions': sorted({
                     f'{m}:{a}'
@@ -366,8 +370,16 @@ def audit_log_list(request):
 
     logs = AuditLog.objects.select_related('actor').all().order_by('-created_at', '-id')
 
-    # Tenant isolation: show audit rows whose actor shares any brand with the requester.
-    logs = scope_to_brand(logs, request, brand_field='actor__brands')
+    # Tenant isolation: show rows whose actor shares any brand with the requester,
+    # PLUS system-generated rows (actor is NULL, e.g. failed logins, scheduled
+    # jobs) so they aren't silently hidden from non-Admin viewers.
+    brand_ids = current_brand_ids(request)
+    if not brand_ids:
+        logs = logs.none()
+    else:
+        logs = logs.filter(
+            Q(actor__brands__in=brand_ids) | Q(actor__isnull=True)
+        ).distinct()
 
     search = (request.query_params.get('search') or '').strip()
     module = (request.query_params.get('module') or '').strip()

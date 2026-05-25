@@ -7,19 +7,19 @@ const NAV_ITEMS = [
   { path: '/',        label: 'Dashboard', icon: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
   )},
-  { path: '/users',   label: 'Users', icon: (
+  { path: '/users',   label: 'Users', perm: 'user:view', icon: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
   )},
-  { path: '/roles',   label: 'Roles', icon: (
+  { path: '/roles',   label: 'Roles', perm: 'role:view', icon: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
   )},
-  { path: '/brokers', label: 'Brokers', icon: (
+  { path: '/brokers', label: 'Brokers', perm: 'broker:view', icon: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
   )},
-  { path: '/brands',  label: 'Brands', icon: (
+  { path: '/brands',  label: 'Brands', perm: 'brand:view', icon: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5" fill="currentColor"/></svg>
   )},
-  { path: '/reports', label: 'Reports', icon: (
+  { path: '/reports', label: 'Reports', perm: 'report:view', icon: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
   )},
   { path: '/audit',   label: 'Audit Log', perm: 'auditlog:view', icon: (
@@ -66,15 +66,14 @@ export default function Sidebar({ collapsed, setCollapsed }) {
       {/* Nav */}
       <nav className="sidebar__nav">
         {(() => {
-          const roles = user?.roles || [];
-          const isRmOnly =
-            roles.length > 0 &&
-            roles.every(r => r === 'RM' || r === 'JRM');
-          const hasPerm = (key) => !user?.permissions || user.permissions.includes(key);
-          const visibleItems = isRmOnly
-            ? NAV_ITEMS.filter(i => i.path === '/' || i.path === '/brokers')
-            : NAV_ITEMS.filter(i => !i.perm || hasPerm(i.perm));
-          return visibleItems;
+          // Pure permission-driven visibility. Items without a `perm` key
+          // (e.g. Dashboard) are always visible to any authenticated user.
+          // Items with a `perm` key only appear when the user holds that
+          // permission — so granting `auditlog:view`, `brand:view`, etc.
+          // to any role immediately surfaces the matching menu item.
+          const perms = user?.permissions || [];
+          const hasPerm = (key) => perms.includes(key);
+          return NAV_ITEMS.filter(item => !item.perm || hasPerm(item.perm));
         })().map(({ path, label, icon }) => (
           <NavLink
             key={path}
