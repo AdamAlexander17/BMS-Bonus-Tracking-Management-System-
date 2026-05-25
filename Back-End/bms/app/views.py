@@ -224,6 +224,42 @@ def login(request):
     }, status=status.HTTP_200_OK)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def me(request):
+    """Return a fresh snapshot of the currently authenticated user.
+
+    The frontend calls this on app boot (and whenever it wants to refresh
+    sidebar / permission state) so that role/permission/brand changes
+    made by an admin propagate without requiring the user to log out.
+
+    Mirrors the `user` object returned by `login`.
+    """
+    user = request.user
+    return Response({
+        'success': True,
+        'data': {
+            'id': user.id,
+            'username': user.username,
+            'roles': user.role_names,
+            'brand': user.brand_name,
+            'brands': list(user.brands.values_list('name', flat=True)),
+            'brand_ids': list(user.brands.values_list('id', flat=True)),
+            'must_change_password': user.must_change_password,
+            'permissions': sorted({
+                f'{m}:{a}'
+                for m, a in user.roles
+                    .values_list(
+                        'role_permissions__permission__module',
+                        'role_permissions__permission__action'
+                    )
+                    .distinct()
+                if m and a
+            }),
+        }
+    }, status=status.HTTP_200_OK)
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def refresh_token(request):
@@ -1763,19 +1799,25 @@ def role_set_permissions(request, role_id):
 # ===========================================================================
 
 def has_perm(request, key):
-    """Return True if any of the user's roles grants the given permission key (e.g. 'broker:create').
-    Checks the JWT payload first; falls back to a DB lookup if no JWT payload is present."""
-    if request.auth:
-        return key in request.auth.get('permissions', [])
-    # Fallback: union of permissions across all of the user's roles
-    if not getattr(request, 'user', None):
+    """Return True if any of the user's roles currently grants the given
+    permission key (e.g. 'broker:create').
+
+    Always evaluated against the database. The JWT is treated as identity
+    only — never as a permission cache — so that any change an admin makes
+    to a role's permission set (or a user's role assignments) takes effect
+    on the very next request, without forcing the affected user to log out
+    and back in. This is what makes "create any role / assign any
+    permission" behave correctly regardless of role name.
+    """
+    user = getattr(request, 'user', None)
+    if user is None or not getattr(user, 'is_authenticated', False):
         return False
     try:
         module, action = key.split(':', 1)
     except ValueError:
         return False
     return RolePermission.objects.filter(
-        role__in=request.user.roles.all(),
+        role__in=user.roles.all(),
         permission__module=module,
         permission__action=action,
     ).exists()

@@ -46,13 +46,13 @@ def is_admin(request):
 def current_brand_ids(request):
     """Set of brand IDs the current request is allowed to access.
 
-    Prefers the JWT payload (`brand_ids`) for performance; falls back to a DB
-    lookup on the user's M2M. Returns an empty set if no brands are assigned.
+    Always read from the database (the user's M2M `brands`). The JWT is
+    treated as identity only, never as a brand-scope cache, so that any
+    change an admin makes to a user's brand assignments takes effect on
+    the very next request without forcing the user to re-login.
+
+    Returns an empty set if no brands are assigned.
     """
-    if getattr(request, 'auth', None):
-        ids = request.auth.get('brand_ids')
-        if ids is not None:
-            return {int(b) for b in ids}
     user = getattr(request, 'user', None)
     if user is None or not getattr(user, 'is_authenticated', False):
         return set()
