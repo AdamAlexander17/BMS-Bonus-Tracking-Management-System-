@@ -33,3 +33,13 @@ desktop.ini
 dist/
 build/
 *.egg-info/
+
+# Backups (never commit DB dumps or credentials)
+Back-End/bms/backups/
+Back-End/backup/.my.cnf
+Back-End/backup/backup.log
+*.sql
+*.sql.gz
+*.tar.gz
+*.sha256
+*.gpg
