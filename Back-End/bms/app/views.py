@@ -618,7 +618,11 @@ def get_users(request):
 
     all_users = User.objects.select_related('created_by', 'brand').prefetch_related('roles', 'brands').all()
     # Tenant isolation: show users that share any brand with the requester.
-    all_users = scope_to_brand(all_users, request, brand_field='brands')
+    # Exception: if the requester is an Admin with no brands yet (bootstrap
+    # scenario — no brands have been created), show all users unfiltered.
+    from app.tenancy import current_brand_ids, is_admin
+    if not (is_admin(request) and not current_brand_ids(request)):
+        all_users = scope_to_brand(all_users, request, brand_field='brands')
     return Response({
         'success': True,
         'data': [format_user(u) for u in all_users]
@@ -1063,14 +1067,20 @@ def user_delete(request, user_id):
 def rm_jrm_users(request):
     """Return every user who can be assigned as a broker's relationship manager.
 
-    A "broker-managing" user is any user whose role grants `broker:create`.
-    This is permission-driven (not role-name driven), so any custom role with
-    that permission shows up here automatically.
+    Primary list: roles with `broker:create` but NOT `broker:view_all`.
+    Additionally: if the requesting user themselves has `broker:create` (even
+    as an overseer role like Admin/MD), they are always included so they can
+    manage their own broker portfolio — no hardcoded role names involved.
     """
+    overseer_role_ids = Role.objects.filter(
+        role_permissions__permission__module='broker',
+        role_permissions__permission__action='view_all',
+    ).values_list('id', flat=True)
+
     rm_role_ids = Role.objects.filter(
         role_permissions__permission__module='broker',
         role_permissions__permission__action='create',
-    ).values_list('id', flat=True)
+    ).exclude(id__in=overseer_role_ids).values_list('id', flat=True)
 
     users = (
         User.objects
@@ -1087,6 +1097,12 @@ def rm_jrm_users(request):
     # Non-privileged users can only see themselves in this list.
     if not _user_sees_all_brokers(request):
         users = users.filter(id=request.user.id)
+
+    # Only users holding a true RM/JRM-style role (broker:create without
+    # broker:view_all) appear here. Admin/Checker/MD-style overseer roles are
+    # intentionally excluded even if the requesting user holds broker:create.
+    user_list = list(users)
+
     return Response({
         'success': True,
         'data': [
@@ -1100,7 +1116,7 @@ def rm_jrm_users(request):
                 'created_at':   u.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                 'broker_count': u.managed_brokers.count(),
             }
-            for u in users
+            for u in user_list
         ]
     }, status=status.HTTP_200_OK)
 
@@ -1152,6 +1168,15 @@ def brand_create(request):
         )
 
     brand = Brand.objects.create(name=name, code=code or None)
+
+    # Auto-assign every new brand to all Admin users so they can immediately
+    # see and manage it without a manual brand-assignment step. Uses the
+    # User.roles M2M (declared on the User model) so we don't depend on
+    # related_name conventions of the through table.
+    admin_users = User.objects.filter(roles__name='Admin').distinct()
+    for admin_user in admin_users:
+        admin_user.brands.add(brand)
+
     log_audit_event(
         request,
         module='brand',
@@ -1193,9 +1218,11 @@ def brand_list(request):
             {'success': True, 'data': [format_brand(b) for b in brands]},
             status=status.HTTP_200_OK
         )
-    # Default: tenant isolation — every role sees only their assigned brands.
-    ids = current_brand_ids(request)
-    brands = brands.filter(id__in=ids) if ids else brands.none()
+    # Admins see all brands — they manage the brand list itself.
+    # All other roles are tenant-isolated to their assigned brands.
+    if not is_admin(request):
+        ids = current_brand_ids(request)
+        brands = brands.filter(id__in=ids) if ids else brands.none()
     return Response(
         {'success': True, 'data': [format_brand(b) for b in brands]},
         status=status.HTTP_200_OK
@@ -1357,7 +1384,7 @@ def format_permission(permission):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def permission_list(request):
-    if not has_perm(request, 'role:configure'):
+    if not has_perm(request, 'role:view'):
         return Response(
             {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN
@@ -1373,7 +1400,7 @@ def permission_list(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def permission_get(request, permission_id):
-    if not has_perm(request, 'role:configure'):
+    if not has_perm(request, 'role:view'):
         return Response(
             {'success': False, 'message': 'Permission denied.'},
             status=status.HTTP_403_FORBIDDEN

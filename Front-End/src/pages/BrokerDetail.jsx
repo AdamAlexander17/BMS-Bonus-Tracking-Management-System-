@@ -119,16 +119,15 @@ function LegitimacyCheckboxGroup({ value, onChange, disabled = false, compact = 
           <label
             key={option.value}
             title={option.label}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: compact ? 4 : 6, fontSize: compact ? 12 : 14, color: '#ffffff', cursor: disabled ? 'default' : 'pointer', fontWeight: 600, whiteSpace: 'nowrap', flex: '0 0 auto' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: compact ? 4 : 6, fontSize: compact ? 12 : 14, color: isChecked ? '#2563eb' : '#6b7280', cursor: disabled ? 'default' : 'pointer', fontWeight: isChecked ? 700 : 500, whiteSpace: 'nowrap', flex: '0 0 auto' }}
           >
             <span
               style={{
                 width: 14,
                 height: 14,
                 borderRadius: 3,
-                border: '1.5px solid rgba(255,255,255,0.75)',
+                border: `1.5px solid ${isChecked ? '#2563eb' : '#d1d5db'}`,
                 background: isChecked ? '#2563eb' : 'transparent',
-                borderColor: isChecked ? '#2563eb' : 'rgba(255,255,255,0.75)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -707,6 +706,7 @@ export default function BrokerDetail() {
   const { user } = useAuth();
   const hasPerm         = (key) => !user?.permissions || user.permissions.includes(key);
   const canTradingOk    = hasPerm('client:trading_ok');
+  const canShowLegitimacy = hasPerm('client:view') && canTradingOk; // must have both: client:view + client:trading_ok
   const canSetLegitimacy = canTradingOk; // owner of legitimacy approval (checker / admin)
   const canClientCreate = hasPerm('client:create');
   const canClientUpdate = hasPerm('client:update');
@@ -964,14 +964,14 @@ export default function BrokerDetail() {
               <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('net_total')}>NET TOTAL <span>{getSortIndicator('net_total')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('earned_amount')}>EARNED (1%) <span>{getSortIndicator('earned_amount')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('status')}>STATUS <span>{getSortIndicator('status')}</span></button></th>
-              {canTradingOk && <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('legitimacy_status')}>LEGITIMATE CLIENT <span>{getSortIndicator('legitimacy_status')}</span></button></th>}
+              {canShowLegitimacy && <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('legitimacy_status')}>LEGITIMATE CLIENT <span>{getSortIndicator('legitimacy_status')}</span></button></th>}
               <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('created_at')}>CREATED <span>{getSortIndicator('created_at')}</span></button></th>
               {canClientActions && <th style={{ minWidth: 186, paddingLeft: 14 }}>ACTIONS</th>}
             </tr>
           </thead>
           <tbody>
             {sortedClients.length === 0 ? (
-              <tr><td colSpan={9 + (canTradingOk ? 1 : 0) + (canClientActions ? 1 : 0)} className="um__empty">No clients yet. Click "Add Client" to create the first one.</td></tr>
+              <tr><td colSpan={9 + (canShowLegitimacy ? 1 : 0) + (canClientActions ? 1 : 0)} className="um__empty">No clients yet. Click "Add Client" to create the first one.</td></tr>
             ) : sortedClients.map((c) => {
               const canAdjustAmounts = c.status === 'Active' && normalizeLegitimacyStatus(c) !== 'declined';
 
@@ -998,7 +998,7 @@ export default function BrokerDetail() {
                       </span>
                     )}
                   </td>
-                  {canTradingOk && (
+                  {canShowLegitimacy && (
                     <td>
                       {c.status === 'Active' ? (
                         <LegitimacyCheckboxGroup
