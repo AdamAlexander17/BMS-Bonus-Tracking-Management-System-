@@ -159,7 +159,7 @@ export default function Brokers() {
       <PageHeader
         icon={<BrokerIcon />}
         title="Broker Management"
-        subtitle={`${users.length} broker${users.length !== 1 ? 's' : ''} • Relationship Managers & Junior Relationship Managers`}
+        subtitle={`${users.length} user${users.length !== 1 ? 's' : ''} • Users who can manage brokers`}
         actions={
           <>
             <CustomSelect
@@ -242,7 +242,7 @@ export default function Brokers() {
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan="6" className="um__empty">No RM / JRM users found.</td></tr>
+                <tr><td colSpan="6" className="um__empty">No broker-managing users found.</td></tr>
               ) : paged.map(u => (
                 <tr key={u.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/brokers/rm/${u.id}`)}>
                   <td>
