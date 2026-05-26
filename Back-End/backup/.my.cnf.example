@@ -1,0 +1,14 @@
+# Example credentials file for the BMS backup user.
+# Copy to ~/.my.cnf on the production server, fill in the password,
+# then: chmod 600 ~/.my.cnf
+#
+# NEVER commit the real file to git.
+
+[client]
+user=bms_backup
+password=REPLACE_WITH_STRONG_PASSWORD
+host=127.0.0.1
+
+[mysqldump]
+user=bms_backup
+password=REPLACE_WITH_STRONG_PASSWORD
