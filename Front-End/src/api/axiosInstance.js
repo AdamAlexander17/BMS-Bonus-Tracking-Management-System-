@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const axiosInstance = axios.create({
-  baseURL: 'http://127.0.0.1:8001/api/',
+  baseURL: '/api/',
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -57,7 +57,7 @@ axiosInstance.interceptors.response.use(
           window.location.href = '/login';
           return Promise.reject(new Error('No refresh token'));
         }
-        const { data } = await axios.post('http://127.0.0.1:8001/api/token/refresh/', {
+        const { data } = await axios.post('/api/token/refresh/', {
           refresh_token: refresh,
         });
         const newToken = data.data.access_token;
