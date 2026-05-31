@@ -1942,6 +1942,7 @@ def format_broker(broker):
         'rm_user':       {'id': rm.id, 'username': rm.username, 'roles': rm.role_names} if rm else None,
         'amount_earned': str(broker.amount_earned),
         'amount_paid':   str(broker.amount_paid),
+        'amount_declined': str(broker.amount_declined),
         'pending_payout': str(broker.pending_payout),
         'last_paid_at':  last_paid_at.isoformat() if last_paid_at else None,
         'status':        broker.status,
@@ -1955,6 +1956,7 @@ def format_broker_payout(payout):
     return {
         'id': payout.id,
         'amount': str(payout.amount),
+        'decline_amount': str(getattr(payout, 'decline_amount', 0) or 0),
         'paid_by': payout.paid_by.username if payout.paid_by_id else None,
         'created_at': payout.created_at.isoformat() if payout.created_at else None,
     }
@@ -2323,30 +2325,39 @@ def broker_payout_create(request, broker_id):
         )
 
     raw_amount = request.data.get('amount')
+    raw_decline = request.data.get('decline_amount', 0)
     try:
-        amount = Decimal(str(raw_amount))
+        amount = Decimal(str(raw_amount if raw_amount not in (None, '') else 0))
+        decline_amount = Decimal(str(raw_decline if raw_decline not in (None, '') else 0))
     except (InvalidOperation, TypeError, ValueError):
         return Response(
-            {'success': False, 'message': 'Amount must be a valid number.'},
+            {'success': False, 'message': 'Amount and decline amount must be valid numbers.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    if amount <= 0:
+    if amount < 0 or decline_amount < 0:
         return Response(
-            {'success': False, 'message': 'Amount must be greater than zero.'},
+            {'success': False, 'message': 'Amount and decline amount cannot be negative.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if amount + decline_amount <= 0:
+        return Response(
+            {'success': False, 'message': 'Enter a payout amount or a decline amount greater than zero.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
     pending_payout = Decimal(str(broker.pending_payout))
-    if amount > pending_payout:
+    if amount + decline_amount > pending_payout:
         return Response(
-            {'success': False, 'message': 'Amount exceeds pending payout.'},
+            {'success': False, 'message': 'Amount plus decline exceeds pending payout.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
     payout = BrokerPayout.objects.create(
         broker=broker,
         amount=amount,
+        decline_amount=decline_amount,
         paid_by=request.user,
     )
 
@@ -2362,6 +2373,7 @@ def broker_payout_create(request, broker_id):
         entity_label=broker.name,
         details={
             'amount': amount,
+            'decline_amount': decline_amount,
             'pending_payout': broker.pending_payout,
             'paid_by': request.user.username,
             'paid_at': payout.created_at.isoformat(),
@@ -2401,37 +2413,56 @@ def broker_payout_update(request, broker_id, payout_id):
         )
 
     raw_amount = request.data.get('amount')
+    raw_decline = request.data.get('decline_amount')
     try:
-        amount = Decimal(str(raw_amount))
+        amount = Decimal(str(raw_amount if raw_amount not in (None, '') else 0))
     except (InvalidOperation, TypeError, ValueError):
         return Response(
             {'success': False, 'message': 'Amount must be a valid number.'},
             status=status.HTTP_400_BAD_REQUEST
         )
+    if raw_decline is None:
+        decline_amount = Decimal(str(payout.decline_amount or 0))
+    else:
+        try:
+            decline_amount = Decimal(str(raw_decline if raw_decline != '' else 0))
+        except (InvalidOperation, TypeError, ValueError):
+            return Response(
+                {'success': False, 'message': 'Decline amount must be a valid number.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-    if amount <= 0:
+    if amount < 0 or decline_amount < 0:
         return Response(
-            {'success': False, 'message': 'Amount must be greater than zero.'},
+            {'success': False, 'message': 'Amount and decline amount cannot be negative.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if amount + decline_amount <= 0:
+        return Response(
+            {'success': False, 'message': 'Enter a payout amount or a decline amount greater than zero.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
     broker = payout.broker
     pending_before = Decimal(str(broker.pending_payout))
-    allowed_max = pending_before + payout.amount
-    if amount > allowed_max:
+    allowed_max = pending_before + payout.amount + (payout.decline_amount or 0)
+    if amount + decline_amount > allowed_max:
         return Response(
-            {'success': False, 'message': 'Amount exceeds pending payout.'},
+            {'success': False, 'message': 'Amount plus decline exceeds pending payout.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
     previous_payout = {
         'amount': str(payout.amount),
+        'decline_amount': str(payout.decline_amount or 0),
         'paid_by': payout.paid_by.username if payout.paid_by_id else None,
         'created_at': payout.created_at.isoformat() if payout.created_at else None,
     }
 
     payout.amount = amount
-    payout.save(update_fields=['amount'])
+    payout.decline_amount = decline_amount
+    payout.save(update_fields=['amount', 'decline_amount'])
 
     broker = Broker.objects.select_related('brand', 'created_by', 'rm_user').prefetch_related('payouts').get(id=broker_id)
 
@@ -2447,6 +2478,7 @@ def broker_payout_update(request, broker_id, payout_id):
             previous_payout,
             {
                 'amount': str(payout.amount),
+                'decline_amount': str(payout.decline_amount or 0),
                 'paid_by': payout.paid_by.username if payout.paid_by_id else None,
                 'created_at': payout.created_at.isoformat() if payout.created_at else None,
                 'pending_payout': broker.pending_payout,
@@ -2581,7 +2613,9 @@ def broker_delete(request, broker_id):
 def format_client(client):
     deposited_amount = Decimal(str(client.deposited_amount or 0))
     withdrawal_amount = Decimal(str(client.withdrawal_amount or 0))
+    equity_amount = Decimal(str(client.equity_amount or 0))
     net_total = deposited_amount - withdrawal_amount
+    net_dwe = net_total - equity_amount
     return {
         'id':                client.id,
         'name':              client.name,
@@ -2593,7 +2627,9 @@ def format_client(client):
         },
         'deposited_amount':  str(deposited_amount),
         'withdrawal_amount': str(withdrawal_amount),
+        'equity_amount':     str(equity_amount),
         'net_total':         str(net_total),
+        'net_dwe':           str(net_dwe),
         'earned_amount':     str(client.earned_amount),
         'legitimacy_status': client.legitimacy_status,
         'is_legitimate':     client.is_legitimate,
@@ -2680,6 +2716,7 @@ def client_create(request, broker_id):
     arc_id            = request.data.get('arc_id', '').strip()
     deposited_amount  = request.data.get('deposited_amount', 0)
     withdrawal_amount = request.data.get('withdrawal_amount', 0)
+    equity_amount     = request.data.get('equity_amount', 0)
     legitimacy_status = request.data.get('legitimacy_status')
     is_legitimate     = request.data.get('is_legitimate', False)
 
@@ -2704,12 +2741,13 @@ def client_create(request, broker_id):
     try:
         deposited_amount  = Decimal(str(deposited_amount))
         withdrawal_amount = Decimal(str(withdrawal_amount))
+        equity_amount     = Decimal(str(equity_amount))
         legitimacy_status = _normalize_legitimacy_status(legitimacy_status)
         if legitimacy_status is None:
             legitimacy_status = 'approved' if _parse_bool(is_legitimate, 'is_legitimate') else 'pending'
     except (InvalidOperation, ValueError, TypeError):
         return Response(
-            {'success': False, 'message': 'deposited_amount and withdrawal_amount must be numbers, and legitimacy_status must be Pending, Approved, or Declined.'},
+            {'success': False, 'message': 'deposited_amount, withdrawal_amount and equity_amount must be numbers, and legitimacy_status must be Pending, Approved, or Declined.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -2719,6 +2757,7 @@ def client_create(request, broker_id):
         broker=broker,
         deposited_amount=deposited_amount,
         withdrawal_amount=withdrawal_amount,
+        equity_amount=equity_amount,
         legitimacy_status=legitimacy_status,
         status='Active',
         created_by=request.user,
@@ -2861,12 +2900,13 @@ def client_update(request, client_id):
 
     new_name              = request.data.get('name')
     new_arc_id            = request.data.get('arc_id')
+    new_equity_amount     = request.data.get('equity_amount')
     new_legitimacy_status = request.data.get('legitimacy_status')
     new_is_legitimate     = request.data.get('is_legitimate')
     new_status            = request.data.get('status')
 
     touches_core_fields = any(
-        v is not None for v in (new_name, new_arc_id, new_status)
+        v is not None for v in (new_name, new_arc_id, new_status, new_equity_amount)
     )
     touches_legitimacy  = (new_legitimacy_status is not None) or (new_is_legitimate is not None)
 
@@ -2886,6 +2926,7 @@ def client_update(request, client_id):
         'status': client.status,
         'legitimacy_status': client.legitimacy_status,
         'is_legitimate': client.is_legitimate,
+        'equity_amount': str(client.equity_amount),
     }
 
     if new_name is not None:
@@ -2916,6 +2957,15 @@ def client_update(request, client_id):
             {'success': False, 'message': 'Use client transaction actions to update deposited or withdrawal amounts.'},
             status=status.HTTP_400_BAD_REQUEST
         )
+
+    if new_equity_amount is not None:
+        try:
+            client.equity_amount = Decimal(str(new_equity_amount))
+        except (InvalidOperation, ValueError, TypeError):
+            return Response(
+                {'success': False, 'message': 'equity_amount must be a valid number.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     target_legitimacy_status = _normalize_legitimacy_status(new_legitimacy_status)
     if target_legitimacy_status is None and new_is_legitimate is not None:

@@ -213,8 +213,13 @@ class Broker(models.Model):
         return round(float(total), 2)
 
     @property
+    def amount_declined(self):
+        total = sum((Decimal(str(getattr(payout, 'decline_amount', 0) or 0)) for payout in self._payout_items()), Decimal('0'))
+        return round(float(total), 2)
+
+    @property
     def pending_payout(self):
-        return round(max(self.amount_earned - self.amount_paid, 0), 2)
+        return round(max(self.amount_earned - self.amount_paid - self.amount_declined, 0), 2)
 
     @property
     def last_paid_at(self):
@@ -229,6 +234,7 @@ class BrokerPayout(models.Model):
     id         = models.BigAutoField(primary_key=True)
     broker      = models.ForeignKey(Broker, on_delete=models.CASCADE, related_name='payouts')
     amount      = models.DecimalField(max_digits=15, decimal_places=2)
+    decline_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     paid_by     = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='broker_payouts'
     )
@@ -259,6 +265,7 @@ class Client(models.Model):
     broker            = models.ForeignKey(Broker, on_delete=models.CASCADE, related_name='clients')
     deposited_amount  = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     withdrawal_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    equity_amount     = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     legitimacy_status = models.CharField(max_length=20, choices=LEGITIMACY_STATUS_CHOICES, default='pending')
     is_legitimate     = models.BooleanField(default=False)
     status            = models.CharField(max_length=10, choices=STATUS_CHOICES, default='Active')
@@ -284,6 +291,14 @@ class Client(models.Model):
 
         # 1% of deposited_amount for legitimate trading clients only
         return round(float(self.deposited_amount) * 0.01, 2)
+
+    @property
+    def net_dwe(self):
+        return (
+            Decimal(str(self.deposited_amount or 0))
+            - Decimal(str(self.withdrawal_amount or 0))
+            - Decimal(str(self.equity_amount or 0))
+        )
 
 
 class ClientTransaction(models.Model):

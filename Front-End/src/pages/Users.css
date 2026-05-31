@@ -161,6 +161,7 @@
   border-bottom: 1px solid #eef0f5;
   vertical-align: middle;
   background: transparent;
+  font-size: 0.92rem;
 }
 .um__table tbody tr:last-child td { border-bottom: none; }
 .um__table tbody tr:hover td { background: #fafbfd; }

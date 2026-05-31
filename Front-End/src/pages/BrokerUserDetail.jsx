@@ -55,7 +55,7 @@ const UserIcon = () => (
 
 const formatDate = (str) => {
   if (!str) return '—';
-  return new Date(str).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(str).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
 };
 
 const formatDateTime = (str) => {
@@ -63,7 +63,7 @@ const formatDateTime = (str) => {
   const parsed = new Date(str.includes('T') ? str : str.replace(' ', 'T'));
   if (Number.isNaN(parsed.getTime())) return '—';
   return parsed.toLocaleString('en-IN', {
-    day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit'
+    month: 'short', year: 'numeric'
   });
 };
 
@@ -212,8 +212,10 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
                 <input
                   style={inputStyle}
                   value={form.arc_id}
-                  onChange={set('arc_id')}
+                  onChange={(e) => setForm(f => ({ ...f, arc_id: e.target.value.replace(/\D/g, '').slice(0, 5) }))}
                   required
+                  inputMode="numeric"
+                  pattern="\d*"
                   maxLength={5}
                   placeholder="12345"
                   onFocus={e => e.target.style.borderColor = '#004B4E'}
@@ -459,8 +461,10 @@ function AddClientModal({ broker, onClose, onCreated }) {
                   <input
                     style={inputStyle}
                     value={form.arc_id}
-                    onChange={set('arc_id')}
+                    onChange={(e) => setForm(f => ({ ...f, arc_id: e.target.value.replace(/\D/g, '').slice(0, 5) }))}
                     required
+                    inputMode="numeric"
+                    pattern="\d*"
                     maxLength={5}
                     placeholder="12345"
                     onFocus={e => e.target.style.borderColor = '#004B4E'}
@@ -544,6 +548,7 @@ export default function BrokerUserDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
   const [search, setSearch]   = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
   const [selectedBroker, setSelectedBroker]   = useState(null);
@@ -597,6 +602,7 @@ export default function BrokerUserDetail() {
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredBrokers = brokers.filter((broker) => {
+    if (monthFilter && (broker.created_at || '').slice(0, 7) !== monthFilter) return false;
     if (!normalizedSearch) return true;
     return [broker.name, broker.arc_id, broker.brand?.name, broker.created_by, broker.status]
       .some((value) => String(value || '').toLowerCase().includes(normalizedSearch));
@@ -696,7 +702,7 @@ export default function BrokerUserDetail() {
 
       {/* Broker companies table */}
       <div className="um__card">
-        <div className="um__toolbar">
+        <div className="um__toolbar" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div className="um__search" style={{ maxWidth: 360 }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="7" />
@@ -707,6 +713,18 @@ export default function BrokerUserDetail() {
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search broker, ARC ID, brand, creator, or status"
             />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>Month</label>
+            <input
+              type="month"
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              style={{ height: 36, padding: '0 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#111827', background: '#fff', outline: 'none' }}
+            />
+            {monthFilter && (
+              <button type="button" className="ph-btn ph-btn--ghost" style={{ height: 36, padding: '0 10px', fontSize: 12 }} onClick={() => setMonthFilter('')}>Clear</button>
+            )}
           </div>
           <SuccessChip message={pageSuccess} onClose={() => setPageSuccess('')} />
         </div>

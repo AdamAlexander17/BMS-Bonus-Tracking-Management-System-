@@ -21,6 +21,15 @@ const sortButtonStyle = {
   letterSpacing: 'inherit',
   textTransform: 'inherit',
   cursor: 'pointer',
+  whiteSpace: 'normal',
+  textAlign: 'left',
+  lineHeight: 1.2,
+};
+
+const thWrapStyle = {
+  whiteSpace: 'normal',
+  lineHeight: 1.2,
+  verticalAlign: 'middle',
 };
 
 function compareValues(left, right, direction) {
@@ -64,7 +73,7 @@ const PlusIcon = () => (
 
 const formatDate = (str) => {
   if (!str) return '—';
-  return new Date(str).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(str).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
 };
 
 const formatDateTime = (str) => {
@@ -72,7 +81,7 @@ const formatDateTime = (str) => {
   const parsed = new Date(str.includes('T') ? str : str.replace(' ', 'T'));
   if (Number.isNaN(parsed.getTime())) return '—';
   return parsed.toLocaleString('en-IN', {
-    day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit'
+    month: 'short', year: 'numeric'
   });
 };
 
@@ -173,7 +182,7 @@ import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
 function AddClientModal({ broker, onClose, onCreated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
-  const [form, setForm]     = useState({ name: '', arc_id: '', deposited_amount: '', withdrawal_amount: '', legitimacy_status: 'pending' });
+  const [form, setForm]     = useState({ name: '', arc_id: '', deposited_amount: '', withdrawal_amount: '', equity_amount: '', legitimacy_status: 'pending' });
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -191,6 +200,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
         arc_id:            form.arc_id.trim(),
         deposited_amount:  form.deposited_amount  || 0,
         withdrawal_amount: form.withdrawal_amount || 0,
+        equity_amount:     form.equity_amount     || 0,
         legitimacy_status: form.legitimacy_status,
       });
       onCreated();
@@ -272,8 +282,10 @@ function AddClientModal({ broker, onClose, onCreated }) {
                   <input
                     style={inputStyle}
                     value={form.arc_id}
-                    onChange={set('arc_id')}
+                    onChange={(e) => setForm(f => ({ ...f, arc_id: e.target.value.replace(/\D/g, '').slice(0, 5) }))}
                     required
+                    inputMode="numeric"
+                    pattern="\d*"
                     maxLength={5}
                     placeholder="12345"
                     onFocus={e => e.target.style.borderColor = '#004B4E'}
@@ -298,6 +310,17 @@ function AddClientModal({ broker, onClose, onCreated }) {
                   style={inputStyle}
                   value={form.withdrawal_amount}
                   onChange={set('withdrawal_amount')}
+                  placeholder="0.00"
+                  onFocus={e => e.target.style.borderColor = '#004B4E'}
+                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
+                />
+              </Field>
+              <Field label="Equity (₹)">
+                <input
+                  type="number" min="0" step="0.01"
+                  style={inputStyle}
+                  value={form.equity_amount}
+                  onChange={set('equity_amount')}
                   placeholder="0.00"
                   onFocus={e => e.target.style.borderColor = '#004B4E'}
                   onBlur={e => e.target.style.borderColor = '#d1d5db'}
@@ -329,6 +352,7 @@ function EditClientModal({ client, broker, canTradingOk, onClose, onUpdated }) {
   const [form, setForm]     = useState({
     name:              client.name ?? '',
     arc_id:            client.arc_id,
+    equity_amount:     client.equity_amount ?? '',
     legitimacy_status: normalizeLegitimacyStatus(client),
   });
 
@@ -346,6 +370,7 @@ function EditClientModal({ client, broker, canTradingOk, onClose, onUpdated }) {
       const payload = {
         name:              form.name.trim(),
         arc_id:            form.arc_id.trim(),
+        equity_amount:     form.equity_amount === '' ? 0 : form.equity_amount,
       };
       if (canTradingOk) {
         payload.legitimacy_status = form.legitimacy_status;
@@ -432,8 +457,10 @@ function EditClientModal({ client, broker, canTradingOk, onClose, onUpdated }) {
                   <input
                     style={inputStyle}
                     value={form.arc_id}
-                    onChange={set('arc_id')}
+                    onChange={(e) => setForm(f => ({ ...f, arc_id: e.target.value.replace(/\D/g, '').slice(0, 5) }))}
                     required
+                    inputMode="numeric"
+                    pattern="\d*"
                     maxLength={5}
                     placeholder="12345"
                     onFocus={e => e.target.style.borderColor = '#004B4E'}
@@ -451,6 +478,19 @@ function EditClientModal({ client, broker, canTradingOk, onClose, onUpdated }) {
                   </Field>
                 </div>
               )}
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Field label="Equity (₹)">
+                  <input
+                    type="number" min="0" step="0.01"
+                    style={inputStyle}
+                    value={form.equity_amount}
+                    onChange={set('equity_amount')}
+                    placeholder="0.00"
+                    onFocus={e => e.target.style.borderColor = '#004B4E'}
+                    onBlur={e => e.target.style.borderColor = '#d1d5db'}
+                  />
+                </Field>
+              </div>
             </div>
           </div>
 
@@ -561,6 +601,96 @@ function AddAmountModal({ client, mode, onClose, onUpdated }) {
             <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>
               {saving ? 'Saving...' : isDeposit ? 'Add Deposit' : 'Withdrawal'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ManageEquityModal({ client, onClose, onUpdated }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState('');
+  const [amount, setAmount] = useState(
+    client.equity_amount != null && client.equity_amount !== ''
+      ? String(client.equity_amount)
+      : ''
+  );
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (amount === '' || Number(amount) < 0 || Number.isNaN(Number(amount))) {
+      setError('Enter a valid equity amount (0 or greater).');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateClient(client.id, { equity_amount: Number(amount) });
+      onUpdated();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update equity.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      className="bd-modal-overlay" style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(15,23,42,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        className="bd-modal" style={{
+          background: '#fff', borderRadius: 14, width: '100%', maxWidth: 460,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden',
+        }}
+      >
+        <div className="bms-dialog__header" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px 18px',
+        }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Manage Equity</h2>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>
+              {client.name} · <strong>{client.arc_id}</strong>
+            </p>
+          </div>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.8)', padding: 4, borderRadius: 6, display: 'flex' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '24px 24px 8px' }}>
+            {error && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>
+            )}
+            <Field label="Equity (₹)">
+              <input
+                type="number" min="0" step="0.01"
+                style={inputStyle}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                autoFocus
+                onFocus={e => e.target.style.borderColor = '#004B4E'}
+                onBlur={e => e.target.style.borderColor = '#d1d5db'}
+              />
+            </Field>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
+            <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>
+              {saving ? 'Saving...' : 'Save Equity'}
             </button>
           </div>
         </form>
@@ -724,11 +854,13 @@ export default function BrokerDetail() {
   const [showModal, setShowModal]             = useState(false);
   const [editClient, setEditClient]           = useState(null);
   const [amountAction, setAmountAction]       = useState(null);
+  const [equityAction, setEquityAction]       = useState(null);
   const [showEditBroker, setShowEditBroker]   = useState(false);
   const [confirmState, setConfirmState]       = useState(null);
   const [pageSuccess, setPageSuccess]         = useState('');
   const [pageError, setPageError]             = useState('');
   const [sortConfig, setSortConfig]           = useState({ key: null, direction: 'asc' });
+  const [monthFilter, setMonthFilter]         = useState('');
 
   const fetchAll = async () => {
     setLoading(true);
@@ -808,7 +940,10 @@ export default function BrokerDetail() {
   const pendingPayout   = Number(broker?.pending_payout || 0);
 
   const sortedClients = useMemo(() => {
-    if (!sortConfig.key) return clients;
+    const filtered = monthFilter
+      ? clients.filter((c) => (c.created_at || '').slice(0, 7) === monthFilter)
+      : clients;
+    if (!sortConfig.key) return filtered;
 
     const getSortValue = (client, key) => {
       switch (key) {
@@ -820,8 +955,18 @@ export default function BrokerDetail() {
           return Number(client.deposited_amount ?? 0);
         case 'withdrawal_amount':
           return Number(client.withdrawal_amount ?? 0);
+        case 'equity_amount':
+          return Number(client.equity_amount ?? 0);
         case 'net_total':
           return Number(client.net_total ?? 0);
+        case 'net_dwe':
+          return Number(
+            client.net_dwe ?? (
+              Number(client.deposited_amount ?? 0)
+              - Number(client.withdrawal_amount ?? 0)
+              - Number(client.equity_amount ?? 0)
+            )
+          );
         case 'earned_amount':
           return Number(client.earned_amount ?? 0);
         case 'status':
@@ -835,14 +980,14 @@ export default function BrokerDetail() {
       }
     };
 
-    return [...clients].sort((left, right) => (
+    return [...filtered].sort((left, right) => (
       compareValues(
         getSortValue(left, sortConfig.key),
         getSortValue(right, sortConfig.key),
         sortConfig.direction,
       )
     ));
-  }, [clients, sortConfig]);
+  }, [clients, sortConfig, monthFilter]);
 
   const handleSort = (key) => {
     setSortConfig((current) => (
@@ -915,6 +1060,14 @@ export default function BrokerDetail() {
           onUpdated={() => { setAmountAction(null); setPageError(''); setPageSuccess(`${amountAction.mode === 'deposit' ? 'Deposit' : 'Withdrawal'} added successfully.`); fetchAll(); }}
         />
       )}
+
+      {equityAction && (
+        <ManageEquityModal
+          client={equityAction}
+          onClose={() => setEquityAction(null)}
+          onUpdated={() => { setEquityAction(null); setPageError(''); setPageSuccess('Equity updated successfully.'); fetchAll(); }}
+        />
+      )}
       {editClient && (
         <EditClientModal
           client={editClient}
@@ -943,8 +1096,20 @@ export default function BrokerDetail() {
 
       {/* Clients table */}
       <div className="um__card">
-        <div className="um__toolbar">
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Clients ({clients.length})</h3>
+        <div className="um__toolbar" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Clients ({sortedClients.length}{monthFilter ? ` of ${clients.length}` : ''})</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>Month</label>
+            <input
+              type="month"
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              style={{ height: 32, padding: '0 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#111827', background: '#fff', outline: 'none' }}
+            />
+            {monthFilter && (
+              <button type="button" className="ph-btn ph-btn--ghost" style={{ height: 32, padding: '0 10px', fontSize: 12 }} onClick={() => setMonthFilter('')}>Clear</button>
+            )}
+          </div>
           <SuccessChip message={pageSuccess} onClose={() => setPageSuccess('')} />
         </div>
         {pageError && (
@@ -957,21 +1122,23 @@ export default function BrokerDetail() {
         <table className="um__table">
           <thead>
             <tr>
-              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('name')}>NAME <span>{getSortIndicator('name')}</span></button></th>
-              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('arc_id')}>ARC ID <span>{getSortIndicator('arc_id')}</span></button></th>
-              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('deposited_amount')}>DEPOSITED <span>{getSortIndicator('deposited_amount')}</span></button></th>
-              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('withdrawal_amount')}>WITHDRAWN <span>{getSortIndicator('withdrawal_amount')}</span></button></th>
-              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('net_total')}>NET TOTAL <span>{getSortIndicator('net_total')}</span></button></th>
-              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('earned_amount')}>EARNED (1%) <span>{getSortIndicator('earned_amount')}</span></button></th>
-              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('status')}>STATUS <span>{getSortIndicator('status')}</span></button></th>
-              {canShowLegitimacy && <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('legitimacy_status')}>LEGITIMATE CLIENT <span>{getSortIndicator('legitimacy_status')}</span></button></th>}
-              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('created_at')}>CREATED <span>{getSortIndicator('created_at')}</span></button></th>
-              {canClientActions && <th style={{ minWidth: 186, paddingLeft: 14 }}>ACTIONS</th>}
+              <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('name')}>NAME <span>{getSortIndicator('name')}</span></button></th>
+              <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('arc_id')}>ARC ID <span>{getSortIndicator('arc_id')}</span></button></th>
+              <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('deposited_amount')}>DEPOSITED <span>{getSortIndicator('deposited_amount')}</span></button></th>
+              <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('withdrawal_amount')}>WITHDRAWN <span>{getSortIndicator('withdrawal_amount')}</span></button></th>
+              <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('equity_amount')}>EQUITY <span>{getSortIndicator('equity_amount')}</span></button></th>
+              <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('net_total')}>NET TOTAL <span>{getSortIndicator('net_total')}</span></button></th>
+              <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('net_dwe')}>NET DWE <span>{getSortIndicator('net_dwe')}</span></button></th>
+              <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('earned_amount')}>EARNED (1%) <span>{getSortIndicator('earned_amount')}</span></button></th>
+              <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('status')}>STATUS <span>{getSortIndicator('status')}</span></button></th>
+              {canShowLegitimacy && <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('legitimacy_status')}>LEGITIMATE CLIENT <span>{getSortIndicator('legitimacy_status')}</span></button></th>}
+              <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('created_at')}>CREATED <span>{getSortIndicator('created_at')}</span></button></th>
+              {canClientActions && <th style={{ ...thWrapStyle, width: 100, minWidth: 100, paddingLeft: 4, paddingRight: 8, textAlign: 'left' }}>ACTIONS</th>}
             </tr>
           </thead>
           <tbody>
             {sortedClients.length === 0 ? (
-              <tr><td colSpan={9 + (canShowLegitimacy ? 1 : 0) + (canClientActions ? 1 : 0)} className="um__empty">No clients yet. Click "Add Client" to create the first one.</td></tr>
+              <tr><td colSpan={11 + (canShowLegitimacy ? 1 : 0) + (canClientActions ? 1 : 0)} className="um__empty">No clients yet. Click "Add Client" to create the first one.</td></tr>
             ) : sortedClients.map((c) => {
               const canAdjustAmounts = c.status === 'Active' && normalizeLegitimacyStatus(c) !== 'declined';
 
@@ -981,7 +1148,9 @@ export default function BrokerDetail() {
                   <td><code className="um__handle">{c.arc_id}</code></td>
                   <td>{formatINR(c.deposited_amount)}</td>
                   <td>{formatINR(c.withdrawal_amount)}</td>
+                  <td>{formatINR(c.equity_amount)}</td>
                   <td>{formatINR(c.net_total)}</td>
+                  <td>{formatINR(c.net_dwe)}</td>
                   <td style={{ fontWeight: 600 }}>{formatINR(c.earned_amount)}</td>
                   <td>
                     {canClientUpdate ? (
@@ -1014,8 +1183,8 @@ export default function BrokerDetail() {
                   )}
                   <td><span className="um__date">{formatDate(c.created_at)}</span></td>
                   {canClientActions && (
-                    <td style={{ minWidth: 160, whiteSpace: 'nowrap', paddingLeft: 14 }}>
-                      <div className="um__actions" style={{ flexWrap: 'nowrap' }}>
+                    <td style={{ width: 100, minWidth: 100, paddingLeft: 4, paddingRight: 8, textAlign: 'left' }}>
+                      <div className="um__actions" style={{ flexWrap: 'wrap', rowGap: 4, gap: 4, justifyContent: 'flex-start', maxWidth: 88, marginRight: 'auto' }}>
                         {canViewTxns && (
                           <button
                             className="um__action-btn"
@@ -1057,6 +1226,18 @@ export default function BrokerDetail() {
                                 </button>
                               </>
                             )}
+                            <button
+                              className="um__action-btn"
+                              title="Manage Equity"
+                              style={{ color: '#8b5cf6' }}
+                              onClick={() => setEquityAction(c)}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                                <rect x="2" y="6" width="20" height="13" rx="2"/>
+                                <path d="M2 10h20"/>
+                                <path d="M16 15h2"/>
+                              </svg>
+                            </button>
                             <button
                               className="um__action-btn um__action-btn--edit"
                               title="Edit"

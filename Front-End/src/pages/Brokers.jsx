@@ -151,7 +151,7 @@ export default function Brokers() {
 
   const formatDate = (str) => {
     if (!str) return '—';
-    return new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(str).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   };
 
   return (

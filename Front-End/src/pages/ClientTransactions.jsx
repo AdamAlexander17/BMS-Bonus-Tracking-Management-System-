@@ -57,11 +57,8 @@ const HistoryIcon = () => (
 const formatDateTime = (str) => {
   if (!str) return '—';
   return new Date(str.replace(' ', 'T')).toLocaleString('en-IN', {
-    day: 'numeric',
     month: 'short',
     year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
   });
 };
 
@@ -179,8 +176,12 @@ export default function ClientTransactions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
+  const [monthFilter, setMonthFilter] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [editTransaction, setEditTransaction] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
   const [pageSuccess, setPageSuccess] = useState('');
@@ -223,16 +224,15 @@ export default function ClientTransactions() {
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredTransactions = transactions.filter((transaction) => {
-    const entryDate = (transaction.created_at || '').slice(0, 10);
+    const entryMonth = (transaction.created_at || '').slice(0, 7);
     const matchesSearch = !normalizedSearch || [
       transaction.transaction_type,
       transaction.entered_by,
       transaction.amount,
       transaction.created_at,
     ].some((value) => String(value || '').toLowerCase().includes(normalizedSearch));
-    const matchesFrom = !fromDate || entryDate >= fromDate;
-    const matchesTo = !toDate || entryDate <= toDate;
-    return matchesSearch && matchesFrom && matchesTo;
+    const matchesMonth = !monthFilter || entryMonth === monthFilter;
+    return matchesSearch && matchesMonth;
   });
 
   const sortedTransactions = useMemo(() => {
@@ -322,23 +322,19 @@ export default function ClientTransactions() {
               />
             </div>
             <div className="bph-filters__group">
-              <label className="bph-filters__label">From</label>
+              <label className="bph-filters__label">Month</label>
               <input
-                type="date"
+                type="month"
                 className="bph-input bph-input--date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
               />
             </div>
-            <div className="bph-filters__group">
-              <label className="bph-filters__label">To</label>
-              <input
-                type="date"
-                className="bph-input bph-input--date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-              />
-            </div>
+            {monthFilter && (
+              <div className="bph-filters__group">
+                <button type="button" className="ph-btn ph-btn--ghost" onClick={() => setMonthFilter('')}>Clear</button>
+              </div>
+            )}
           </div>
           <SuccessChip message={pageSuccess} onClose={() => setPageSuccess('')} />
         </div>

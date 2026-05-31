@@ -55,6 +55,7 @@ body {
   background: #fff;
   color: #111827;
   -webkit-font-smoothing: antialiased;
+  zoom: 0.9;
 }
 
 #root { min-height: 100vh; display: flex; flex-direction: column; }
@@ -122,6 +123,23 @@ body {
 [data-theme="dark"] select:not([multiple]) option {
   background: var(--dm-surface);
   color: var(--dm-text);
+}
+
+/* Month / date inputs in dark mode (override inline white bg) */
+[data-theme="dark"] input[type="month"],
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="datetime-local"] {
+  background: var(--dm-surface-2) !important;
+  color: var(--dm-text) !important;
+  border-color: var(--dm-border) !important;
+  color-scheme: dark;
+}
+[data-theme="dark"] input[type="month"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) grayscale(1) brightness(2);
+  opacity: 1;
+  cursor: pointer;
 }
 
 /* ---------- Layout ---------- */
@@ -670,12 +688,15 @@ body {
   font-weight: 600;
   color: #111827;
 }
-[data-theme="dark"] .info-card {
-  background: rgba(255,255,255,0.02) !important;
+[data-theme="dark"] .info-card,
+[data-theme="dark"] .um__card.info-card {
+  background: transparent !important;
   border-color: var(--dm-border) !important;
 }
-[data-theme="dark"] .info-card__label { color: var(--dm-text-2) !important; }
-[data-theme="dark"] .info-card__value { color: var(--dm-accent) !important; }
+[data-theme="dark"] .info-card__label,
+[data-theme="dark"] .um__card.info-card .info-card__label { color: var(--dm-text-2) !important; }
+[data-theme="dark"] .info-card__value,
+[data-theme="dark"] .um__card.info-card .info-card__value { color: #ffffff !important; }
 
 /* ============================================================
    MODAL DARK MODE (um__* shared modal classes used by Users,
@@ -1044,13 +1065,13 @@ html[data-theme="dark"] .rm .rm__perms-header-left p { color: var(--dm-text-2) !
   background: transparent !important;
 }
 
-/* Pay-Broker mini-cards & InfoCard chrome in dark mode (transparent inline bg) */
+/* Pay-Broker mini-cards & InfoCard chrome in dark mode (transparent bg, white value) */
 [data-theme="dark"] .um__card.info-card {
   background: transparent !important;
   border-color: var(--dm-border) !important;
 }
 [data-theme="dark"] .um__card.info-card .info-card__label { color: var(--dm-text-2) !important; }
-[data-theme="dark"] .um__card.info-card .info-card__value { color: var(--dm-text) !important; }
+[data-theme="dark"] .um__card.info-card .info-card__value { color: #ffffff !important; }
 
 
 /* ============================================================

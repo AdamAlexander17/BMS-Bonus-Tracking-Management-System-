@@ -48,18 +48,14 @@ function formatDateTime(value) {
   const parsed = new Date(String(value).includes('T') ? value : String(value).replace(' ', 'T'));
   if (Number.isNaN(parsed.getTime())) return '—';
   return parsed.toLocaleString('en-IN', {
-    day: 'numeric',
     month: 'short',
     year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
   });
 }
 
 function formatDateOnly(value) {
   if (!value) return '—';
   return new Date(value.replace(' ', 'T')).toLocaleDateString('en-IN', {
-    day: 'numeric',
     month: 'short',
     year: 'numeric',
   });
@@ -216,6 +212,12 @@ export default function Reports() {
   const [transactionType, setTransactionType] = useState('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [monthFilter, setMonthFilter] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [showFilters, setShowFilters] = useState(false);
   const [brokerPage, setBrokerPage] = useState(1);
   const [clientPage, setClientPage] = useState(1);
@@ -319,6 +321,7 @@ export default function Reports() {
   const filteredClients = useMemo(() => {
     return clients.filter((client) => {
       const createdDate = (client.created_at || '').slice(0, 10);
+      const createdMonth = (client.created_at || '').slice(0, 7);
       const matchesSearch = !normalizedSearch || [
         client.name,
         client.arc_id,
@@ -335,13 +338,15 @@ export default function Reports() {
         || (tradingState === 'no' && !client.is_legitimate);
       const matchesFrom = !fromDate || createdDate >= fromDate;
       const matchesTo = !toDate || createdDate <= toDate;
-      return matchesSearch && matchesBrand && matchesBroker && matchesStatus && matchesTrading && matchesFrom && matchesTo;
+      const matchesMonth = !monthFilter || createdMonth === monthFilter;
+      return matchesSearch && matchesBrand && matchesBroker && matchesStatus && matchesTrading && matchesFrom && matchesTo && matchesMonth;
     });
-  }, [clients, normalizedSearch, brandId, brokerId, status, tradingState, fromDate, toDate]);
+  }, [clients, normalizedSearch, brandId, brokerId, status, tradingState, fromDate, toDate, monthFilter]);
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter((transaction) => {
       const transactionDate = (transaction.created_at || '').slice(0, 10);
+      const transactionMonth = (transaction.created_at || '').slice(0, 7);
       const matchesSearch = !normalizedSearch || [
         transaction.client_name,
         transaction.client_arc_id,
@@ -360,9 +365,10 @@ export default function Reports() {
       const matchesType = transactionType === 'all' || transaction.transaction_type === transactionType;
       const matchesFrom = !fromDate || transactionDate >= fromDate;
       const matchesTo = !toDate || transactionDate <= toDate;
-      return matchesSearch && matchesBrand && matchesBroker && matchesStatus && matchesTrading && matchesType && matchesFrom && matchesTo;
+      const matchesMonth = !monthFilter || transactionMonth === monthFilter;
+      return matchesSearch && matchesBrand && matchesBroker && matchesStatus && matchesTrading && matchesType && matchesFrom && matchesTo && matchesMonth;
     });
-  }, [transactions, normalizedSearch, brandId, brokerId, status, tradingState, transactionType, fromDate, toDate]);
+  }, [transactions, normalizedSearch, brandId, brokerId, status, tradingState, transactionType, fromDate, toDate, monthFilter]);
 
   const brokerLookup = useMemo(() => {
     const lookup = new Map();
@@ -439,6 +445,7 @@ export default function Reports() {
     setTransactionType('all');
     setFromDate('');
     setToDate('');
+    setMonthFilter('');
   };
 
   const brokerColumns = useMemo(() => [
@@ -609,11 +616,8 @@ export default function Reports() {
                 style={{ width: '100%' }}
               />
             </FilterField>
-            <FilterField label="From Date">
-              <input type="date" style={inputControlStyle} value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
-            </FilterField>
-            <FilterField label="To Date">
-              <input type="date" style={inputControlStyle} value={toDate} onChange={(event) => setToDate(event.target.value)} />
+            <FilterField label="Month">
+              <input type="month" style={inputControlStyle} value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)} />
             </FilterField>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, minHeight: 40 }}>
               <button className="ph-btn ph-btn--ghost" type="button" onClick={resetFilters}>Reset Filters</button>

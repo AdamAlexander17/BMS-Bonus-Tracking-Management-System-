@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
 import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
 import { getBrokerPayouts, createBrokerPayout, updateBrokerPayout, deleteBrokerPayout } from '../api/brokers';
+import { getClientsByBroker, getClientTransactions } from '../api/clients';
 import { formatINR } from './Brokers';
 import './Users.css';
 
@@ -60,7 +61,7 @@ const formatDateTime = (str) => {
   const parsed = new Date(str.includes('T') ? str : str.replace(' ', 'T'));
   if (Number.isNaN(parsed.getTime())) return '—';
   return parsed.toLocaleString('en-IN', {
-    day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit'
+    month: 'short', year: 'numeric'
   });
 };
 
@@ -112,23 +113,29 @@ function PayBrokerModal({ broker, onClose, onPaid }) {
   const pendingAmount = Number(broker.pending_payout || 0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [amount, setAmount] = useState(pendingAmount > 0 ? pendingAmount.toFixed(2) : '');
+  const [amount, setAmount] = useState('');
+  const [declineAmount, setDeclineAmount] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    const numericAmount = Number(amount);
-    if (!numericAmount || numericAmount <= 0) {
-      setError('Enter a valid payout amount.');
+    const numericAmount = Number(amount || 0);
+    const numericDecline = Number(declineAmount || 0);
+    if (Number.isNaN(numericAmount) || Number.isNaN(numericDecline) || numericAmount < 0 || numericDecline < 0) {
+      setError('Enter valid payout and decline amounts.');
       return;
     }
-    if (numericAmount > pendingAmount) {
-      setError('Payout amount cannot be greater than pending payout.');
+    if (numericAmount + numericDecline <= 0) {
+      setError('Enter a payout amount or a decline amount greater than zero.');
+      return;
+    }
+    if (numericAmount + numericDecline > pendingAmount) {
+      setError('Payout amount plus decline cannot be greater than pending payout.');
       return;
     }
     setSaving(true);
     try {
-      await createBrokerPayout(broker.id, { amount: numericAmount });
+      await createBrokerPayout(broker.id, { amount: numericAmount, decline_amount: numericDecline });
       onPaid();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to record broker payout.');
@@ -151,14 +158,20 @@ function PayBrokerModal({ broker, onClose, onPaid }) {
         <form onSubmit={handleSubmit}>
           <div style={{ padding: '24px 24px 8px' }}>
             {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: 18 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: 18 }}>
               <div className="um__card info-card info-card--sm"><div className="info-card__label">Earned</div><div className="info-card__value">{formatINR(broker.amount_earned)}</div></div>
               <div className="um__card info-card info-card--sm"><div className="info-card__label">Paid</div><div className="info-card__value">{formatINR(broker.amount_paid)}</div></div>
+              <div className="um__card info-card info-card--sm"><div className="info-card__label">Declined</div><div className="info-card__value">{formatINR(broker.amount_declined || 0)}</div></div>
               <div className="um__card info-card info-card--sm"><div className="info-card__label">Pending</div><div className="info-card__value">{formatINR(broker.pending_payout)}</div></div>
             </div>
-            <Field label="Payout Amount" required>
-              <input type="number" min="0.01" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} onFocus={(e) => e.target.style.borderColor = '#004B4E'} onBlur={(e) => e.target.style.borderColor = '#d1d5db'} required />
+            <Field label="Payout Amount">
+              <input type="number" min="0" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" onFocus={(e) => e.target.style.borderColor = '#004B4E'} onBlur={(e) => e.target.style.borderColor = '#d1d5db'} />
             </Field>
+            <div style={{ height: 14 }} />
+            <Field label="Decline Amount (deducted from pending)">
+              <input type="number" min="0" step="0.01" style={inputStyle} value={declineAmount} onChange={(e) => setDeclineAmount(e.target.value)} placeholder="0.00" onFocus={(e) => e.target.style.borderColor = '#004B4E'} onBlur={(e) => e.target.style.borderColor = '#d1d5db'} />
+            </Field>
+            <div style={{ marginTop: 8, fontSize: 12, color: '#6b7280' }}>Use Decline Amount to subtract from the broker’s pending payout when a client wasn’t doing fair trading. You can use either field, or both together.</div>
             <div style={{ marginTop: 12, fontSize: 12, color: '#6b7280' }}>Last paid: {formatDateTime(broker.last_paid_at)}</div>
           </div>
           <div className="bms-dialog__footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
@@ -172,26 +185,33 @@ function PayBrokerModal({ broker, onClose, onPaid }) {
 }
 
 function EditPayoutModal({ broker, payout, onClose, onUpdated }) {
-  const allowedMax = Number(broker.pending_payout || 0) + Number(payout.amount || 0);
+  const currentDecline = Number(payout.decline_amount || 0);
+  const allowedMax = Number(broker.pending_payout || 0) + Number(payout.amount || 0) + currentDecline;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [amount, setAmount] = useState(Number(payout.amount || 0) > 0 ? Number(payout.amount).toFixed(2) : '');
+  const [declineAmount, setDeclineAmount] = useState(currentDecline > 0 ? currentDecline.toFixed(2) : '');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    const numericAmount = Number(amount);
-    if (!numericAmount || numericAmount <= 0) {
-      setError('Enter a valid payout amount.');
+    const numericAmount = Number(amount || 0);
+    const numericDecline = Number(declineAmount || 0);
+    if (Number.isNaN(numericAmount) || Number.isNaN(numericDecline) || numericAmount < 0 || numericDecline < 0) {
+      setError('Enter valid payout and decline amounts.');
       return;
     }
-    if (numericAmount > allowedMax) {
-      setError('Payout amount cannot be greater than pending payout.');
+    if (numericAmount + numericDecline <= 0) {
+      setError('Enter a payout amount or a decline amount greater than zero.');
+      return;
+    }
+    if (numericAmount + numericDecline > allowedMax) {
+      setError('Payout amount plus decline cannot be greater than pending payout.');
       return;
     }
     setSaving(true);
     try {
-      await updateBrokerPayout(broker.id, payout.id, { amount: numericAmount });
+      await updateBrokerPayout(broker.id, payout.id, { amount: numericAmount, decline_amount: numericDecline });
       onUpdated();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update broker payout.');
@@ -219,8 +239,12 @@ function EditPayoutModal({ broker, payout, onClose, onUpdated }) {
               <div className="um__card info-card info-card--sm"><div className="info-card__label">Pending</div><div className="info-card__value">{formatINR(broker.pending_payout)}</div></div>
               <div className="um__card info-card info-card--sm"><div className="info-card__label">Allowed Max</div><div className="info-card__value">{formatINR(allowedMax)}</div></div>
             </div>
-            <Field label="Payout Amount" required>
-              <input type="number" min="0.01" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} onFocus={(e) => e.target.style.borderColor = '#004B4E'} onBlur={(e) => e.target.style.borderColor = '#d1d5db'} required />
+            <Field label="Payout Amount">
+              <input type="number" min="0" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} onFocus={(e) => e.target.style.borderColor = '#004B4E'} onBlur={(e) => e.target.style.borderColor = '#d1d5db'} />
+            </Field>
+            <div style={{ height: 14 }} />
+            <Field label="Decline Amount (deducted from pending)">
+              <input type="number" min="0" step="0.01" style={inputStyle} value={declineAmount} onChange={(e) => setDeclineAmount(e.target.value)} placeholder="0.00" onFocus={(e) => e.target.style.borderColor = '#004B4E'} onBlur={(e) => e.target.style.borderColor = '#d1d5db'} />
             </Field>
             <div style={{ marginTop: 12, fontSize: 12, color: '#6b7280' }}>Recorded: {formatDateTime(payout.created_at)}</div>
           </div>
@@ -246,11 +270,18 @@ export default function BrokerPayoutHistory() {
 
   const [broker, setBroker] = useState(null);
   const [payouts, setPayouts] = useState([]);
+  const [clientTxns, setClientTxns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [monthFilter, setMonthFilter] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [showPayModal, setShowPayModal] = useState(false);
   const [editPayout, setEditPayout] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
@@ -265,6 +296,16 @@ export default function BrokerPayoutHistory() {
       const res = await getBrokerPayouts(id);
       setBroker(res.data.broker || null);
       setPayouts(res.data.data || []);
+      try {
+        const cRes = await getClientsByBroker(id);
+        const clients = cRes.data.data || [];
+        const txLists = await Promise.all(
+          clients.map((c) => getClientTransactions(c.id).then((r) => (r.data.data || []).map((t) => ({ ...t, _legit: c.legitimacy_status === 'approved' }))).catch(() => []))
+        );
+        setClientTxns(txLists.flat());
+      } catch {
+        setClientTxns([]);
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load broker payout history.');
     } finally {
@@ -284,12 +325,14 @@ export default function BrokerPayoutHistory() {
     const normalizedSearch = search.trim().toLowerCase();
     return payouts.filter((payout) => {
       const payoutDate = String(payout.created_at || '').slice(0, 10);
+      const payoutMonth = String(payout.created_at || '').slice(0, 7);
       const matchesSearch = !normalizedSearch || [payout.amount, payout.paid_by, payout.created_at].some((value) => String(value || '').toLowerCase().includes(normalizedSearch));
       const matchesFrom = !fromDate || payoutDate >= fromDate;
       const matchesTo = !toDate || payoutDate <= toDate;
-      return matchesSearch && matchesFrom && matchesTo;
+      const matchesMonth = !monthFilter || payoutMonth === monthFilter;
+      return matchesSearch && matchesFrom && matchesTo && matchesMonth;
     });
-  }, [payouts, search, fromDate, toDate]);
+  }, [payouts, search, fromDate, toDate, monthFilter]);
 
   const sortedPayouts = useMemo(() => {
     if (!sortConfig.key) return filteredPayouts;
@@ -375,12 +418,42 @@ export default function BrokerPayoutHistory() {
         }
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 16, marginBottom: 20 }}>
-        <InfoCard label="Broker Earned" value={formatINR(broker.amount_earned)} />
-        <InfoCard label="Paid to Broker" value={formatINR(broker.amount_paid)} />
-        <InfoCard label="Pending Payout" value={formatINR(broker.pending_payout)} />
-        <InfoCard label="Last Paid" value={formatDateTime(broker.last_paid_at)} />
-        <InfoCard label="Payout Entries" value={filteredPayouts.length} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 16, marginBottom: 20 }}>
+        {(() => {
+          const monthPaid   = filteredPayouts.reduce((s, p) => s + Number(p.amount || 0), 0);
+          const monthDeclined = filteredPayouts.reduce((s, p) => s + Number(p.decline_amount || 0), 0);
+          const lastInMonth = filteredPayouts.length > 0 ? filteredPayouts[0].created_at : null;
+          const monthDeposits = clientTxns
+            .filter((t) => t._legit && t.transaction_type === 'deposit' && String(t.created_at || '').slice(0, 7) === monthFilter)
+            .reduce((s, t) => s + Number(t.amount || 0), 0);
+          const monthEarned   = Math.round(monthDeposits * 0.01 * 100) / 100;
+          const monthPending  = Math.max(monthEarned - monthPaid - monthDeclined, 0);
+          return (
+            <>
+              <InfoCard
+                label={monthFilter ? 'Earned This Month' : 'Broker Earned'}
+                value={formatINR(monthFilter ? monthEarned : broker.amount_earned)}
+              />
+              <InfoCard
+                label={monthFilter ? 'Paid This Month' : 'Paid to Broker'}
+                value={formatINR(monthFilter ? monthPaid : broker.amount_paid)}
+              />
+              <InfoCard
+                label={monthFilter ? 'Declined (Month)' : 'Declined Amount'}
+                value={formatINR(monthFilter ? monthDeclined : broker.amount_declined)}
+              />
+              <InfoCard
+                label={monthFilter ? 'Pending (Month)' : 'Pending Payout'}
+                value={formatINR(monthFilter ? monthPending : broker.pending_payout)}
+              />
+              <InfoCard
+                label={monthFilter ? 'Last Paid (Month)' : 'Last Paid'}
+                value={monthFilter ? (lastInMonth ? formatDateTime(lastInMonth) : '—') : formatDateTime(broker.last_paid_at)}
+              />
+              <InfoCard label="Payout Entries" value={filteredPayouts.length} />
+            </>
+          );
+        })()}
       </div>
 
       <div className="um__card" style={{ marginBottom: 20 }}>
@@ -395,23 +468,19 @@ export default function BrokerPayoutHistory() {
               />
             </div>
             <div className="bph-filters__group">
-              <label className="bph-filters__label">From</label>
+              <label className="bph-filters__label">Month</label>
               <input
-                type="date"
+                type="month"
                 className="bph-input bph-input--date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
               />
             </div>
-            <div className="bph-filters__group">
-              <label className="bph-filters__label">To</label>
-              <input
-                type="date"
-                className="bph-input bph-input--date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-              />
-            </div>
+            {monthFilter && (
+              <div className="bph-filters__group">
+                <button type="button" className="ph-btn ph-btn--ghost" onClick={() => setMonthFilter('')}>Clear</button>
+              </div>
+            )}
           </div>
           <SuccessChip message={pageSuccess} onClose={() => setPageSuccess('')} />
         </div>
