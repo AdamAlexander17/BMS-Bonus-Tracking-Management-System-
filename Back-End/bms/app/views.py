@@ -2814,7 +2814,7 @@ def format_client_transaction(transaction):
         'transaction_type': transaction.transaction_type,
         'amount':           str(transaction.amount),
         'entered_by':       transaction.entered_by.username if transaction.entered_by else None,
-        'created_at':       transaction.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        'created_at':       transaction.created_at.isoformat(),
     }
 
 
