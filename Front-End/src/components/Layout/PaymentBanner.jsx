@@ -39,7 +39,7 @@ export default function PaymentBanner() {
     message = 'It\u2019s Payment Time \u2014 broker payouts for this cycle are still pending. Please clear the dues by 5th of this month.';
     tone = 'banner--warn';
   } else if (isRmOrJr && !isAdmin) {
-    message = 'Reminder: Please fill the data of all your brokers between the 1st and 5th of every month.';
+    message = 'Reminder: Please fill the data of all your brokers between the 1st to 5th of every month.';
     tone = 'banner--info';
   } else {
     return null;
