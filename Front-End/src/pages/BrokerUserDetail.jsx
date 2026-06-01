@@ -112,8 +112,8 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!/^\d{5}$/.test(form.arc_id.trim())) {
-      setError('ARC ID must be exactly 5 digits (e.g. 12345).');
+    if (!/^\d{4,6}$/.test(form.arc_id.trim())) {
+      setError('ARC ID must be 4–6 digits.');
       return;
     }
     setSaving(true);
@@ -212,11 +212,11 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
                 <input
                   style={inputStyle}
                   value={form.arc_id}
-                  onChange={(e) => setForm(f => ({ ...f, arc_id: e.target.value.replace(/\D/g, '').slice(0, 5) }))}
+                  onChange={(e) => setForm(f => ({ ...f, arc_id: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
                   required
                   inputMode="numeric"
                   pattern="\d*"
-                  maxLength={5}
+                  maxLength={6}
                   placeholder="12345"
                   onFocus={e => e.target.style.borderColor = '#004B4E'}
                   onBlur={e => e.target.style.borderColor = '#d1d5db'}
@@ -274,8 +274,8 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!/^\d{5}$/.test(form.arc_id.trim())) {
-      setError('ARC ID must be exactly 5 digits (e.g. 12345).');
+    if (!/^\d{4,6}$/.test(form.arc_id.trim())) {
+      setError('ARC ID must be 4–6 digits.');
       return;
     }
     setSaving(true);
@@ -338,7 +338,7 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
                   onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'} />
               </Field>
               <Field label="ARC ID" required>
-                <input style={inputStyle} value={form.arc_id} onChange={set('arc_id')} required maxLength={5} placeholder="12345"
+                <input style={inputStyle} value={form.arc_id} onChange={(e) => setForm(f => ({ ...f, arc_id: e.target.value.replace(/\D/g, '').slice(0, 6) }))} required maxLength={6} placeholder="12345"
                   onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'} />
               </Field>
               <Field label="Status">
@@ -377,8 +377,8 @@ function AddClientModal({ broker, onClose, onCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!/^\d{5}$/.test(form.arc_id.trim())) {
-      setError('ARC ID must be exactly 5 digits (e.g. 12345).');
+    if (!/^\d{4,6}$/.test(form.arc_id.trim())) {
+      setError('ARC ID must be 4–6 digits.');
       return;
     }
     setSaving(true);
@@ -461,11 +461,11 @@ function AddClientModal({ broker, onClose, onCreated }) {
                   <input
                     style={inputStyle}
                     value={form.arc_id}
-                    onChange={(e) => setForm(f => ({ ...f, arc_id: e.target.value.replace(/\D/g, '').slice(0, 5) }))}
+                    onChange={(e) => setForm(f => ({ ...f, arc_id: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
                     required
                     inputMode="numeric"
                     pattern="\d*"
-                    maxLength={5}
+                    maxLength={6}
                     placeholder="12345"
                     onFocus={e => e.target.style.borderColor = '#004B4E'}
                     onBlur={e => e.target.style.borderColor = '#d1d5db'}
