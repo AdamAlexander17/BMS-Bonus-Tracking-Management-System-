@@ -6,7 +6,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$Archive,
     [string]$MediaArchive,
-    [string]$DbName     = 'bms_db',
+    [string]$DbName     = 'bms_mirror',
     [string]$DbUser     = 'root',
     [string]$DbPassword = 'root',
     [string]$DbHost     = 'localhost',
@@ -27,12 +27,21 @@ if ($ans -cne 'RESTORE') { Write-Host "Aborted."; exit 1 }
 $mysql = (Get-Command mysql -ErrorAction Stop).Source
 
 # ---------- 1. Decompress to temp .sql ----------
-$tmpSql    = Join-Path $env:TEMP "bms_restore_$([Guid]::NewGuid()).sql"
-$inStream  = [System.IO.File]::OpenRead($Archive)
-$gzip      = New-Object System.IO.Compression.GzipStream($inStream, [System.IO.Compression.CompressionMode]::Decompress)
-$outStream = [System.IO.File]::Create($tmpSql)
-$gzip.CopyTo($outStream)
-$outStream.Close(); $gzip.Close(); $inStream.Close()
+$tmpSql   = Join-Path $env:TEMP "bms_restore_$([Guid]::NewGuid()).sql"
+$inStream = [System.IO.File]::OpenRead($Archive)
+$gzip     = New-Object System.IO.Compression.GzipStream($inStream, [System.IO.Compression.CompressionMode]::Decompress)
+$reader   = New-Object System.IO.StreamReader($gzip)
+$sqlText  = $reader.ReadToEnd()
+$reader.Close(); $gzip.Close(); $inStream.Close()
+
+# Detect the DB name embedded in the dump and rename if it differs from $DbName
+$dumpDbMatch = [regex]::Match($sqlText, 'CREATE DATABASE.*?`([^`]+)`')
+$dumpDb = if ($dumpDbMatch.Success) { $dumpDbMatch.Groups[1].Value } else { $null }
+if ($dumpDb -and $dumpDb -ne $DbName) {
+    Write-Host ">> Renaming dump DB '$dumpDb' -> '$DbName'"
+    $sqlText = $sqlText -replace [regex]::Escape("``$dumpDb``"), "``$DbName``"
+}
+[System.IO.File]::WriteAllText($tmpSql, $sqlText)
 Write-Host ">> Decompressed to $tmpSql ($('{0:N1} KB' -f ((Get-Item $tmpSql).Length / 1KB)))"
 
 $env:MYSQL_PWD = $DbPassword
@@ -44,8 +53,7 @@ try {
     Write-Host ">> Database $DbName recreated."
 
     # ---------- 3. Import dump ----------
-    # The dump uses --databases so it includes USE statements; pipe via cmd to avoid PS redirection quirks
-    cmd /c "`"$mysql`" --host=$DbHost --port=$DbPort --user=$DbUser < `"$tmpSql`""
+    cmd /c "`"$mysql`" --host=$DbHost --port=$DbPort --user=$DbUser --database=$DbName < `"$tmpSql`""
     if ($LASTEXITCODE -ne 0) { throw "mysql import failed (code $LASTEXITCODE)" }
     Write-Host ">> Dump imported."
 } finally {

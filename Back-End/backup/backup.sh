@@ -3,7 +3,7 @@
 # Invoke from cron at 10:00 daily. Credentials live in ~/.my.cnf (mode 600).
 set -euo pipefail
 
-: "${DB_NAME:=bms}"
+: "${DB_NAME:=bms_db}"
 : "${DB_HOST:=127.0.0.1}"
 : "${MY_CNF:=$HOME/.my.cnf}"
 : "${BACKUP_ROOT:=/var/backups/bms}"

@@ -35,16 +35,19 @@ function Write-Log($msg) {
 }
 
 try {
-    if (-not (Test-Path $DailyDir)) { throw "Daily backup dir not found: $DailyDir" }
-
-    # ---------- 1. Pick latest daily archive by timestamp in filename ----------
+    # ---------- 1. Pick latest archive across all tiers (daily / weekly / monthly) ----------
     $stampRegex = '_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})\.sql\.gz$'
-    $candidates = Get-ChildItem $DailyDir -Filter '*.sql.gz' | ForEach-Object {
-        if ($_.Name -match $stampRegex) {
-            [PSCustomObject]@{ File = $_; Stamp = $Matches[1] }
+    $candidates = @('daily','weekly','monthly') | ForEach-Object {
+        $dir = Join-Path $BackupRoot $_
+        if (Test-Path $dir) {
+            Get-ChildItem $dir -Filter '*.sql.gz' | ForEach-Object {
+                if ($_.Name -match $stampRegex) {
+                    [PSCustomObject]@{ File = $_; Stamp = $Matches[1]; Tier = $_ }
+                }
+            }
         }
     }
-    if (-not $candidates) { throw "No backup archives matching expected pattern in $DailyDir" }
+    if (-not $candidates) { throw "No backup archives found in daily/weekly/monthly under $BackupRoot" }
 
     $pick   = $candidates | Sort-Object Stamp -Descending | Select-Object -First 1
     $latest = $pick.File
@@ -52,7 +55,8 @@ try {
     Write-Log "Latest archive: $($latest.Name) (stamp $stamp)"
 
     # ---------- 2. Verify SHA-256 checksum ----------
-    $checksumFile = Join-Path $DailyDir "checksums_${stamp}.sha256"
+    $fileDir      = $latest.DirectoryName
+    $checksumFile = Join-Path $fileDir "checksums_${stamp}.sha256"
     if (-not (Test-Path $checksumFile)) { throw "Missing checksum file: $checksumFile" }
 
     $expected = (Get-Content $checksumFile | Where-Object { $_ -match [regex]::Escape($latest.Name) }) -split '\s+' | Select-Object -First 1
