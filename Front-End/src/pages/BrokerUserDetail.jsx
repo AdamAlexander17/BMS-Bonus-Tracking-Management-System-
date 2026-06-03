@@ -112,8 +112,8 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!/^\d{4,6}$/.test(form.arc_id.trim())) {
-      setError('ARC ID must be 4–6 digits.');
+    if (!/^\d{1,6}$/.test(form.arc_id.trim())) {
+      setError('ARC ID must be up to 6 digits.');
       return;
     }
     setSaving(true);
@@ -274,8 +274,8 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!/^\d{4,6}$/.test(form.arc_id.trim())) {
-      setError('ARC ID must be 4–6 digits.');
+    if (!/^\d{1,6}$/.test(form.arc_id.trim())) {
+      setError('ARC ID must be up to 6 digits.');
       return;
     }
     setSaving(true);
@@ -377,8 +377,8 @@ function AddClientModal({ broker, onClose, onCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!/^\d{4,6}$/.test(form.arc_id.trim())) {
-      setError('ARC ID must be 4–6 digits.');
+    if (!/^\d{1,6}$/.test(form.arc_id.trim())) {
+      setError('ARC ID must be up to 6 digits.');
       return;
     }
     setSaving(true);
