@@ -217,7 +217,7 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
                   inputMode="numeric"
                   pattern="\d*"
                   maxLength={6}
-                  placeholder="12345"
+                  placeholder="123456"
                   onFocus={e => e.target.style.borderColor = '#004B4E'}
                   onBlur={e => e.target.style.borderColor = '#d1d5db'}
                 />
@@ -466,7 +466,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
                     inputMode="numeric"
                     pattern="\d*"
                     maxLength={6}
-                    placeholder="12345"
+                    placeholder="123456"
                     onFocus={e => e.target.style.borderColor = '#004B4E'}
                     onBlur={e => e.target.style.borderColor = '#d1d5db'}
                   />
