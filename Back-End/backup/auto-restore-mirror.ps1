@@ -35,6 +35,13 @@ function Write-Log($msg) {
 }
 
 try {
+    # Wait for BMS-Pull-Backups to finish if it is currently running (race condition guard)
+    $maxWait = 600; $waited = 0
+    while ((Get-ScheduledTask -TaskName 'BMS-Pull-Backups' -ErrorAction SilentlyContinue).State -eq 'Running' -and $waited -lt $maxWait) {
+        Write-Log "Waiting for BMS-Pull-Backups to finish... ($waited s)"
+        Start-Sleep -Seconds 15; $waited += 15
+    }
+
     # ---------- 1. Pick latest archive across all tiers (daily / weekly / monthly) ----------
     $stampRegex = '_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})\.sql\.gz$'
     $candidates = @('daily','weekly','monthly') | ForEach-Object {
