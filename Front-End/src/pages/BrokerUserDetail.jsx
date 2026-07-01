@@ -112,8 +112,8 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!/^\d{4,6}$/.test(form.arc_id.trim())) {
-      setError('ARC ID must be 4–6 digits.');
+    if (!/^\d{1,6}$/.test(form.arc_id.trim())) {
+      setError('ARC ID must be up to 6 digits.');
       return;
     }
     setSaving(true);
@@ -217,7 +217,7 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
                   inputMode="numeric"
                   pattern="\d*"
                   maxLength={6}
-                  placeholder="12345"
+                  placeholder="123456"
                   onFocus={e => e.target.style.borderColor = '#004B4E'}
                   onBlur={e => e.target.style.borderColor = '#d1d5db'}
                 />
@@ -274,8 +274,8 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!/^\d{4,6}$/.test(form.arc_id.trim())) {
-      setError('ARC ID must be 4–6 digits.');
+    if (!/^\d{1,6}$/.test(form.arc_id.trim())) {
+      setError('ARC ID must be up to 6 digits.');
       return;
     }
     setSaving(true);
@@ -377,8 +377,8 @@ function AddClientModal({ broker, onClose, onCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!/^\d{4,6}$/.test(form.arc_id.trim())) {
-      setError('ARC ID must be 4–6 digits.');
+    if (!/^\d{1,6}$/.test(form.arc_id.trim())) {
+      setError('ARC ID must be up to 6 digits.');
       return;
     }
     setSaving(true);
@@ -466,7 +466,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
                     inputMode="numeric"
                     pattern="\d*"
                     maxLength={6}
-                    placeholder="12345"
+                    placeholder="123456"
                     onFocus={e => e.target.style.borderColor = '#004B4E'}
                     onBlur={e => e.target.style.borderColor = '#d1d5db'}
                   />
