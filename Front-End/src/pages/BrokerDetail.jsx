@@ -293,39 +293,6 @@ function AddClientModal({ broker, onClose, onCreated }) {
                   />
                 </Field>
               </div>
-              <Field label="Deposited Amount (₹)">
-                <input
-                  type="number" min="0" step="0.01"
-                  style={inputStyle}
-                  value={form.deposited_amount}
-                  onChange={set('deposited_amount')}
-                  placeholder="0.00"
-                  onFocus={e => e.target.style.borderColor = '#004B4E'}
-                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
-                />
-              </Field>
-              <Field label="Withdrawal Amount (₹)">
-                <input
-                  type="number" min="0" step="0.01"
-                  style={inputStyle}
-                  value={form.withdrawal_amount}
-                  onChange={set('withdrawal_amount')}
-                  placeholder="0.00"
-                  onFocus={e => e.target.style.borderColor = '#004B4E'}
-                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
-                />
-              </Field>
-              <Field label="Equity (₹)">
-                <input
-                  type="number" min="0" step="0.01"
-                  style={inputStyle}
-                  value={form.equity_amount}
-                  onChange={set('equity_amount')}
-                  placeholder="0.00"
-                  onFocus={e => e.target.style.borderColor = '#004B4E'}
-                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
-                />
-              </Field>
             </div>
           </div>
 
@@ -352,7 +319,6 @@ function EditClientModal({ client, broker, canTradingOk, onClose, onUpdated }) {
   const [form, setForm]     = useState({
     name:              client.name ?? '',
     arc_id:            client.arc_id,
-    equity_amount:     client.equity_amount ?? '',
     legitimacy_status: normalizeLegitimacyStatus(client),
   });
 
@@ -370,7 +336,6 @@ function EditClientModal({ client, broker, canTradingOk, onClose, onUpdated }) {
       const payload = {
         name:              form.name.trim(),
         arc_id:            form.arc_id.trim(),
-        equity_amount:     form.equity_amount === '' ? 0 : form.equity_amount,
       };
       if (canTradingOk) {
         payload.legitimacy_status = form.legitimacy_status;
@@ -478,19 +443,6 @@ function EditClientModal({ client, broker, canTradingOk, onClose, onUpdated }) {
                   </Field>
                 </div>
               )}
-              <div style={{ gridColumn: '1 / -1' }}>
-                <Field label="Equity (₹)">
-                  <input
-                    type="number" min="0" step="0.01"
-                    style={inputStyle}
-                    value={form.equity_amount}
-                    onChange={set('equity_amount')}
-                    placeholder="0.00"
-                    onFocus={e => e.target.style.borderColor = '#004B4E'}
-                    onBlur={e => e.target.style.borderColor = '#d1d5db'}
-                  />
-                </Field>
-              </div>
             </div>
           </div>
 
