@@ -844,7 +844,10 @@ export default function BrokerDetail() {
   const canBrokerUpdate = hasPerm('broker:update');
   const canManageBonus  = hasPerm('bonus:manage');
   const canViewTxns     = hasPerm('transactions:view');
-  const canClientActions = canClientUpdate || canClientDelete || canViewTxns;
+  const canManageEquity = hasPerm('client:manage_equity');
+  const canAddDeposit   = hasPerm('client:add_deposit');
+  const canAddWithdrawal = hasPerm('client:add_withdrawal');
+  const canClientActions = canClientUpdate || canClientDelete || canViewTxns || canManageEquity || canAddDeposit || canAddWithdrawal;
 
   const [broker, setBroker]   = useState(null);
   const [clients, setClients] = useState([]);
@@ -1199,45 +1202,47 @@ export default function BrokerDetail() {
                             </svg>
                           </button>
                         )}
+                        {canAdjustAmounts && canAddDeposit && (
+                          <button
+                            className="um__action-btn"
+                            title="Add Deposit"
+                            style={{ color: '#10b981' }}
+                            onClick={() => setAmountAction({ client: c, mode: 'deposit' })}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                              <line x1="12" y1="5" x2="12" y2="19"/>
+                              <line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                          </button>
+                        )}
+                        {canAdjustAmounts && canAddWithdrawal && (
+                          <button
+                            className="um__action-btn"
+                            title="Add Withdrawal"
+                            style={{ color: '#f59e0b' }}
+                            onClick={() => setAmountAction({ client: c, mode: 'withdrawal' })}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                              <line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                          </button>
+                        )}
+                        {canManageEquity && (
+                          <button
+                            className="um__action-btn"
+                            title="Manage Equity"
+                            style={{ color: '#8b5cf6' }}
+                            onClick={() => setEquityAction(c)}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                              <rect x="2" y="6" width="20" height="13" rx="2"/>
+                              <path d="M2 10h20"/>
+                              <path d="M16 15h2"/>
+                            </svg>
+                          </button>
+                        )}
                         {canClientUpdate && (
                           <>
-                            {canAdjustAmounts && (
-                              <>
-                                <button
-                                  className="um__action-btn"
-                                  title="Add Deposit"
-                                  style={{ color: '#10b981' }}
-                                  onClick={() => setAmountAction({ client: c, mode: 'deposit' })}
-                                >
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                                    <line x1="12" y1="5" x2="12" y2="19"/>
-                                    <line x1="5" y1="12" x2="19" y2="12"/>
-                                  </svg>
-                                </button>
-                                <button
-                                  className="um__action-btn"
-                                  title="Add Withdrawal"
-                                  style={{ color: '#f59e0b' }}
-                                  onClick={() => setAmountAction({ client: c, mode: 'withdrawal' })}
-                                >
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                                    <line x1="5" y1="12" x2="19" y2="12"/>
-                                  </svg>
-                                </button>
-                              </>
-                            )}
-                            <button
-                              className="um__action-btn"
-                              title="Manage Equity"
-                              style={{ color: '#8b5cf6' }}
-                              onClick={() => setEquityAction(c)}
-                            >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                                <rect x="2" y="6" width="20" height="13" rx="2"/>
-                                <path d="M2 10h20"/>
-                                <path d="M16 15h2"/>
-                              </svg>
-                            </button>
                             <button
                               className="um__action-btn um__action-btn--edit"
                               title="Edit"

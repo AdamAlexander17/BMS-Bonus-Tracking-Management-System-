@@ -19,9 +19,11 @@ print('• Brands: skipped (managed via UI)')
 permissions_data = [
     ('broker', 'create'), ('broker', 'update'), ('broker', 'delete'), ('broker', 'view'), ('broker', 'view_all'),
     ('client', 'create'), ('client', 'update'), ('client', 'delete'), ('client', 'view'), ('client', 'trading_ok'),
+    ('client', 'manage_equity'), ('client', 'add_deposit'), ('client', 'add_withdrawal'),
     ('report', 'view'),   ('report', 'export'),
     ('auditlog', 'view'), ('auditlog', 'export'),
     ('user',   'create'), ('user',   'update'),  ('user',   'delete'),  ('user', 'view'),
+    ('user',   'bulk_upload'),
     ('brand',  'create'), ('brand',  'update'),  ('brand',  'delete'),  ('brand', 'view'),
     ('role',   'create'), ('role',   'update'),  ('role',   'delete'),  ('role', 'view'),
     ('bonus',  'manage'), ('bonus',  'pay'),
@@ -36,9 +38,11 @@ role_permissions_map = {
     'Admin': [
         ('broker','create'),('broker','update'),('broker','delete'),('broker','view'),('broker','view_all'),
         ('client','create'),('client','update'),('client','delete'),('client','view'),('client','trading_ok'),
+        ('client','manage_equity'),('client','add_deposit'),('client','add_withdrawal'),
         ('report','view'),  ('report','export'),
         ('auditlog','view'),('auditlog','export'),
         ('user','create'),  ('user','update'),  ('user','delete'),  ('user','view'),
+        ('user','bulk_upload'),
         ('brand','create'), ('brand','update'), ('brand','delete'), ('brand','view'),
         ('role','create'),  ('role','update'),  ('role','delete'),  ('role','view'),
         ('bonus','manage'), ('bonus','pay'),
@@ -47,10 +51,12 @@ role_permissions_map = {
     'RM': [
         ('broker','create'),('broker','update'),('broker','delete'),('broker','view'),
         ('client','create'),('client','update'),('client','delete'),('client','view'),
+        ('client','manage_equity'),('client','add_deposit'),('client','add_withdrawal'),
     ],
     'JRM': [
         ('broker','create'),('broker','update'),('broker','delete'),('broker','view'),
         ('client','create'),('client','update'),('client','delete'),('client','view'),
+        ('client','manage_equity'),('client','add_deposit'),('client','add_withdrawal'),
     ],
     'FM': [
         ('broker','view'),('client','view'),('report','view'),('report','export'),
