@@ -55,6 +55,7 @@ urlpatterns = [
     path('brokers/<int:broker_id>/delete/',        views.broker_delete, name='broker_delete'),
 
     # Client CRUD (nested under broker for create/list; direct for get/update/delete)
+    path('clients/',                               views.client_list_all, name='client_list_all'),
     path('brokers/<int:broker_id>/clients/create/', views.client_create, name='client_create'),
     path('brokers/<int:broker_id>/clients/',        views.client_list,   name='client_list'),
     path('clients/<int:client_id>/',               views.client_get,    name='client_get'),

@@ -13,6 +13,7 @@ import BrokerDetail from './pages/BrokerDetail';
 import BrokerPayoutHistory from './pages/BrokerPayoutHistory';
 import ClientTransactions from './pages/ClientTransactions';
 import BrokerUserDetail from './pages/BrokerUserDetail';
+import Clients   from './pages/Clients';
 import Brands    from './pages/Brands';
 import Reports   from './pages/Reports';
 import AuditLog  from './pages/AuditLog';
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="brokers/:id"          element={<BrokerDetail />} />
             <Route path="brokers/:id/payouts"  element={<BrokerPayoutHistory />} />
             <Route path="clients/:clientId/transactions" element={<ClientTransactions />} />
+            <Route path="clients"              element={<Clients />} />
             <Route path="brokers/:id/edit"     element={<BrokerForm />} />
             <Route path="brands"  element={<Brands />} />
             <Route path="reports" element={<Reports />} />

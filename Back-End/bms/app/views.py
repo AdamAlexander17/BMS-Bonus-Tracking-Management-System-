@@ -2001,7 +2001,7 @@ def broker_create(request):
 
     if not arc_id or not name or not brand_name:
         return Response(
-            {'success': False, 'message': 'arc_id, name, and brand are required.'},
+            {'success': False, 'message': 'ark_id, name, and brand are required.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -2022,7 +2022,7 @@ def broker_create(request):
 
     if Broker.objects.filter(arc_id=arc_id).exists():
         return Response(
-            {'success': False, 'message': f'Broker with arc_id "{arc_id}" already exists.'},
+            {'success': False, 'message': f'Broker with ark_id "{arc_id}" already exists.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -2180,7 +2180,7 @@ def broker_update(request, broker_id):
         new_arc_id = new_arc_id.strip()
         if Broker.objects.filter(arc_id=new_arc_id).exclude(id=broker_id).exists():
             return Response(
-                {'success': False, 'message': f'arc_id "{new_arc_id}" is already in use.'},
+                {'success': False, 'message': f'ark_id "{new_arc_id}" is already in use.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         broker.arc_id = new_arc_id
@@ -2728,13 +2728,13 @@ def client_create(request, broker_id):
 
     if not arc_id:
         return Response(
-            {'success': False, 'message': 'arc_id is required.'},
+            {'success': False, 'message': 'ark_id is required.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
     if Client.objects.filter(arc_id=arc_id).exists():
         return Response(
-            {'success': False, 'message': f'Client with arc_id "{arc_id}" already exists.'},
+            {'success': False, 'message': f'Client with ark_id "{arc_id}" already exists.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -2832,6 +2832,57 @@ def client_list(request, broker_id):
         .filter(broker=broker)
         .order_by('id')
     )
+    return Response(
+        {'success': True, 'data': [format_client(c) for c in clients]},
+        status=status.HTTP_200_OK
+    )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def client_list_all(request):
+    """List all clients across all brokers (brand-scoped, with optional filters)."""
+    if not has_perm(request, 'client:view'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    clients = (
+        Client.objects
+        .select_related('broker__brand', 'broker', 'created_by')
+        .order_by('-created_at')
+    )
+
+    # Brand isolation
+    clients = scope_to_brand(clients, request, brand_field='broker__brand_id')
+
+    # Within the brand, RM/JRM only see clients of brokers they created
+    if not _user_sees_all_brokers(request):
+        clients = clients.filter(broker__created_by=request.user)
+
+    # Optional filters
+    broker_id = request.query_params.get('broker_id')
+    if broker_id:
+        clients = clients.filter(broker_id=broker_id)
+
+    legitimacy_status = request.query_params.get('legitimacy_status')
+    if legitimacy_status and legitimacy_status in ('pending', 'approved', 'declined'):
+        clients = clients.filter(legitimacy_status=legitimacy_status)
+
+    status_filter = request.query_params.get('status')
+    if status_filter and status_filter in ('Active', 'Inactive'):
+        clients = clients.filter(status=status_filter)
+
+    search = request.query_params.get('search', '').strip()
+    if search:
+        clients = clients.filter(
+            Q(name__icontains=search) |
+            Q(arc_id__icontains=search) |
+            Q(broker__name__icontains=search) |
+            Q(broker__arc_id__icontains=search)
+        )
+
     return Response(
         {'success': True, 'data': [format_client(c) for c in clients]},
         status=status.HTTP_200_OK
@@ -2942,12 +2993,12 @@ def client_update(request, client_id):
         new_arc_id = new_arc_id.strip()
         if not new_arc_id:
             return Response(
-                {'success': False, 'message': 'arc_id is required.'},
+                {'success': False, 'message': 'ark_id is required.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         if Client.objects.filter(arc_id=new_arc_id).exclude(id=client_id).exists():
             return Response(
-                {'success': False, 'message': f'arc_id "{new_arc_id}" is already in use.'},
+                {'success': False, 'message': f'ark_id "{new_arc_id}" is already in use.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         client.arc_id = new_arc_id

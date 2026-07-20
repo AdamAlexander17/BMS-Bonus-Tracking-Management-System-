@@ -398,7 +398,7 @@ export default function BrokerPayoutHistory() {
       <PageHeader
         icon={<ExpenseIcon />}
         title={`${broker.name} Expense History`}
-        subtitle={`ARC ID: ${broker.arc_id} • ${broker.brand?.name || 'No brand'} • ${filteredPayouts.length} payout record${filteredPayouts.length !== 1 ? 's' : ''}`}
+        subtitle={`ARK ID: ${broker.arc_id} • ${broker.brand?.name || 'No brand'} • ${filteredPayouts.length} payout record${filteredPayouts.length !== 1 ? 's' : ''}`}
         actions={
           <>
             <button className="ph-btn ph-btn--ghost" onClick={() => navigate(`/brokers/${broker.id}`)}>

@@ -302,7 +302,7 @@ export default function ClientTransactions() {
       <PageHeader
         icon={<HistoryIcon />}
         title={`${client.name} Transactions`}
-        subtitle={`ARC ID: ${client.arc_id} • ${client.broker?.name || 'Broker'} • ${sortedTransactions.length} record${sortedTransactions.length !== 1 ? 's' : ''}`}
+        subtitle={`ARK ID: ${client.arc_id} • ${client.broker?.name || 'Broker'} • ${sortedTransactions.length} record${sortedTransactions.length !== 1 ? 's' : ''}`}
         actions={
           <button className="ph-btn ph-btn--ghost" onClick={() => navigate(`/brokers/${client.broker.id}`)}>
             <BackIcon /> Back to Broker

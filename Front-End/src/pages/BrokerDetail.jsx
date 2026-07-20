@@ -190,7 +190,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
     e.preventDefault();
     setError('');
     if (!/^\d{1,6}$/.test(form.arc_id.trim())) {
-      setError('ARC ID must be up to 6 digits.');
+      setError('ARK ID must be up to 6 digits.');
       return;
     }
     setSaving(true);
@@ -278,7 +278,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
                 </Field>
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
-                <Field label="ARC ID" required>
+                <Field label="ARK ID" required>
                   <input
                     style={inputStyle}
                     value={form.arc_id}
@@ -362,7 +362,7 @@ function EditClientModal({ client, broker, canTradingOk, onClose, onUpdated }) {
     e.preventDefault();
     setError('');
     if (!/^\d{1,6}$/.test(form.arc_id.trim())) {
-      setError('ARC ID must be up to 6 digits.');
+      setError('ARK ID must be up to 6 digits.');
       return;
     }
     setSaving(true);
@@ -453,7 +453,7 @@ function EditClientModal({ client, broker, canTradingOk, onClose, onUpdated }) {
                 </Field>
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
-                <Field label="ARC ID" required>
+                <Field label="ARK ID" required>
                   <input
                     style={inputStyle}
                     value={form.arc_id}
@@ -782,7 +782,7 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
                 <input style={inputStyle} value={form.name} onChange={set('name')} required placeholder="e.g. ABC Brokers Pvt Ltd"
                   onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'} />
               </Field>
-              <Field label="ARC ID" required>
+              <Field label="ARK ID" required>
                 <input style={inputStyle} value={form.arc_id} onChange={(e) => setForm(f => ({ ...f, arc_id: e.target.value.replace(/\D/g, '').slice(0, 6) }))} required maxLength={6} placeholder="12345"
                   onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'} />
               </Field>
@@ -918,7 +918,7 @@ export default function BrokerDetail() {
     setConfirmState({
       title: 'Delete Client?',
       itemName: c.arc_id,
-      bullets: ['Client record & ARC ID', 'Deposited & withdrawal data', 'Commission & bonus history'],
+      bullets: ['Client record & ARK ID', 'Deposited & withdrawal data', 'Commission & bonus history'],
       onConfirm: async () => {
         setConfirmState(null);
         try {
@@ -1008,7 +1008,7 @@ export default function BrokerDetail() {
       <PageHeader
         icon={<BrokerIcon />}
         title={broker.name}
-        subtitle={`ARC ID: ${broker.arc_id} • ${broker.brand?.name || 'No brand'} • ${clients.length} client${clients.length !== 1 ? 's' : ''}`}
+        subtitle={`ARK ID: ${broker.arc_id} • ${broker.brand?.name || 'No brand'} • ${clients.length} client${clients.length !== 1 ? 's' : ''}`}
         actions={
           <>
             <button className="ph-btn ph-btn--ghost" onClick={() => broker.rm_user ? navigate(`/brokers/rm/${broker.rm_user.id}`) : navigate('/brokers')}>
@@ -1123,7 +1123,7 @@ export default function BrokerDetail() {
           <thead>
             <tr>
               <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('name')}>NAME <span>{getSortIndicator('name')}</span></button></th>
-              <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('arc_id')}>ARC ID <span>{getSortIndicator('arc_id')}</span></button></th>
+              <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('arc_id')}>ARK ID <span>{getSortIndicator('arc_id')}</span></button></th>
               <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('deposited_amount')}>DEPOSITED <span>{getSortIndicator('deposited_amount')}</span></button></th>
               <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('withdrawal_amount')}>WITHDRAWN <span>{getSortIndicator('withdrawal_amount')}</span></button></th>
               <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('equity_amount')}>EQUITY <span>{getSortIndicator('equity_amount')}</span></button></th>

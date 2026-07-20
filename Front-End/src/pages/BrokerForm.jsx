@@ -144,7 +144,7 @@ export default function BrokerForm() {
           </label>
 
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>ARC ID *</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>ARK ID *</span>
             <input
               className="um__input"
               name="arc_id"

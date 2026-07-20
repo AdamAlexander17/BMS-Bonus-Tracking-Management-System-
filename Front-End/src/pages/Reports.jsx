@@ -464,7 +464,7 @@ export default function Reports() {
 
   const clientColumns = useMemo(() => [
     { label: 'Client', value: (row) => row.name },
-    { label: 'ARC ID', value: (row) => row.arc_id },
+    { label: 'ARK ID', value: (row) => row.arc_id },
     { label: 'Broker', value: (row) => row.broker_name },
     { label: 'Brand', value: (row) => row.brand_name },
     { label: 'Status', value: (row) => row.status },
@@ -477,7 +477,7 @@ export default function Reports() {
 
   const transactionColumns = useMemo(() => [
     { label: 'Client', value: (row) => row.client_name },
-    { label: 'ARC ID', value: (row) => row.client_arc_id },
+    { label: 'ARK ID', value: (row) => row.client_arc_id },
     { label: 'Broker', value: (row) => row.broker_name },
     { label: 'Brand', value: (row) => row.brand_name },
     { label: 'Type', value: (row) => row.transaction_type },
@@ -654,7 +654,7 @@ export default function Reports() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search broker, client, ARC ID, user, type, or amount"
+                placeholder="Search broker, client, ARK ID, user, type, or amount"
               />
             </div>
           )}
@@ -710,7 +710,7 @@ export default function Reports() {
           <thead>
             <tr>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('name')}>Client <span>{getClientIndicator('name')}</span></button></th>
-              <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('arc_id')}>ARC ID <span>{getClientIndicator('arc_id')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('arc_id')}>ARK ID <span>{getClientIndicator('arc_id')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('broker_name')}>Broker <span>{getClientIndicator('broker_name')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('brand_name')}>Brand <span>{getClientIndicator('brand_name')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('status')}>Status <span>{getClientIndicator('status')}</span></button></th>
@@ -758,7 +758,7 @@ export default function Reports() {
           <thead>
             <tr>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleTxSort('client_name')}>Client <span>{getTxIndicator('client_name')}</span></button></th>
-              <th><button type="button" style={sortButtonStyle} onClick={() => handleTxSort('client_arc_id')}>ARC ID <span>{getTxIndicator('client_arc_id')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleTxSort('client_arc_id')}>ARK ID <span>{getTxIndicator('client_arc_id')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleTxSort('broker_name')}>Broker <span>{getTxIndicator('broker_name')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleTxSort('brand_name')}>Brand <span>{getTxIndicator('brand_name')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleTxSort('transaction_type')}>Type <span>{getTxIndicator('transaction_type')}</span></button></th>

@@ -1,5 +1,6 @@
 import axiosInstance from './axiosInstance';
 
+export const getAllClients       = (params)         => axiosInstance.get('clients/', { params });
 export const getClientsByBroker = (brokerId)       => axiosInstance.get(`brokers/${brokerId}/clients/`);
 export const createClient       = (brokerId, data) => axiosInstance.post(`brokers/${brokerId}/clients/create/`, data);
 export const getClient          = (id)             => axiosInstance.get(`clients/${id}/`);

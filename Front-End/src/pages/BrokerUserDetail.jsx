@@ -113,7 +113,7 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
     e.preventDefault();
     setError('');
     if (!/^\d{1,6}$/.test(form.arc_id.trim())) {
-      setError('ARC ID must be up to 6 digits.');
+      setError('ARK ID must be up to 6 digits.');
       return;
     }
     setSaving(true);
@@ -208,7 +208,7 @@ function AddBrokerModal({ rmUser, userId, onClose, onCreated }) {
                 />
               </Field>
 
-              <Field label="ARC ID" required>
+              <Field label="ARK ID" required>
                 <input
                   style={inputStyle}
                   value={form.arc_id}
@@ -275,7 +275,7 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
     e.preventDefault();
     setError('');
     if (!/^\d{1,6}$/.test(form.arc_id.trim())) {
-      setError('ARC ID must be up to 6 digits.');
+      setError('ARK ID must be up to 6 digits.');
       return;
     }
     setSaving(true);
@@ -337,7 +337,7 @@ function EditBrokerModal({ broker, onClose, onUpdated }) {
                 <input style={inputStyle} value={form.name} onChange={set('name')} required placeholder="e.g. ABC Brokers Pvt Ltd"
                   onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'} />
               </Field>
-              <Field label="ARC ID" required>
+              <Field label="ARK ID" required>
                 <input style={inputStyle} value={form.arc_id} onChange={(e) => setForm(f => ({ ...f, arc_id: e.target.value.replace(/\D/g, '').slice(0, 6) }))} required maxLength={6} placeholder="12345"
                   onFocus={e => e.target.style.borderColor='#004B4E'} onBlur={e => e.target.style.borderColor='#d1d5db'} />
               </Field>
@@ -378,7 +378,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
     e.preventDefault();
     setError('');
     if (!/^\d{1,6}$/.test(form.arc_id.trim())) {
-      setError('ARC ID must be up to 6 digits.');
+      setError('ARK ID must be up to 6 digits.');
       return;
     }
     setSaving(true);
@@ -457,7 +457,7 @@ function AddClientModal({ broker, onClose, onCreated }) {
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 20px' }}>
               <div style={{ gridColumn: '1 / -1' }}>
-                <Field label="ARC ID" required>
+                <Field label="ARK ID" required>
                   <input
                     style={inputStyle}
                     value={form.arc_id}
@@ -586,7 +586,7 @@ export default function BrokerUserDetail() {
     setConfirmState({
       title: 'Delete Broker?',
       itemName: b.name,
-      bullets: ['Broker company & ARC ID', 'All associated clients', 'Commission & bonus history'],
+      bullets: ['Broker company & ARK ID', 'All associated clients', 'Commission & bonus history'],
       onConfirm: async () => {
         setConfirmState(null);
         try {
@@ -711,7 +711,7 @@ export default function BrokerUserDetail() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search broker, ARC ID, brand, creator, or status"
+              placeholder="Search broker, ARK ID, brand, creator, or status"
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -733,7 +733,7 @@ export default function BrokerUserDetail() {
           <thead>
             <tr>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('name')}>BROKER <span>{getSortIndicator('name')}</span></button></th>
-              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('arc_id')}>ARC ID <span>{getSortIndicator('arc_id')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('arc_id')}>ARK ID <span>{getSortIndicator('arc_id')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('brand')}>BRAND <span>{getSortIndicator('brand')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('client_count')}>CLIENTS <span>{getSortIndicator('client_count')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('amount_earned')}>EARNED <span>{getSortIndicator('amount_earned')}</span></button></th>
