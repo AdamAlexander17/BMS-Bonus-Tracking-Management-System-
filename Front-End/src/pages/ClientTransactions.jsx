@@ -304,8 +304,8 @@ export default function ClientTransactions() {
         title={`${client.name} Transactions`}
         subtitle={`ARK ID: ${client.arc_id} • ${client.broker?.name || 'Broker'} • ${sortedTransactions.length} record${sortedTransactions.length !== 1 ? 's' : ''}`}
         actions={
-          <button className="ph-btn ph-btn--ghost" onClick={() => navigate(`/brokers/${client.broker.id}`)}>
-            <BackIcon /> Back to Broker
+          <button className="ph-btn ph-btn--ghost" onClick={() => navigate('/clients')}>
+            <BackIcon /> Back to Clients
           </button>
         }
       />

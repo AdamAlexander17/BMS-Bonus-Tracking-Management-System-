@@ -374,31 +374,51 @@ export default function Clients() {
 
       let updated = 0, errors = [];
       for (const row of rows) {
-        const arkId = String(row['ARK ID'] || row['ark_id'] || row['arc_id'] || row['ARK_ID'] || '').trim();
+        const rawArkId = row['ARK ID'] ?? row['ark_id'] ?? row['arc_id'] ?? row['ARK_ID'] ?? row['Ark ID'] ?? row['Ark Id'] ?? row['ARK Id'] ?? '';
+        const arkId = String(rawArkId).trim();
         if (!arkId) continue;
-        const existing = clients.find(c => c.arc_id === arkId);
+        const existing = clients.find(c => String(c.arc_id).trim() === arkId);
         if (!existing) { errors.push(`ARK ID "${arkId}" not found — skipped.`); continue; }
         const payload = {};
-        if (row['Client Name'] != null) payload.name = String(row['Client Name']).trim();
-        if (row['Equity'] != null && !isNaN(Number(row['Equity']))) payload.equity_amount = Number(row['Equity']);
-        if (row['Legitimacy'] != null) { const leg = String(row['Legitimacy']).trim().toLowerCase(); if (['pending','approved','declined'].includes(leg)) payload.legitimacy_status = leg; }
-        if (row['Status'] != null) { const st = String(row['Status']).trim(); if (st === 'Active' || st === 'Inactive') payload.status = st; }
-        if (Object.keys(payload).length === 0) continue;
-        try { await updateClient(existing.id, payload); updated++; }
+        if (row['Client Name'] != null || row['Name'] != null || row['name'] != null) payload.name = String(row['Client Name'] ?? row['Name'] ?? row['name']).trim();
+        const equityVal = row['Equity'] ?? row['equity'] ?? row['equity_amount'];
+        if (equityVal != null && !isNaN(Number(equityVal))) payload.equity_amount = Number(equityVal);
+        const legVal = row['Legitimacy'] ?? row['legitimacy'] ?? row['legitimacy_status'] ?? row['Legitimacy Status'];
+        if (legVal != null) { const leg = String(legVal).trim().toLowerCase(); if (['pending','approved','declined'].includes(leg)) payload.legitimacy_status = leg; }
+        const statusVal = row['Status'] ?? row['status'];
+        if (statusVal != null) { const st = String(statusVal).trim(); if (st === 'Active' || st === 'Inactive') payload.status = st; else if (st.toLowerCase() === 'active' || st.toLowerCase() === 'inactive') payload.status = st.charAt(0).toUpperCase() + st.slice(1).toLowerCase(); }
+
+        // Handle deposits and withdrawals via transactions (not direct update)
+        const depositedVal = row['Deposited'] ?? row['deposited'] ?? row['deposited_amount'];
+        const withdrawalVal = row['Withdrawal'] ?? row['withdrawal'] ?? row['withdrawal_amount'];
+        let hasAction = Object.keys(payload).length > 0;
+
+        try {
+          if (Object.keys(payload).length > 0) await updateClient(existing.id, payload);
+          if (depositedVal != null && !isNaN(Number(depositedVal)) && Number(depositedVal) > 0) {
+            await createClientTransaction(existing.id, { transaction_type: 'deposit', amount: Number(depositedVal) });
+            hasAction = true;
+          }
+          if (withdrawalVal != null && !isNaN(Number(withdrawalVal)) && Number(withdrawalVal) > 0) {
+            await createClientTransaction(existing.id, { transaction_type: 'withdrawal', amount: Number(withdrawalVal) });
+            hasAction = true;
+          }
+          if (hasAction) updated++;
+        }
         catch (err) { errors.push(`ARK ID "${arkId}": ${err.response?.data?.message || 'update failed'}`); }
       }
       await fetchClients();
       let msg = `Import complete: ${updated} client${updated !== 1 ? 's' : ''} updated.`;
-      if (errors.length) msg += ` ${errors.length} error${errors.length !== 1 ? 's' : ''}.`;
-      setToast({ type: errors.length ? 'error' : 'success', message: msg });
+      if (errors.length) msg += ` ${errors.length} error${errors.length !== 1 ? 's' : ''}: ${errors.slice(0, 3).join('; ')}${errors.length > 3 ? '...' : ''}`;
+      setToast({ type: errors.length && !updated ? 'error' : updated ? 'success' : 'error', message: msg });
     } catch (err) { setToast({ type: 'error', message: 'Failed to read Excel file.' }); }
     finally { setImporting(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
   };
 
   const handleDownloadSample = () => {
     const sampleRows = [
-      { 'ARK ID': '123456', 'Client Name': 'John Doe', 'Equity': 5000, 'Legitimacy': 'approved', 'Status': 'Active' },
-      { 'ARK ID': '654321', 'Client Name': 'Jane Smith', 'Equity': 3000, 'Legitimacy': 'pending', 'Status': 'Active' },
+      { 'ARK ID': '123456', 'Client Name': 'John Doe', 'Deposited': 50000, 'Withdrawal': 5000, 'Equity': 5000, 'Legitimacy': 'approved', 'Status': 'Active' },
+      { 'ARK ID': '654321', 'Client Name': 'Jane Smith', 'Deposited': 30000, 'Withdrawal': 2000, 'Equity': 3000, 'Legitimacy': 'pending', 'Status': 'Active' },
     ];
     const ws = XLSX.utils.json_to_sheet(sampleRows);
     const wb = XLSX.utils.book_new();
