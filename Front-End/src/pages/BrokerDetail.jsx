@@ -293,39 +293,6 @@ function AddClientModal({ broker, onClose, onCreated }) {
                   />
                 </Field>
               </div>
-              <Field label="Deposited Amount (₹)">
-                <input
-                  type="number" min="0" step="0.01"
-                  style={inputStyle}
-                  value={form.deposited_amount}
-                  onChange={set('deposited_amount')}
-                  placeholder="0.00"
-                  onFocus={e => e.target.style.borderColor = '#004B4E'}
-                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
-                />
-              </Field>
-              <Field label="Withdrawal Amount (₹)">
-                <input
-                  type="number" min="0" step="0.01"
-                  style={inputStyle}
-                  value={form.withdrawal_amount}
-                  onChange={set('withdrawal_amount')}
-                  placeholder="0.00"
-                  onFocus={e => e.target.style.borderColor = '#004B4E'}
-                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
-                />
-              </Field>
-              <Field label="Equity (₹)">
-                <input
-                  type="number" min="0" step="0.01"
-                  style={inputStyle}
-                  value={form.equity_amount}
-                  onChange={set('equity_amount')}
-                  placeholder="0.00"
-                  onFocus={e => e.target.style.borderColor = '#004B4E'}
-                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
-                />
-              </Field>
             </div>
           </div>
 
@@ -352,7 +319,6 @@ function EditClientModal({ client, broker, canTradingOk, onClose, onUpdated }) {
   const [form, setForm]     = useState({
     name:              client.name ?? '',
     arc_id:            client.arc_id,
-    equity_amount:     client.equity_amount ?? '',
     legitimacy_status: normalizeLegitimacyStatus(client),
   });
 
@@ -370,7 +336,6 @@ function EditClientModal({ client, broker, canTradingOk, onClose, onUpdated }) {
       const payload = {
         name:              form.name.trim(),
         arc_id:            form.arc_id.trim(),
-        equity_amount:     form.equity_amount === '' ? 0 : form.equity_amount,
       };
       if (canTradingOk) {
         payload.legitimacy_status = form.legitimacy_status;
@@ -478,19 +443,6 @@ function EditClientModal({ client, broker, canTradingOk, onClose, onUpdated }) {
                   </Field>
                 </div>
               )}
-              <div style={{ gridColumn: '1 / -1' }}>
-                <Field label="Equity (₹)">
-                  <input
-                    type="number" min="0" step="0.01"
-                    style={inputStyle}
-                    value={form.equity_amount}
-                    onChange={set('equity_amount')}
-                    placeholder="0.00"
-                    onFocus={e => e.target.style.borderColor = '#004B4E'}
-                    onBlur={e => e.target.style.borderColor = '#d1d5db'}
-                  />
-                </Field>
-              </div>
             </div>
           </div>
 
@@ -844,7 +796,10 @@ export default function BrokerDetail() {
   const canBrokerUpdate = hasPerm('broker:update');
   const canManageBonus  = hasPerm('bonus:manage');
   const canViewTxns     = hasPerm('transactions:view');
-  const canClientActions = canClientUpdate || canClientDelete || canViewTxns;
+  const canManageEquity = hasPerm('client:manage_equity');
+  const canAddDeposit   = hasPerm('client:add_deposit');
+  const canAddWithdrawal = hasPerm('client:add_withdrawal');
+  const canClientActions = canClientUpdate || canClientDelete || canViewTxns || canManageEquity || canAddDeposit || canAddWithdrawal;
 
   const [broker, setBroker]   = useState(null);
   const [clients, setClients] = useState([]);
@@ -1199,45 +1154,47 @@ export default function BrokerDetail() {
                             </svg>
                           </button>
                         )}
+                        {canAdjustAmounts && canAddDeposit && (
+                          <button
+                            className="um__action-btn"
+                            title="Add Deposit"
+                            style={{ color: '#10b981' }}
+                            onClick={() => setAmountAction({ client: c, mode: 'deposit' })}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                              <line x1="12" y1="5" x2="12" y2="19"/>
+                              <line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                          </button>
+                        )}
+                        {canAdjustAmounts && canAddWithdrawal && (
+                          <button
+                            className="um__action-btn"
+                            title="Add Withdrawal"
+                            style={{ color: '#f59e0b' }}
+                            onClick={() => setAmountAction({ client: c, mode: 'withdrawal' })}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                              <line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                          </button>
+                        )}
+                        {canManageEquity && (
+                          <button
+                            className="um__action-btn"
+                            title="Manage Equity"
+                            style={{ color: '#8b5cf6' }}
+                            onClick={() => setEquityAction(c)}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                              <rect x="2" y="6" width="20" height="13" rx="2"/>
+                              <path d="M2 10h20"/>
+                              <path d="M16 15h2"/>
+                            </svg>
+                          </button>
+                        )}
                         {canClientUpdate && (
                           <>
-                            {canAdjustAmounts && (
-                              <>
-                                <button
-                                  className="um__action-btn"
-                                  title="Add Deposit"
-                                  style={{ color: '#10b981' }}
-                                  onClick={() => setAmountAction({ client: c, mode: 'deposit' })}
-                                >
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                                    <line x1="12" y1="5" x2="12" y2="19"/>
-                                    <line x1="5" y1="12" x2="19" y2="12"/>
-                                  </svg>
-                                </button>
-                                <button
-                                  className="um__action-btn"
-                                  title="Add Withdrawal"
-                                  style={{ color: '#f59e0b' }}
-                                  onClick={() => setAmountAction({ client: c, mode: 'withdrawal' })}
-                                >
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                                    <line x1="5" y1="12" x2="19" y2="12"/>
-                                  </svg>
-                                </button>
-                              </>
-                            )}
-                            <button
-                              className="um__action-btn"
-                              title="Manage Equity"
-                              style={{ color: '#8b5cf6' }}
-                              onClick={() => setEquityAction(c)}
-                            >
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-                                <rect x="2" y="6" width="20" height="13" rx="2"/>
-                                <path d="M2 10h20"/>
-                                <path d="M16 15h2"/>
-                              </svg>
-                            </button>
                             <button
                               className="um__action-btn um__action-btn--edit"
                               title="Edit"

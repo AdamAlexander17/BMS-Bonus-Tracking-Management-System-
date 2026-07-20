@@ -15,6 +15,7 @@ export default function Users() {
   const canCreate  = hasPerm('user:create');
   const canUpdate  = hasPerm('user:update');
   const canDelete  = hasPerm('user:delete');
+  const canBulkUpload = hasPerm('user:bulk_upload');
   const canActions = canUpdate || canDelete;
 
   const [users, setUsers]         = useState([]);
@@ -133,7 +134,7 @@ export default function Users() {
               </svg>
               Refresh
             </button>
-            {canCreate && (
+            {canBulkUpload && (
               <button className="ph-btn ph-btn--ghost" onClick={() => setShowBulkUpload(true)}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>

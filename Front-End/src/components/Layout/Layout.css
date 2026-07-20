@@ -12,7 +12,7 @@
   min-width: 0;
 }
 .layout__main--with-top-margin {
-  margin-top: 32px; /* Adjust as needed for spacing */
+  padding-top: 32px;
 }
 .layout__content {
   flex: 1;
