@@ -15,7 +15,7 @@ from rest_framework import status
 from django.db.models import Count, Q
 from django.db.models.deletion import ProtectedError
 
-from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, BrokerPayout, Client, ClientTransaction, AuditLog
+from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, BrokerPayout, Client, ClientTransaction, ClientMonthlyLegitimacy, AuditLog
 from app.utils import verify_password, generate_access_token, generate_refresh_token, decode_token, hash_password
 from app.tenancy import (
     is_admin,
@@ -2914,6 +2914,10 @@ def client_list_all(request):
                 else:
                     monthly_withdrawals[txn['client_id']] = txn['total'] or Decimal('0')
 
+            # Get monthly legitimacy statuses
+            monthly_leg_qs = ClientMonthlyLegitimacy.objects.filter(month=month_start)
+            monthly_leg_map = {ml.client_id: ml.legitimacy_status for ml in monthly_leg_qs}
+
             result = []
             for c in clients:
                 dep = monthly_deposits.get(c.id, Decimal('0'))
@@ -2921,7 +2925,8 @@ def client_list_all(request):
                 equity = Decimal(str(c.equity_amount or 0))
                 net_total = dep - wth
                 net_dwe = net_total - equity
-                earned = round(float(dep) * 0.01, 2) if c.legitimacy_status == 'approved' else 0
+                monthly_legitimacy = monthly_leg_map.get(c.id, 'pending')
+                earned = round(float(dep) * 0.01, 2) if monthly_legitimacy == 'approved' else 0
                 result.append({
                     'id':                c.id,
                     'name':              c.name,
@@ -2933,8 +2938,8 @@ def client_list_all(request):
                     'net_total':         str(net_total),
                     'net_dwe':           str(net_dwe),
                     'earned_amount':     str(earned),
-                    'legitimacy_status': c.legitimacy_status,
-                    'is_legitimate':     c.is_legitimate,
+                    'legitimacy_status': monthly_legitimacy,
+                    'is_legitimate':     monthly_legitimacy == 'approved',
                     'status':            c.status,
                     'created_by':        c.created_by.username if c.created_by else None,
                     'created_at':        c.created_at.strftime('%Y-%m-%d %H:%M:%S'),
@@ -3512,3 +3517,84 @@ def client_delete(request, client_id):
         status=status.HTTP_200_OK
     )
 
+
+# ===========================================================================
+# Client Monthly Legitimacy
+# ===========================================================================
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def client_monthly_legitimacy_update(request, client_id):
+    """Update the legitimacy status for a client in a specific month."""
+    if not has_perm(request, 'client:trading_ok'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    try:
+        client = Client.objects.select_related('broker__brand', 'created_by').get(id=client_id)
+    except Client.DoesNotExist:
+        return Response(
+            {'success': False, 'message': 'Client not found.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not _check_client_access(request, client):
+        return Response(
+            {'success': False, 'message': 'Access denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    month_str = request.data.get('month', '').strip()
+    new_legitimacy = request.data.get('legitimacy_status', '').strip().lower()
+
+    if not month_str:
+        return Response(
+            {'success': False, 'message': 'month is required (YYYY-MM format).'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if new_legitimacy not in ('pending', 'approved', 'declined'):
+        return Response(
+            {'success': False, 'message': 'legitimacy_status must be pending, approved, or declined.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        month_date = parse_date(month_str + '-01')
+        if month_date is None:
+            raise ValueError()
+    except (ValueError, AttributeError):
+        return Response(
+            {'success': False, 'message': 'Invalid month format. Use YYYY-MM.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    obj, created = ClientMonthlyLegitimacy.objects.update_or_create(
+        client=client,
+        month=month_date,
+        defaults={
+            'legitimacy_status': new_legitimacy,
+            'updated_by': request.user,
+        },
+    )
+
+    log_audit_event(
+        request,
+        module='client',
+        action='monthly_legitimacy_update',
+        description=f'Monthly legitimacy updated for "{client.name}" ({month_str}).',
+        entity_type='client',
+        entity_id=client.id,
+        entity_label=client.name,
+        details={
+            'month': month_str,
+            'legitimacy_status': new_legitimacy,
+        },
+    )
+
+    return Response(
+        {'success': True, 'message': 'Monthly legitimacy updated.', 'data': {'legitimacy_status': new_legitimacy}},
+        status=status.HTTP_200_OK
+    )
