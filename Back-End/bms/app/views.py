@@ -3,7 +3,7 @@ import re
 from django.db import transaction as db_transaction
 from decimal import Decimal, InvalidOperation
 from django.core.paginator import Paginator
-
+    
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.conf import settings
@@ -2882,6 +2882,66 @@ def client_list_all(request):
             Q(broker__name__icontains=search) |
             Q(broker__arc_id__icontains=search)
         )
+
+    # Monthly transaction aggregation
+    month_param = request.query_params.get('month', '').strip()  # format: YYYY-MM
+    if month_param:
+        try:
+            month_date = parse_date(month_param + '-01')
+            if month_date is None:
+                raise ValueError()
+            from django.db.models import Sum
+            from django.db.models.functions import Coalesce
+
+            # Get monthly transaction totals per client
+            month_start = month_date
+            if month_date.month == 12:
+                next_month = month_date.replace(year=month_date.year + 1, month=1)
+            else:
+                next_month = month_date.replace(month=month_date.month + 1)
+
+            txn_qs = ClientTransaction.objects.filter(
+                created_at__gte=month_start,
+                created_at__lt=next_month,
+            )
+
+            from collections import defaultdict
+            monthly_deposits = defaultdict(lambda: Decimal('0'))
+            monthly_withdrawals = defaultdict(lambda: Decimal('0'))
+            for txn in txn_qs.values('client_id', 'transaction_type').annotate(total=Sum('amount')):
+                if txn['transaction_type'] == 'deposit':
+                    monthly_deposits[txn['client_id']] = txn['total'] or Decimal('0')
+                else:
+                    monthly_withdrawals[txn['client_id']] = txn['total'] or Decimal('0')
+
+            result = []
+            for c in clients:
+                dep = monthly_deposits.get(c.id, Decimal('0'))
+                wth = monthly_withdrawals.get(c.id, Decimal('0'))
+                equity = Decimal(str(c.equity_amount or 0))
+                net_total = dep - wth
+                net_dwe = net_total - equity
+                earned = round(float(dep) * 0.01, 2) if c.legitimacy_status == 'approved' else 0
+                result.append({
+                    'id':                c.id,
+                    'name':              c.name,
+                    'arc_id':            c.arc_id,
+                    'broker':            {'id': c.broker.id, 'arc_id': c.broker.arc_id, 'name': c.broker.name},
+                    'deposited_amount':  str(dep),
+                    'withdrawal_amount': str(wth),
+                    'equity_amount':     str(equity),
+                    'net_total':         str(net_total),
+                    'net_dwe':           str(net_dwe),
+                    'earned_amount':     str(earned),
+                    'legitimacy_status': c.legitimacy_status,
+                    'is_legitimate':     c.is_legitimate,
+                    'status':            c.status,
+                    'created_by':        c.created_by.username if c.created_by else None,
+                    'created_at':        c.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                })
+            return Response({'success': True, 'data': result}, status=status.HTTP_200_OK)
+        except (ValueError, AttributeError):
+            pass  # Invalid month format, fall through to normal response
 
     return Response(
         {'success': True, 'data': [format_client(c) for c in clients]},

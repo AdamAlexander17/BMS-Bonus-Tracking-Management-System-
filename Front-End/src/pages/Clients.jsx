@@ -245,16 +245,17 @@ export default function Clients() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showImportMenu, setShowImportMenu] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [monthFilter, setMonthFilter] = useState('');
   const fileInputRef = useRef(null);
 
   const fetchClients = async () => {
     setLoading(true); setError('');
-    try { const res = await getAllClients(); setClients(res.data.data || []); }
+    try { const params = {}; if (monthFilter) params.month = monthFilter; const res = await getAllClients(params); setClients(res.data.data || []); }
     catch (err) { setError(err.response?.data?.message || 'Failed to load clients.'); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchClients(); }, []);
+  useEffect(() => { fetchClients(); }, [monthFilter]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -293,6 +294,7 @@ export default function Clients() {
         case 'name': return client.name || '';
         case 'arc_id': return client.arc_id || '';
         case 'broker': return client.broker?.name || '';
+        case 'broker_arc_id': return client.broker?.arc_id || '';
         case 'deposited_amount': return Number(client.deposited_amount || 0);
         case 'withdrawal_amount': return Number(client.withdrawal_amount || 0);
         case 'equity_amount': return Number(client.equity_amount || 0);
@@ -453,6 +455,12 @@ export default function Clients() {
             <input placeholder="Search by name, ARK ID or broker" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Month filter */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>Month</label>
+              <input type="month" value={monthFilter} onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }} style={{ height: 32, padding: '0 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#111827', background: '#fff', outline: 'none' }} />
+              {monthFilter && <button type="button" className="ph-btn ph-btn--ghost" style={{ height: 32, padding: '0 10px', fontSize: 12 }} onClick={() => { setMonthFilter(''); setPage(1); }}>Clear</button>}
+            </div>
             {/* Import */}
             <input type="file" ref={fileInputRef} accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleImport} />
             <div style={{ position: 'relative' }}>
@@ -501,6 +509,7 @@ export default function Clients() {
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('name')}>CLIENT <span>{getSortIndicator('name')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('arc_id')}>ARK ID <span>{getSortIndicator('arc_id')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('broker')}>BROKER <span>{getSortIndicator('broker')}</span></button></th>
+                <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('broker_arc_id')}>BROKER ARK ID <span>{getSortIndicator('broker_arc_id')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('deposited_amount')}>DEPOSITED <span>{getSortIndicator('deposited_amount')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('withdrawal_amount')}>WITHDRAWAL <span>{getSortIndicator('withdrawal_amount')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('equity_amount')}>EQUITY <span>{getSortIndicator('equity_amount')}</span></button></th>
@@ -516,7 +525,7 @@ export default function Clients() {
 
             <tbody>
               {paged.length === 0 ? (
-                <tr><td colSpan={13} className="um__empty">No clients found.</td></tr>
+                <tr><td colSpan={14} className="um__empty">No clients found.</td></tr>
               ) : paged.map(c => (
                 <tr key={c.id}>
                   <td>
@@ -527,6 +536,7 @@ export default function Clients() {
                   </td>
                   <td><code className="um__handle" style={{ fontWeight: 600 }}>{c.arc_id}</code></td>
                   <td><span style={{ cursor: 'pointer', color: '#004B4E', fontWeight: 500 }} onClick={() => navigate(`/brokers/${c.broker?.id}`)}>{c.broker?.name}</span></td>
+                  <td><code className="um__handle" style={{ fontWeight: 600 }}>{c.broker?.arc_id}</code></td>
                   <td>{formatINR(c.deposited_amount)}</td>
                   <td>{formatINR(c.withdrawal_amount)}</td>
                   <td>{formatINR(c.equity_amount)}</td>
