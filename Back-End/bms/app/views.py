@@ -3226,11 +3226,20 @@ def client_transaction_create(request, client_id):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    if amount <= 0:
+    if amount == 0:
         return Response(
-            {'success': False, 'message': 'amount must be greater than zero.'},
+            {'success': False, 'message': 'amount cannot be zero.'},
             status=status.HTTP_400_BAD_REQUEST
         )
+
+    # Negative amount = deduction from current total
+    if amount < 0:
+        current_total = Decimal(str(client.deposited_amount or 0)) if transaction_type == 'deposit' else Decimal(str(client.withdrawal_amount or 0))
+        if abs(amount) > current_total:
+            return Response(
+                {'success': False, 'message': f'Cannot deduct more than current {transaction_type} total of {current_total}.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     with db_transaction.atomic():
         if transaction_type == 'deposit':

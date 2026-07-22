@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
 import CustomSelect from '../components/CustomSelect/CustomSelect';
@@ -146,11 +146,27 @@ function AddAmountModal({ client, mode, onClose, onUpdated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [amount, setAmount] = useState('');
+  const currentAmount = Number(isDeposit ? client.deposited_amount : client.withdrawal_amount) || 0;
+
   const handleSubmit = async (e) => {
     e.preventDefault(); setError('');
-    if (!amount || Number(amount) <= 0) { setError('Enter a valid amount greater than zero.'); return; }
+    if (!amount || Number(amount) === 0) { setError('Enter a valid amount.'); return; }
+    const numAmount = Number(amount);
+    // If negative, check it doesn't exceed current total
+    if (numAmount < 0 && Math.abs(numAmount) > currentAmount) {
+      setError(`Cannot deduct ₹${Math.abs(numAmount).toLocaleString('en-IN')} — current ${isDeposit ? 'deposit' : 'withdrawal'} is only ₹${currentAmount.toLocaleString('en-IN')}.`);
+      return;
+    }
     setSaving(true);
-    try { await createClientTransaction(client.id, { transaction_type: isDeposit ? 'deposit' : 'withdrawal', amount: Number(amount) }); onUpdated(); }
+    try {
+      if (numAmount < 0) {
+        // Negative value: create a reverse transaction to deduct
+        await createClientTransaction(client.id, { transaction_type: isDeposit ? 'deposit' : 'withdrawal', amount: numAmount });
+      } else {
+        await createClientTransaction(client.id, { transaction_type: isDeposit ? 'deposit' : 'withdrawal', amount: numAmount });
+      }
+      onUpdated();
+    }
     catch (err) { setError(err.response?.data?.message || `Failed to add ${mode}.`); setSaving(false); }
   };
   return (
@@ -159,18 +175,21 @@ function AddAmountModal({ client, mode, onClose, onUpdated }) {
         <div className="bd-modal__header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 18px', borderBottom: '1px solid #f1f5f9' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>{isDeposit ? 'Add Deposit' : 'Add Withdrawal'}</h2>
-            <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>Client <strong>{client.arc_id}</strong> · Current {isDeposit ? 'deposit' : 'withdrawal'}: <strong>{formatINR(isDeposit ? client.deposited_amount : client.withdrawal_amount)}</strong></p>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>Client <strong>{client.arc_id}</strong> · Current {isDeposit ? 'deposit' : 'withdrawal'}: <strong>{formatINR(currentAmount)}</strong></p>
           </div>
           <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9ca3af', padding: 4, borderRadius: 6, display: 'flex' }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <form onSubmit={handleSubmit}>
           <div style={{ padding: '24px 24px 8px' }}>
             {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>}
-            <Field label={`${isDeposit ? 'Add Deposit' : 'Add Withdrawal'} (₹)`}><input type="number" min="0" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" autoFocus /></Field>
+            <Field label={`${isDeposit ? 'Deposit' : 'Withdrawal'} Amount (₹)`}>
+              <input type="number" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Enter amount (negative to deduct)" autoFocus />
+            </Field>
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: '#6b7280' }}>Use a negative value to deduct from the current {isDeposit ? 'deposit' : 'withdrawal'} total.</p>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
             <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Saving...' : isDeposit ? 'Add Deposit' : 'Withdrawal'}</button>
+            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Saving...' : isDeposit ? 'Add Deposit' : 'Add Withdrawal'}</button>
           </div>
         </form>
       </div>
@@ -219,6 +238,7 @@ function ManageEquityModal({ client, onClose, onUpdated }) {
 
 export default function Clients() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const hasPerm = (key) => !user?.permissions || user.permissions.includes(key);
   const canUpdate = hasPerm('client:update');
@@ -235,7 +255,7 @@ export default function Clients() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [legitimacyFilter, setLegitimacyFilter] = useState('all');
   const [pageSize, setPageSize] = useState(10);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => Number(searchParams.get('page')) || 1);
   const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
   const [editClient, setEditClient] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
@@ -267,6 +287,11 @@ export default function Clients() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
+
+  // Sync page to URL
+  useEffect(() => {
+    setSearchParams(prev => { const p = new URLSearchParams(prev); if (page > 1) p.set('page', String(page)); else p.delete('page'); return p; }, { replace: true });
+  }, [page]);
 
   // Disable parent layout scroll on this page
   useEffect(() => {
@@ -314,6 +339,7 @@ export default function Clients() {
   }, [filtered, sortConfig]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  useEffect(() => { if (!loading && clients.length > 0 && page > totalPages) setPage(totalPages); }, [totalPages, loading, clients.length]);
   const paged = sorted.slice((page - 1) * pageSize, page * pageSize);
 
   const handleSort = (key) => { setSortConfig((cur) => cur.key === key ? { key, direction: cur.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: key === 'created_at' ? 'desc' : 'asc' }); setPage(1); };
@@ -476,8 +502,8 @@ export default function Clients() {
             {/* Month filter */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <label style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>Month</label>
-              <input type="month" value={monthFilter} onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }} style={{ height: 32, padding: '0 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#111827', background: '#fff', outline: 'none' }} />
-              {monthFilter && <button type="button" className="ph-btn ph-btn--ghost" style={{ height: 32, padding: '0 10px', fontSize: 12 }} onClick={() => { setMonthFilter(''); setPage(1); }}>Clear</button>}
+              <input type="month" value={monthFilter} onChange={(e) => { setMonthFilter(e.target.value); }} style={{ height: 32, padding: '0 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#111827', background: '#fff', outline: 'none' }} />
+              {monthFilter && <button type="button" className="ph-btn ph-btn--ghost" style={{ height: 32, padding: '0 10px', fontSize: 12 }} onClick={() => { setMonthFilter(''); }}>Clear</button>}
             </div>
             {/* Import */}
             <input type="file" ref={fileInputRef} accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleImport} />
