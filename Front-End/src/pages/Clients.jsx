@@ -34,6 +34,14 @@ function compareValues(left, right, direction) {
   return 0;
 }
 
+const formatINRSigned = (val) => {
+  const n = Number(val);
+  if (Number.isNaN(n)) return '—';
+  const abs = Math.abs(n);
+  const formatted = abs.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 });
+  return n < 0 ? `-${formatted}` : formatted;
+};
+
 const ClientIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
@@ -309,7 +317,7 @@ export default function Clients() {
   const filtered = useMemo(() => {
     return clients.filter(c => {
       const q = search.toLowerCase();
-      const matchSearch = !q || (c.name || '').toLowerCase().includes(q) || (c.arc_id || '').toLowerCase().includes(q) || (c.broker?.name || '').toLowerCase().includes(q) || (c.broker?.arc_id || '').toLowerCase().includes(q);
+      const matchSearch = !q || (c.name || '').toLowerCase().includes(q) || (c.arc_id || '').toLowerCase().includes(q) || (c.broker?.name || '').toLowerCase().includes(q) || (c.broker?.arc_id || '').toLowerCase().includes(q) || (c.created_by || '').toLowerCase().includes(q) || (c.brand || '').toLowerCase().includes(q);
       const matchBroker = brokerFilter === 'all' || String(c.broker?.id) === brokerFilter;
       const matchStatus = statusFilter === 'all' || c.status === statusFilter;
       const matchLegitimacy = legitimacyFilter === 'all' || c.legitimacy_status === legitimacyFilter;
@@ -324,6 +332,7 @@ export default function Clients() {
         case 'arc_id': return client.arc_id || '';
         case 'broker': return client.broker?.name || '';
         case 'broker_arc_id': return client.broker?.arc_id || '';
+        case 'brand': return client.brand || '';
         case 'deposited_amount': return Number(client.deposited_amount || 0);
         case 'withdrawal_amount': return Number(client.withdrawal_amount || 0);
         case 'equity_amount': return Number(client.equity_amount || 0);
@@ -447,7 +456,7 @@ export default function Clients() {
           }
           if (withdrawalVal != null && !isNaN(Number(withdrawalVal)) && Number(withdrawalVal) > 0) {
             await createClientTransaction(existing.id, { transaction_type: 'withdrawal', amount: Number(withdrawalVal) });
-            hasAction = true;
+            hasAction = true;``
           }
           if (hasAction) updated++;
         }
@@ -496,7 +505,7 @@ export default function Clients() {
         <div className="um__toolbar">
           <div className="um__search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input placeholder="Search by name, ARK ID or broker" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
+            <input placeholder="Search by name, ARK ID, broker, brand or creator" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {/* Month filter */}
@@ -554,6 +563,7 @@ export default function Clients() {
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('arc_id')}>ARK ID <span>{getSortIndicator('arc_id')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('broker')}>BROKER <span>{getSortIndicator('broker')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('broker_arc_id')}>BROKER ARK ID <span>{getSortIndicator('broker_arc_id')}</span></button></th>
+                <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('brand')}>BRAND <span>{getSortIndicator('brand')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('deposited_amount')}>DEPOSITED <span>{getSortIndicator('deposited_amount')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('withdrawal_amount')}>WITHDRAWAL <span>{getSortIndicator('withdrawal_amount')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('equity_amount')}>EQUITY <span>{getSortIndicator('equity_amount')}</span></button></th>
@@ -569,7 +579,7 @@ export default function Clients() {
 
             <tbody>
               {paged.length === 0 ? (
-                <tr><td colSpan={14} className="um__empty">No clients found.</td></tr>
+                <tr><td colSpan={15} className="um__empty">No clients found.</td></tr>
               ) : paged.map(c => (
                 <tr key={c.id}>
                   <td>
@@ -581,10 +591,11 @@ export default function Clients() {
                   <td><code className="um__handle" style={{ fontWeight: 600 }}>{c.arc_id}</code></td>
                   <td><span style={{ cursor: 'pointer', color: '#004B4E', fontWeight: 500 }} onClick={() => navigate(`/brokers/${c.broker?.id}`)}>{c.broker?.name}</span></td>
                   <td><code className="um__handle" style={{ fontWeight: 600 }}>{c.broker?.arc_id}</code></td>
+                  <td><span className="um__role-badge bk__chip--brand">{c.brand || '—'}</span></td>
                   <td>{formatINR(c.deposited_amount)}</td>
                   <td>{formatINR(c.withdrawal_amount)}</td>
                   <td>{formatINR(c.equity_amount)}</td>
-                  <td>{formatINR(c.net_dwe)}</td>
+                  <td>{formatINRSigned(c.net_dwe)}</td>
                   <td style={{ fontWeight: 600 }}>{formatINR(c.earned_amount)}</td>
                   <td>
                     <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600,

@@ -291,7 +291,7 @@ def refresh_token(request):
         )
 
     # Check token exists in DB (not logged out)
-    try:
+    try:    
         token_obj = UserToken.objects.get(refresh_token=token)
     except UserToken.DoesNotExist:
         return Response(
@@ -2625,6 +2625,7 @@ def format_client(client):
             'arc_id': client.broker.arc_id,
             'name':   client.broker.name,
         },
+        'brand':             client.created_by.brand.name if client.created_by and client.created_by.brand_id else (client.broker.brand.name if client.broker.brand_id else None),
         'deposited_amount':  str(deposited_amount),
         'withdrawal_amount': str(withdrawal_amount),
         'equity_amount':     str(equity_amount),
@@ -2850,7 +2851,7 @@ def client_list_all(request):
 
     clients = (
         Client.objects
-        .select_related('broker__brand', 'broker', 'created_by')
+        .select_related('broker__brand', 'broker', 'created_by', 'created_by__brand')
         .order_by('-created_at')
     )
 
@@ -2932,6 +2933,7 @@ def client_list_all(request):
                     'name':              c.name,
                     'arc_id':            c.arc_id,
                     'broker':            {'id': c.broker.id, 'arc_id': c.broker.arc_id, 'name': c.broker.name},
+                    'brand':             c.created_by.brand.name if c.created_by and c.created_by.brand_id else (c.broker.brand.name if c.broker.brand_id else None),
                     'deposited_amount':  str(dep),
                     'withdrawal_amount': str(wth),
                     'equity_amount':     str(equity),
