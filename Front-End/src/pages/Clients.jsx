@@ -592,7 +592,7 @@ export default function Clients() {
                   <td><code className="um__handle" style={{ fontWeight: 600 }}>{c.arc_id}</code></td>
                   <td><span style={{ cursor: 'pointer', color: '#004B4E', fontWeight: 500 }} onClick={() => navigate(`/brokers/${c.broker?.id}`)}>{c.broker?.name}</span></td>
                   <td><code className="um__handle" style={{ fontWeight: 600 }}>{c.broker?.arc_id}</code></td>
-                  <td><span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600, background: '#e0f5f5', color: '#004B4E' }}>{c.brand || c.broker?.brand || '—'}</span></td>
+                  <td><span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600, background: '#e0f5f5', color: '#004B4E', whiteSpace: 'nowrap' }}>{c.brand || c.broker?.brand || '—'}</span></td>
                   <td>{formatINR(c.deposited_amount)}</td>
                   <td>{formatINR(c.withdrawal_amount)}</td>
                   <td>{formatINR(c.equity_amount)}</td>
