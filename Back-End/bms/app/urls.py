@@ -64,5 +64,6 @@ urlpatterns = [
     path('clients/<int:client_id>/transactions/<int:transaction_id>/update/', views.client_transaction_update, name='client_transaction_update'),
     path('clients/<int:client_id>/transactions/<int:transaction_id>/delete/', views.client_transaction_delete, name='client_transaction_delete'),
     path('clients/<int:client_id>/update/',        views.client_update, name='client_update'),
+    path('clients/<int:client_id>/monthly-legitimacy/', views.client_monthly_legitimacy_update, name='client_monthly_legitimacy_update'),
     path('clients/<int:client_id>/delete/',        views.client_delete, name='client_delete'),
 ]

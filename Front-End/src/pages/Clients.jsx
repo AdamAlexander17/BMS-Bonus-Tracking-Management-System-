@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import PageHeader from '../components/PageHeader/PageHeader';
 import CustomSelect from '../components/CustomSelect/CustomSelect';
 import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
 import Toast from '../components/Toast/Toast';
-import { getAllClients, updateClient, deleteClient, createClientTransaction } from '../api/clients';
+import { getAllClients, updateClient, deleteClient, createClientTransaction, updateClientMonthlyLegitimacy } from '../api/clients';
 import { formatINR } from './Brokers';
 import * as XLSX from 'xlsx';
 import './Users.css';
@@ -33,6 +33,14 @@ function compareValues(left, right, direction) {
   if (left > right) return direction === 'asc' ? 1 : -1;
   return 0;
 }
+
+const formatINRSigned = (val) => {
+  const n = Number(val);
+  if (Number.isNaN(n)) return '—';
+  const abs = Math.abs(n);
+  const formatted = abs.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 });
+  return n < 0 ? `-${formatted}` : formatted;
+};
 
 const ClientIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -146,11 +154,27 @@ function AddAmountModal({ client, mode, onClose, onUpdated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [amount, setAmount] = useState('');
+  const currentAmount = Number(isDeposit ? client.deposited_amount : client.withdrawal_amount) || 0;
+
   const handleSubmit = async (e) => {
     e.preventDefault(); setError('');
-    if (!amount || Number(amount) <= 0) { setError('Enter a valid amount greater than zero.'); return; }
+    if (!amount || Number(amount) === 0) { setError('Enter a valid amount.'); return; }
+    const numAmount = Number(amount);
+    // If negative, check it doesn't exceed current total
+    if (numAmount < 0 && Math.abs(numAmount) > currentAmount) {
+      setError(`Cannot deduct ₹${Math.abs(numAmount).toLocaleString('en-IN')} — current ${isDeposit ? 'deposit' : 'withdrawal'} is only ₹${currentAmount.toLocaleString('en-IN')}.`);
+      return;
+    }
     setSaving(true);
-    try { await createClientTransaction(client.id, { transaction_type: isDeposit ? 'deposit' : 'withdrawal', amount: Number(amount) }); onUpdated(); }
+    try {
+      if (numAmount < 0) {
+        // Negative value: create a reverse transaction to deduct
+        await createClientTransaction(client.id, { transaction_type: isDeposit ? 'deposit' : 'withdrawal', amount: numAmount });
+      } else {
+        await createClientTransaction(client.id, { transaction_type: isDeposit ? 'deposit' : 'withdrawal', amount: numAmount });
+      }
+      onUpdated();
+    }
     catch (err) { setError(err.response?.data?.message || `Failed to add ${mode}.`); setSaving(false); }
   };
   return (
@@ -159,18 +183,21 @@ function AddAmountModal({ client, mode, onClose, onUpdated }) {
         <div className="bd-modal__header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 18px', borderBottom: '1px solid #f1f5f9' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>{isDeposit ? 'Add Deposit' : 'Add Withdrawal'}</h2>
-            <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>Client <strong>{client.arc_id}</strong> · Current {isDeposit ? 'deposit' : 'withdrawal'}: <strong>{formatINR(isDeposit ? client.deposited_amount : client.withdrawal_amount)}</strong></p>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>Client <strong>{client.arc_id}</strong> · Current {isDeposit ? 'deposit' : 'withdrawal'}: <strong>{formatINR(currentAmount)}</strong></p>
           </div>
           <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9ca3af', padding: 4, borderRadius: 6, display: 'flex' }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <form onSubmit={handleSubmit}>
           <div style={{ padding: '24px 24px 8px' }}>
             {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>}
-            <Field label={`${isDeposit ? 'Add Deposit' : 'Add Withdrawal'} (₹)`}><input type="number" min="0" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" autoFocus /></Field>
+            <Field label={`${isDeposit ? 'Deposit' : 'Withdrawal'} Amount (₹)`}>
+              <input type="number" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Enter amount (negative to deduct)" autoFocus />
+            </Field>
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: '#6b7280' }}>Use a negative value to deduct from the current {isDeposit ? 'deposit' : 'withdrawal'} total.</p>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
             <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Saving...' : isDeposit ? 'Add Deposit' : 'Withdrawal'}</button>
+            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Saving...' : isDeposit ? 'Add Deposit' : 'Add Withdrawal'}</button>
           </div>
         </form>
       </div>
@@ -181,15 +208,15 @@ function AddAmountModal({ client, mode, onClose, onUpdated }) {
 function ManageEquityModal({ client, onClose, onUpdated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [amount, setAmount] = useState('');
-  const currentEquity = Number(client.equity_amount || 0);
+  const [amount, setAmount] = useState(
+    client.equity_amount != null && client.equity_amount !== '' ? String(client.equity_amount) : ''
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setError('');
-    if (amount === '' || Number(amount) <= 0 || Number.isNaN(Number(amount))) { setError('Enter a valid amount greater than zero.'); return; }
+    if (amount === '' || Number(amount) < 0 || Number.isNaN(Number(amount))) { setError('Enter a valid equity amount (0 or greater).'); return; }
     setSaving(true);
-    const newEquity = currentEquity + Number(amount);
-    try { await updateClient(client.id, { equity_amount: newEquity }); onUpdated(); }
+    try { await updateClient(client.id, { equity_amount: Number(amount) }); onUpdated(); }
     catch (err) { setError(err.response?.data?.message || 'Failed to update equity.'); setSaving(false); }
   };
   return (
@@ -197,19 +224,19 @@ function ManageEquityModal({ client, onClose, onUpdated }) {
       <div onClick={e => e.stopPropagation()} className="bd-modal" style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
         <div className="bms-dialog__header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 18px' }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Add Equity</h2>
-            <p style={{ margin: '3px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>{client.name} · <strong>{client.arc_id}</strong> · Current: <strong>{formatINR(currentEquity)}</strong></p>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Update Equity</h2>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>{client.name} · <strong>{client.arc_id}</strong> · Current: <strong>{formatINR(client.equity_amount)}</strong></p>
           </div>
           <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.8)', padding: 4, borderRadius: 6, display: 'flex' }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <form onSubmit={handleSubmit}>
           <div style={{ padding: '24px 24px 8px' }}>
             {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>}
-            <Field label="Add Equity Amount (₹)"><input type="number" min="0" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" autoFocus /></Field>
+            <Field label="Equity Amount (₹)"><input type="number" min="0" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" autoFocus /></Field>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
             <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Add Equity'}</button>
+            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Update Equity'}</button>
           </div>
         </form>
       </div>
@@ -219,6 +246,7 @@ function ManageEquityModal({ client, onClose, onUpdated }) {
 
 export default function Clients() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const hasPerm = (key) => !user?.permissions || user.permissions.includes(key);
   const canUpdate = hasPerm('client:update');
@@ -235,7 +263,7 @@ export default function Clients() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [legitimacyFilter, setLegitimacyFilter] = useState('all');
   const [pageSize, setPageSize] = useState(10);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => Number(searchParams.get('page')) || 1);
   const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
   const [editClient, setEditClient] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
@@ -245,7 +273,11 @@ export default function Clients() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showImportMenu, setShowImportMenu] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [monthFilter, setMonthFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState(() => {
+    const now = new Date();
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`;
+  });
   const fileInputRef = useRef(null);
 
   const fetchClients = async () => {
@@ -264,6 +296,11 @@ export default function Clients() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
+  // Sync page to URL
+  useEffect(() => {
+    setSearchParams(prev => { const p = new URLSearchParams(prev); if (page > 1) p.set('page', String(page)); else p.delete('page'); return p; }, { replace: true });
+  }, [page]);
+
   // Disable parent layout scroll on this page
   useEffect(() => {
     const layoutContent = document.querySelector('.layout__content');
@@ -280,7 +317,7 @@ export default function Clients() {
   const filtered = useMemo(() => {
     return clients.filter(c => {
       const q = search.toLowerCase();
-      const matchSearch = !q || (c.name || '').toLowerCase().includes(q) || (c.arc_id || '').toLowerCase().includes(q) || (c.broker?.name || '').toLowerCase().includes(q) || (c.broker?.arc_id || '').toLowerCase().includes(q);
+      const matchSearch = !q || (c.name || '').toLowerCase().includes(q) || (c.arc_id || '').toLowerCase().includes(q) || (c.broker?.name || '').toLowerCase().includes(q) || (c.broker?.arc_id || '').toLowerCase().includes(q) || (c.created_by || '').toLowerCase().includes(q) || (c.brand || '').toLowerCase().includes(q);
       const matchBroker = brokerFilter === 'all' || String(c.broker?.id) === brokerFilter;
       const matchStatus = statusFilter === 'all' || c.status === statusFilter;
       const matchLegitimacy = legitimacyFilter === 'all' || c.legitimacy_status === legitimacyFilter;
@@ -311,6 +348,7 @@ export default function Clients() {
   }, [filtered, sortConfig]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  useEffect(() => { if (!loading && clients.length > 0 && page > totalPages) setPage(totalPages); }, [totalPages, loading, clients.length]);
   const paged = sorted.slice((page - 1) * pageSize, page * pageSize);
 
   const handleSort = (key) => { setSortConfig((cur) => cur.key === key ? { key, direction: cur.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: key === 'created_at' ? 'desc' : 'asc' }); setPage(1); };
@@ -324,8 +362,22 @@ export default function Clients() {
 
   const handleSetLegitimacy = async (c, legitimacyStatus) => {
     if (normalizeLegitimacyStatus(c) === legitimacyStatus) return;
-    try { const res = await updateClient(c.id, { legitimacy_status: legitimacyStatus }); const updated = res.data?.data; setClients(prev => prev.map(x => x.id === c.id ? { ...x, ...updated } : x)); setToast({ type: 'success', message: 'Legitimacy status updated.' }); }
-    catch (err) { setToast({ type: 'error', message: err.response?.data?.message || 'Could not update legitimacy status.' }); }
+    try {
+      if (monthFilter) {
+        await updateClientMonthlyLegitimacy(c.id, { month: monthFilter, legitimacy_status: legitimacyStatus });
+      } else {
+        await updateClient(c.id, { legitimacy_status: legitimacyStatus });
+      }
+      // Recalculate earned locally based on new legitimacy
+      const newEarned = legitimacyStatus === 'approved' ? (Number(c.deposited_amount || 0) * 0.01).toFixed(2) : '0';
+      setClients(prev => prev.map(x => x.id === c.id ? { ...x, legitimacy_status: legitimacyStatus, is_legitimate: legitimacyStatus === 'approved', earned_amount: newEarned } : x));
+      setToast({ type: 'success', message: 'Legitimacy status updated.' });
+    }
+    catch (err) {
+      setToast({ type: 'error', message: err.response?.data?.message || 'Could not update legitimacy status.' });
+      // Re-fetch to get correct state if save failed
+      fetchClients();
+    }
   };
 
   const handleToggleStatus = async (c) => {
@@ -405,7 +457,7 @@ export default function Clients() {
           }
           if (withdrawalVal != null && !isNaN(Number(withdrawalVal)) && Number(withdrawalVal) > 0) {
             await createClientTransaction(existing.id, { transaction_type: 'withdrawal', amount: Number(withdrawalVal) });
-            hasAction = true;
+            hasAction = true;``
           }
           if (hasAction) updated++;
         }
@@ -454,14 +506,14 @@ export default function Clients() {
         <div className="um__toolbar">
           <div className="um__search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input placeholder="Search by name, ARK ID or broker" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
+            <input placeholder="Search by name, ARK ID, broker, brand or creator" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {/* Month filter */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <label style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>Month</label>
-              <input type="month" value={monthFilter} onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }} style={{ height: 32, padding: '0 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#111827', background: '#fff', outline: 'none' }} />
-              {monthFilter && <button type="button" className="ph-btn ph-btn--ghost" style={{ height: 32, padding: '0 10px', fontSize: 12 }} onClick={() => { setMonthFilter(''); setPage(1); }}>Clear</button>}
+              <input type="month" value={monthFilter} onChange={(e) => { setMonthFilter(e.target.value); }} style={{ height: 32, padding: '0 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#111827', background: '#fff', outline: 'none' }} />
+              {monthFilter && <button type="button" className="ph-btn ph-btn--ghost" style={{ height: 32, padding: '0 10px', fontSize: 12 }} onClick={() => { setMonthFilter(''); }}>Clear</button>}
             </div>
             {/* Import */}
             <input type="file" ref={fileInputRef} accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleImport} />
@@ -528,7 +580,7 @@ export default function Clients() {
 
             <tbody>
               {paged.length === 0 ? (
-                <tr><td colSpan={14} className="um__empty">No clients found.</td></tr>
+                <tr><td colSpan={15} className="um__empty">No clients found.</td></tr>
               ) : paged.map(c => (
                 <tr key={c.id}>
                   <td>
@@ -544,7 +596,7 @@ export default function Clients() {
                   <td>{formatINR(c.deposited_amount)}</td>
                   <td>{formatINR(c.withdrawal_amount)}</td>
                   <td>{formatINR(c.equity_amount)}</td>
-                  <td>{formatINR(c.net_dwe)}</td>
+                  <td>{formatINRSigned(c.net_dwe)}</td>
                   <td style={{ fontWeight: 600 }}>{formatINR(c.earned_amount)}</td>
                   <td>
                     <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600,

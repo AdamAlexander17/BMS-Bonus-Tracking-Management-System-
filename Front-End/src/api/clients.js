@@ -9,4 +9,5 @@ export const createClientTransaction = (id, data)  => axiosInstance.post(`client
 export const updateClientTransaction = (clientId, transactionId, data) => axiosInstance.put(`clients/${clientId}/transactions/${transactionId}/update/`, data);
 export const deleteClientTransaction = (clientId, transactionId) => axiosInstance.delete(`clients/${clientId}/transactions/${transactionId}/delete/`);
 export const updateClient       = (id, data)       => axiosInstance.put(`clients/${id}/update/`, data);
+export const updateClientMonthlyLegitimacy = (id, data) => axiosInstance.put(`clients/${id}/monthly-legitimacy/`, data);
 export const deleteClient       = (id)             => axiosInstance.delete(`clients/${id}/delete/`);

@@ -324,6 +324,31 @@ class ClientTransaction(models.Model):
         return f'{self.client.arc_id} {self.transaction_type} {self.amount}'
 
 
+class ClientMonthlyLegitimacy(models.Model):
+    LEGITIMACY_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('declined', 'Declined'),
+    ]
+
+    id               = models.BigAutoField(primary_key=True)
+    client           = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='monthly_legitimacy')
+    month            = models.DateField()  # Always stored as first day of month (YYYY-MM-01)
+    legitimacy_status = models.CharField(max_length=20, choices=LEGITIMACY_STATUS_CHOICES, default='pending')
+    updated_by       = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='legitimacy_updates'
+    )
+    updated_at       = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'client_monthly_legitimacy'
+        unique_together = [['client', 'month']]
+        ordering = ['-month']
+
+    def __str__(self):
+        return f'{self.client.arc_id} {self.month.strftime("%Y-%m")} {self.legitimacy_status}'
+
+
 class AuditLog(models.Model):
     id           = models.BigAutoField(primary_key=True)
     actor        = models.ForeignKey(
