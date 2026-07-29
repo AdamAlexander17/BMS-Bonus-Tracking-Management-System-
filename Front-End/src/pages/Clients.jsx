@@ -295,6 +295,7 @@ export default function Clients() {
         case 'arc_id': return client.arc_id || '';
         case 'broker': return client.broker?.name || '';
         case 'broker_arc_id': return client.broker?.arc_id || '';
+        case 'brand': return client.broker?.brand || '';
         case 'deposited_amount': return Number(client.deposited_amount || 0);
         case 'withdrawal_amount': return Number(client.withdrawal_amount || 0);
         case 'equity_amount': return Number(client.equity_amount || 0);
@@ -344,6 +345,7 @@ export default function Clients() {
       'ARK ID': c.arc_id,
       'Client Name': c.name,
       'Broker': c.broker?.name || '',
+      'Brand': c.broker?.brand || '',
       'Deposited': Number(c.deposited_amount || 0),
       'Withdrawal': Number(c.withdrawal_amount || 0),
       'Equity': Number(c.equity_amount || 0),
@@ -510,6 +512,7 @@ export default function Clients() {
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('arc_id')}>ARK ID <span>{getSortIndicator('arc_id')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('broker')}>BROKER <span>{getSortIndicator('broker')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('broker_arc_id')}>BROKER ARK ID <span>{getSortIndicator('broker_arc_id')}</span></button></th>
+                <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('brand')}>BRAND <span>{getSortIndicator('brand')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('deposited_amount')}>DEPOSITED <span>{getSortIndicator('deposited_amount')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('withdrawal_amount')}>WITHDRAWAL <span>{getSortIndicator('withdrawal_amount')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('equity_amount')}>EQUITY <span>{getSortIndicator('equity_amount')}</span></button></th>
@@ -537,6 +540,7 @@ export default function Clients() {
                   <td><code className="um__handle" style={{ fontWeight: 600 }}>{c.arc_id}</code></td>
                   <td><span style={{ cursor: 'pointer', color: '#004B4E', fontWeight: 500 }} onClick={() => navigate(`/brokers/${c.broker?.id}`)}>{c.broker?.name}</span></td>
                   <td><code className="um__handle" style={{ fontWeight: 600 }}>{c.broker?.arc_id}</code></td>
+                  <td><span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600, background: '#e0f5f5', color: '#004B4E' }}>{c.broker?.brand || '—'}</span></td>
                   <td>{formatINR(c.deposited_amount)}</td>
                   <td>{formatINR(c.withdrawal_amount)}</td>
                   <td>{formatINR(c.equity_amount)}</td>
