@@ -2624,6 +2624,7 @@ def format_client(client):
             'id':     client.broker.id,
             'arc_id': client.broker.arc_id,
             'name':   client.broker.name,
+            'brand':  client.broker.brand.name if client.broker.brand_id else None,
         },
         'deposited_amount':  str(deposited_amount),
         'withdrawal_amount': str(withdrawal_amount),
