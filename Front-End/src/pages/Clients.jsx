@@ -149,7 +149,7 @@ function EditClientModal({ client, canTradingOk, onClose, onUpdated }) {
   );
 }
 
-function AddAmountModal({ client, mode, onClose, onUpdated }) {
+function AddAmountModal({ client, mode, monthFilter, onClose, onUpdated }) {
   const isDeposit = mode === 'deposit';
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -167,12 +167,9 @@ function AddAmountModal({ client, mode, onClose, onUpdated }) {
     }
     setSaving(true);
     try {
-      if (numAmount < 0) {
-        // Negative value: create a reverse transaction to deduct
-        await createClientTransaction(client.id, { transaction_type: isDeposit ? 'deposit' : 'withdrawal', amount: numAmount });
-      } else {
-        await createClientTransaction(client.id, { transaction_type: isDeposit ? 'deposit' : 'withdrawal', amount: numAmount });
-      }
+      const payload = { transaction_type: isDeposit ? 'deposit' : 'withdrawal', amount: numAmount };
+      if (monthFilter) payload.month = monthFilter;
+      await createClientTransaction(client.id, payload);
       onUpdated();
     }
     catch (err) { setError(err.response?.data?.message || `Failed to add ${mode}.`); setSaving(false); }
@@ -275,8 +272,8 @@ export default function Clients() {
   const [importing, setImporting] = useState(false);
   const [monthFilter, setMonthFilter] = useState(() => {
     const now = new Date();
-    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`;
+    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
   });
   const fileInputRef = useRef(null);
 
@@ -626,10 +623,10 @@ export default function Clients() {
                       </button>
                       {canUpdate && canAdjust(c) && (
                         <>
-                          <button className="um__action-btn" title="Add Deposit" style={{ color: '#10b981' }} onClick={() => setAmountAction({ client: c, mode: 'deposit' })}>
+                          <button className="um__action-btn" title="Add Deposit" style={{ color: '#10b981' }} onClick={() => { if (!monthFilter) { setToast({ type: 'error', message: 'Please select a month before adding deposit.' }); return; } setAmountAction({ client: c, mode: 'deposit' }); }}>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                           </button>
-                          <button className="um__action-btn" title="Add Withdrawal" style={{ color: '#f59e0b' }} onClick={() => setAmountAction({ client: c, mode: 'withdrawal' })}>
+                          <button className="um__action-btn" title="Add Withdrawal" style={{ color: '#f59e0b' }} onClick={() => { if (!monthFilter) { setToast({ type: 'error', message: 'Please select a month before adding withdrawal.' }); return; } setAmountAction({ client: c, mode: 'withdrawal' }); }}>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
                           </button>
                         </>
@@ -671,7 +668,7 @@ export default function Clients() {
       </div>
 
       {editClient && <EditClientModal client={editClient} canTradingOk={canTradingOk} onClose={() => setEditClient(null)} onUpdated={handleEditDone} />}
-      {amountAction && <AddAmountModal client={amountAction.client} mode={amountAction.mode} onClose={() => setAmountAction(null)} onUpdated={() => { setAmountAction(null); setToast({ type: 'success', message: `${amountAction.mode === 'deposit' ? 'Deposit' : 'Withdrawal'} added successfully.` }); fetchClients(); }} />}
+      {amountAction && <AddAmountModal client={amountAction.client} mode={amountAction.mode} monthFilter={monthFilter} onClose={() => setAmountAction(null)} onUpdated={() => { setAmountAction(null); setToast({ type: 'success', message: `${amountAction.mode === 'deposit' ? 'Deposit' : 'Withdrawal'} added successfully.` }); fetchClients(); }} />}
       {equityAction && <ManageEquityModal client={equityAction} onClose={() => setEquityAction(null)} onUpdated={() => { setEquityAction(null); setToast({ type: 'success', message: 'Equity updated successfully.' }); fetchClients(); }} />}
       {confirmState && <ConfirmDialog title={confirmState.title} itemName={confirmState.itemName} bullets={confirmState.bullets} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(null)} />}
       {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}

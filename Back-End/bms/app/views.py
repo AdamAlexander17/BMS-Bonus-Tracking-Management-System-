@@ -3259,6 +3259,20 @@ def client_transaction_create(request, client_id):
             entered_by=request.user,
         )
 
+        # Allow overriding the transaction month
+        month_override = (request.data.get('month') or '').strip()
+        if month_override:
+            try:
+                override_date = parse_date(month_override + '-15')
+                if override_date:
+                    from django.utils.timezone import make_aware
+                    import datetime
+                    override_dt = make_aware(datetime.datetime.combine(override_date, datetime.time(12, 0, 0)))
+                    ClientTransaction.objects.filter(id=transaction.id).update(created_at=override_dt)
+                    transaction.refresh_from_db()
+            except (ValueError, AttributeError):
+                pass
+
     log_audit_event(
         request,
         module='client',
