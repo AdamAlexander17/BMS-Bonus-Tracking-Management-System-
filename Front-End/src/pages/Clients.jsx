@@ -298,13 +298,6 @@ export default function Clients() {
     setSearchParams(prev => { const p = new URLSearchParams(prev); if (page > 1) p.set('page', String(page)); else p.delete('page'); return p; }, { replace: true });
   }, [page]);
 
-  // Disable parent layout scroll on this page
-  useEffect(() => {
-    const layoutContent = document.querySelector('.layout__content');
-    if (layoutContent) { layoutContent.style.overflow = 'hidden'; }
-    return () => { if (layoutContent) { layoutContent.style.overflow = ''; } };
-  }, []);
-
   const allBrokers = useMemo(() => {
     const brokerMap = {};
     clients.forEach(c => { if (c.broker) brokerMap[c.broker.id] = c.broker.name; });
@@ -481,7 +474,7 @@ export default function Clients() {
   };
 
   return (
-    <div className="um" style={{ height: 'calc(100vh - 44px)', overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: 0 }}>
+    <div className="um" style={{ height: '100%', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: 0 }}>
       <PageHeader
         icon={<ClientIcon />}
         title="Client Management"
