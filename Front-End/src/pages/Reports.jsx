@@ -244,7 +244,7 @@ export default function Reports() {
         const brandsList = brandsRes.data?.data || [];
 
         const clientResponses = await Promise.allSettled(
-          brokersList.map((broker) => getClientsByBroker(broker.id))
+          brokersList.map((broker) => getClientsByBroker(broker.id, monthFilter ? { month: monthFilter } : undefined))
         );
 
         const allClients = [];
@@ -314,14 +314,13 @@ export default function Reports() {
     return () => {
       active = false;
     };
-  }, [refreshKey]);
+  }, [refreshKey, monthFilter]);
 
   const normalizedSearch = search.trim().toLowerCase();
 
   const filteredClients = useMemo(() => {
     return clients.filter((client) => {
       const createdDate = (client.created_at || '').slice(0, 10);
-      const createdMonth = (client.created_at || '').slice(0, 7);
       const matchesSearch = !normalizedSearch || [
         client.name,
         client.arc_id,
@@ -338,8 +337,7 @@ export default function Reports() {
         || (tradingState === 'no' && !client.is_legitimate);
       const matchesFrom = !fromDate || createdDate >= fromDate;
       const matchesTo = !toDate || createdDate <= toDate;
-      const matchesMonth = !monthFilter || createdMonth === monthFilter;
-      return matchesSearch && matchesBrand && matchesBroker && matchesStatus && matchesTrading && matchesFrom && matchesTo && matchesMonth;
+      return matchesSearch && matchesBrand && matchesBroker && matchesStatus && matchesTrading && matchesFrom && matchesTo;
     });
   }, [clients, normalizedSearch, brandId, brokerId, status, tradingState, fromDate, toDate, monthFilter]);
 
