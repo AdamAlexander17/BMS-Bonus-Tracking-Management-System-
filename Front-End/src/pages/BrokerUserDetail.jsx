@@ -562,7 +562,7 @@ export default function BrokerUserDetail() {
     setLoading(true);
     setError('');
     try {
-      const res = await getBrokersByRmUser(userId);
+      const res = await getBrokersByRmUser(userId, monthFilter ? { month: monthFilter } : undefined);
       setRmUser(res.data.rm_user);
       setBrokers(res.data.data || []);
     } catch (err) {
@@ -572,7 +572,7 @@ export default function BrokerUserDetail() {
     }
   };
 
-  useEffect(() => { fetchAll(); }, [userId]);
+  useEffect(() => { fetchAll(); }, [userId, monthFilter]);
 
   useEffect(() => {
     if (!pageSuccess) return undefined;
@@ -602,7 +602,6 @@ export default function BrokerUserDetail() {
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredBrokers = brokers.filter((broker) => {
-    if (monthFilter && (broker.created_at || '').slice(0, 7) !== monthFilter) return false;
     if (!normalizedSearch) return true;
     return [broker.name, broker.arc_id, broker.brand?.name, broker.created_by, broker.status]
       .some((value) => String(value || '').toLowerCase().includes(normalizedSearch));

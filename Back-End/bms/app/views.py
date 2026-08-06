@@ -12,10 +12,10 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum, Max
 from django.db.models.deletion import ProtectedError
 
-from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, BrokerPayout, Client, ClientTransaction, ClientMonthlyLegitimacy, AuditLog
+from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, BrokerPayout, Client, ClientTransaction, ClientMonthlyLegitimacy, ClientMonthlyEquity, AuditLog
 from app.utils import verify_password, generate_access_token, generate_refresh_token, decode_token, hash_password
 from app.tenancy import (
     is_admin,
@@ -1919,6 +1919,131 @@ def brokers_by_rm_user(request, user_id):
             .filter(rm_user=rm_user)
             .order_by('id')
         )
+
+    month_param = request.query_params.get('month', '').strip()  # format: YYYY-MM
+    if month_param:
+        try:
+            month_date = parse_date(month_param + '-01')
+            if month_date is None:
+                raise ValueError()
+
+            month_start = month_date
+            if month_date.month == 12:
+                next_month = month_date.replace(year=month_date.year + 1, month=1)
+            else:
+                next_month = month_date.replace(month=month_date.month + 1)
+
+            broker_ids = list(brokers.values_list('id', flat=True))
+            clients_qs = Client.objects.filter(broker_id__in=broker_ids).values('id', 'broker_id')
+            client_to_broker = {row['id']: row['broker_id'] for row in clients_qs}
+            client_ids = list(client_to_broker.keys())
+
+            monthly_leg_map = {
+                row['client_id']: row['legitimacy_status']
+                for row in ClientMonthlyLegitimacy.objects.filter(
+                    client_id__in=client_ids,
+                    month=month_start,
+                ).values('client_id', 'legitimacy_status')
+            }
+
+            client_monthly_deposits = {}
+            broker_monthly_withdrawals = {broker_id: Decimal('0') for broker_id in broker_ids}
+            active_clients_by_broker = {broker_id: set() for broker_id in broker_ids}
+
+            txn_rows = (
+                ClientTransaction.objects
+                .filter(client_id__in=client_ids, created_at__gte=month_start, created_at__lt=next_month)
+                .values('client_id', 'transaction_type')
+                .annotate(total=Sum('amount'))
+            )
+
+            for row in txn_rows:
+                client_id = row['client_id']
+                broker_id = client_to_broker.get(client_id)
+                if broker_id is None:
+                    continue
+                total = row['total'] or Decimal('0')
+                active_clients_by_broker[broker_id].add(client_id)
+                if row['transaction_type'] == 'deposit':
+                    client_monthly_deposits[client_id] = total
+                else:
+                    broker_monthly_withdrawals[broker_id] += total
+
+            broker_monthly_earned = {broker_id: Decimal('0') for broker_id in broker_ids}
+            for client_id, deposit_total in client_monthly_deposits.items():
+                if monthly_leg_map.get(client_id, 'pending') != 'approved':
+                    continue
+                broker_id = client_to_broker.get(client_id)
+                if broker_id is None:
+                    continue
+                broker_monthly_earned[broker_id] += (deposit_total * Decimal('0.01'))
+
+            payout_rows = (
+                BrokerPayout.objects
+                .filter(broker_id__in=broker_ids, created_at__gte=month_start, created_at__lt=next_month)
+                .values('broker_id')
+                .annotate(
+                    paid=Sum('amount'),
+                    declined=Sum('decline_amount'),
+                    last_paid_at=Max('created_at'),
+                )
+            )
+            payout_map = {
+                row['broker_id']: {
+                    'paid': row['paid'] or Decimal('0'),
+                    'declined': row['declined'] or Decimal('0'),
+                    'last_paid_at': row['last_paid_at'],
+                }
+                for row in payout_rows
+            }
+
+            data = []
+            for broker in brokers:
+                broker_id = broker.id
+                if not active_clients_by_broker.get(broker_id):
+                    continue
+                earned = broker_monthly_earned.get(broker_id, Decimal('0'))
+                payout_info = payout_map.get(broker_id, {})
+                paid = payout_info.get('paid', Decimal('0'))
+                declined = payout_info.get('declined', Decimal('0'))
+                pending = earned - paid - declined
+                if pending < 0:
+                    pending = Decimal('0')
+
+                rm = broker.rm_user
+                data.append({
+                    'id': broker.id,
+                    'arc_id': broker.arc_id,
+                    'name': broker.name,
+                    'brand': {'id': broker.brand.id, 'name': broker.brand.name},
+                    'rm_user': {'id': rm.id, 'username': rm.username, 'roles': rm.role_names} if rm else None,
+                    'amount_earned': str(round(earned, 2)),
+                    'amount_paid': str(round(paid, 2)),
+                    'amount_declined': str(round(declined, 2)),
+                    'pending_payout': str(round(pending, 2)),
+                    'last_paid_at': payout_info.get('last_paid_at').isoformat() if payout_info.get('last_paid_at') else None,
+                    'status': broker.status,
+                    'client_count': len(active_clients_by_broker.get(broker_id, set())),
+                    'created_by': broker.created_by.username if broker.created_by else None,
+                    'created_at': broker.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                })
+
+            return Response({
+                'success': True,
+                'rm_user': {
+                    'id': rm_user.id,
+                    'username': rm_user.username,
+                    'roles': rm_user.role_names,
+                    'brand': rm_user.brand_name,
+                },
+                'data': data,
+            }, status=status.HTTP_200_OK)
+        except (ValueError, AttributeError):
+            return Response(
+                {'success': False, 'message': 'Invalid month format. Use YYYY-MM.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
     return Response({
         'success': True,
         'rm_user': {
@@ -2871,11 +2996,17 @@ def client_list(request, broker_id):
             )
             monthly_leg_map = {ml.client_id: ml.legitimacy_status for ml in monthly_leg_qs}
 
+            monthly_equity_qs = ClientMonthlyEquity.objects.filter(
+                client__broker=broker,
+                month=month_start,
+            )
+            monthly_equity_map = {me.client_id: Decimal(str(me.equity_amount or 0)) for me in monthly_equity_qs}
+
             result = []
             for c in clients:
                 dep = monthly_deposits.get(c.id, Decimal('0'))
                 wth = monthly_withdrawals.get(c.id, Decimal('0'))
-                equity = Decimal(str(c.equity_amount or 0))
+                equity = monthly_equity_map.get(c.id, Decimal('0'))
                 net_total = dep - wth
                 net_dwe = net_total - equity
                 monthly_legitimacy = monthly_leg_map.get(c.id, 'pending')
@@ -2997,11 +3128,14 @@ def client_list_all(request):
             monthly_leg_qs = ClientMonthlyLegitimacy.objects.filter(month=month_start)
             monthly_leg_map = {ml.client_id: ml.legitimacy_status for ml in monthly_leg_qs}
 
+            monthly_equity_qs = ClientMonthlyEquity.objects.filter(month=month_start)
+            monthly_equity_map = {me.client_id: Decimal(str(me.equity_amount or 0)) for me in monthly_equity_qs}
+
             result = []
             for c in clients:
                 dep = monthly_deposits.get(c.id, Decimal('0'))
                 wth = monthly_withdrawals.get(c.id, Decimal('0'))
-                equity = Decimal(str(c.equity_amount or 0))
+                equity = monthly_equity_map.get(c.id, Decimal('0'))
                 net_total = dep - wth
                 net_dwe = net_total - equity
                 monthly_legitimacy = monthly_leg_map.get(c.id, 'pending')
@@ -3097,6 +3231,7 @@ def client_update(request, client_id):
     new_name              = request.data.get('name')
     new_arc_id            = request.data.get('arc_id')
     new_equity_amount     = request.data.get('equity_amount')
+    month_param           = (request.data.get('month') or '').strip()
     new_legitimacy_status = request.data.get('legitimacy_status')
     new_is_legitimate     = request.data.get('is_legitimate')
     new_status            = request.data.get('status')
@@ -3156,12 +3291,31 @@ def client_update(request, client_id):
 
     if new_equity_amount is not None:
         try:
-            client.equity_amount = Decimal(str(new_equity_amount))
+            parsed_equity_amount = Decimal(str(new_equity_amount))
         except (InvalidOperation, ValueError, TypeError):
             return Response(
                 {'success': False, 'message': 'equity_amount must be a valid number.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        if month_param:
+            month_date = parse_date(month_param + '-01')
+            if month_date is None:
+                return Response(
+                    {'success': False, 'message': 'Invalid month format. Use YYYY-MM.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            ClientMonthlyEquity.objects.update_or_create(
+                client=client,
+                month=month_date,
+                defaults={
+                    'equity_amount': parsed_equity_amount,
+                    'updated_by': request.user,
+                },
+            )
+        else:
+            client.equity_amount = parsed_equity_amount
 
     target_legitimacy_status = _normalize_legitimacy_status(new_legitimacy_status)
     if target_legitimacy_status is None and new_is_legitimate is not None:

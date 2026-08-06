@@ -2,7 +2,7 @@ import axiosInstance from './axiosInstance';
 
 export const getBrokers           = ()         => axiosInstance.get('brokers/');
 export const getBroker            = (id)       => axiosInstance.get(`brokers/${id}/`);
-export const getBrokersByRmUser   = (userId)   => axiosInstance.get(`users/${userId}/brokers/`);
+export const getBrokersByRmUser   = (userId, params) => axiosInstance.get(`users/${userId}/brokers/`, { params });
 export const getBrokerPayouts     = (id)       => axiosInstance.get(`brokers/${id}/payouts/`);
 export const createBroker         = (data)     => axiosInstance.post('brokers/create/', data);
 export const updateBroker         = (id, data) => axiosInstance.put(`brokers/${id}/update/`, data);
