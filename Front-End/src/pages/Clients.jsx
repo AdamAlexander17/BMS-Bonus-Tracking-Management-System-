@@ -91,6 +91,20 @@ function LegitimacyCheckboxGroup({ value, onChange, disabled = false }) {
 
 const inputStyle = { width: '100%', height: 40, padding: '0 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, color: '#111827', background: '#fff', outline: 'none', boxSizing: 'border-box' };
 
+const MONTH_SELECTION_STORAGE_KEY = 'bms-selected-month';
+
+function getDefaultMonthSelection() {
+  const now = new Date();
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getPersistedMonthSelection() {
+  if (typeof window === 'undefined') return getDefaultMonthSelection();
+  const value = window.localStorage.getItem(MONTH_SELECTION_STORAGE_KEY);
+  return value || getDefaultMonthSelection();
+}
+
 function Field({ label, required, children }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -149,7 +163,7 @@ function EditClientModal({ client, canTradingOk, onClose, onUpdated }) {
   );
 }
 
-function AddAmountModal({ client, mode, monthFilter, onClose, onUpdated }) {
+function AddAmountModal({ client, mode, selectedMonth, onMonthChange, onClose, onUpdated }) {
   const isDeposit = mode === 'deposit';
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -158,6 +172,7 @@ function AddAmountModal({ client, mode, monthFilter, onClose, onUpdated }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setError('');
+    if (!selectedMonth) { setError('Please select month and year.'); return; }
     if (!amount || Number(amount) === 0) { setError('Enter a valid amount.'); return; }
     const numAmount = Number(amount);
     // If negative, check it doesn't exceed current total
@@ -167,8 +182,7 @@ function AddAmountModal({ client, mode, monthFilter, onClose, onUpdated }) {
     }
     setSaving(true);
     try {
-      const payload = { transaction_type: isDeposit ? 'deposit' : 'withdrawal', amount: numAmount };
-      if (monthFilter) payload.month = monthFilter;
+      const payload = { transaction_type: isDeposit ? 'deposit' : 'withdrawal', amount: numAmount, month: selectedMonth };
       await createClientTransaction(client.id, payload);
       onUpdated();
     }
@@ -187,6 +201,10 @@ function AddAmountModal({ client, mode, monthFilter, onClose, onUpdated }) {
         <form onSubmit={handleSubmit}>
           <div style={{ padding: '24px 24px 8px' }}>
             {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>}
+            <Field label="Month & Year" required>
+              <input type="month" style={inputStyle} value={selectedMonth} onChange={(e) => onMonthChange(e.target.value)} required />
+            </Field>
+            <div style={{ height: 14 }} />
             <Field label={`${isDeposit ? 'Deposit' : 'Withdrawal'} Amount (₹)`}>
               <input type="number" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Enter amount (negative to deduct)" autoFocus />
             </Field>
@@ -202,7 +220,7 @@ function AddAmountModal({ client, mode, monthFilter, onClose, onUpdated }) {
   );
 }
 
-function ManageEquityModal({ client, onClose, onUpdated }) {
+function ManageEquityModal({ client, selectedMonth, onMonthChange, onClose, onUpdated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [amount, setAmount] = useState(
@@ -211,9 +229,10 @@ function ManageEquityModal({ client, onClose, onUpdated }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setError('');
+    if (!selectedMonth) { setError('Please select month and year.'); return; }
     if (amount === '' || Number(amount) < 0 || Number.isNaN(Number(amount))) { setError('Enter a valid equity amount (0 or greater).'); return; }
     setSaving(true);
-    try { await updateClient(client.id, { equity_amount: Number(amount) }); onUpdated(); }
+    try { await updateClient(client.id, { equity_amount: Number(amount), month: selectedMonth }); onUpdated(); }
     catch (err) { setError(err.response?.data?.message || 'Failed to update equity.'); setSaving(false); }
   };
   return (
@@ -229,6 +248,8 @@ function ManageEquityModal({ client, onClose, onUpdated }) {
         <form onSubmit={handleSubmit}>
           <div style={{ padding: '24px 24px 8px' }}>
             {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>}
+            <Field label="Month & Year" required><input type="month" style={inputStyle} value={selectedMonth} onChange={(e) => onMonthChange(e.target.value)} required /></Field>
+            <div style={{ height: 14 }} />
             <Field label="Equity Amount (₹)"><input type="number" min="0" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" autoFocus /></Field>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
@@ -270,12 +291,15 @@ export default function Clients() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showImportMenu, setShowImportMenu] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [monthFilter, setMonthFilter] = useState(() => {
-    const now = new Date();
-    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    return `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
-  });
+  const [monthFilter, setMonthFilter] = useState(() => getPersistedMonthSelection());
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (monthFilter) {
+      window.localStorage.setItem(MONTH_SELECTION_STORAGE_KEY, monthFilter);
+    }
+  }, [monthFilter]);
 
   const fetchClients = async () => {
     setLoading(true); setError('');
@@ -352,12 +376,12 @@ export default function Clients() {
 
   const handleSetLegitimacy = async (c, legitimacyStatus) => {
     if (normalizeLegitimacyStatus(c) === legitimacyStatus) return;
+    if (!monthFilter) {
+      setToast({ type: 'error', message: 'Please select month and year before updating legitimacy.' });
+      return;
+    }
     try {
-      if (monthFilter) {
-        await updateClientMonthlyLegitimacy(c.id, { month: monthFilter, legitimacy_status: legitimacyStatus });
-      } else {
-        await updateClient(c.id, { legitimacy_status: legitimacyStatus });
-      }
+      await updateClientMonthlyLegitimacy(c.id, { month: monthFilter, legitimacy_status: legitimacyStatus });
       // Recalculate earned locally based on new legitimacy
       const newEarned = legitimacyStatus === 'approved' ? (Number(c.deposited_amount || 0) * 0.01).toFixed(2) : '0';
       setClients(prev => prev.map(x => x.id === c.id ? { ...x, legitimacy_status: legitimacyStatus, is_legitimate: legitimacyStatus === 'approved', earned_amount: newEarned } : x));
@@ -661,8 +685,8 @@ export default function Clients() {
       </div>
 
       {editClient && <EditClientModal client={editClient} canTradingOk={canTradingOk} onClose={() => setEditClient(null)} onUpdated={handleEditDone} />}
-      {amountAction && <AddAmountModal client={amountAction.client} mode={amountAction.mode} monthFilter={monthFilter} onClose={() => setAmountAction(null)} onUpdated={() => { setAmountAction(null); setToast({ type: 'success', message: `${amountAction.mode === 'deposit' ? 'Deposit' : 'Withdrawal'} added successfully.` }); fetchClients(); }} />}
-      {equityAction && <ManageEquityModal client={equityAction} onClose={() => setEquityAction(null)} onUpdated={() => { setEquityAction(null); setToast({ type: 'success', message: 'Equity updated successfully.' }); fetchClients(); }} />}
+      {amountAction && <AddAmountModal client={amountAction.client} mode={amountAction.mode} selectedMonth={monthFilter} onMonthChange={setMonthFilter} onClose={() => setAmountAction(null)} onUpdated={() => { setAmountAction(null); setToast({ type: 'success', message: `${amountAction.mode === 'deposit' ? 'Deposit' : 'Withdrawal'} added successfully.` }); fetchClients(); }} />}
+      {equityAction && <ManageEquityModal client={equityAction} selectedMonth={monthFilter} onMonthChange={setMonthFilter} onClose={() => setEquityAction(null)} onUpdated={() => { setEquityAction(null); setToast({ type: 'success', message: 'Equity updated successfully.' }); fetchClients(); }} />}
       {confirmState && <ConfirmDialog title={confirmState.title} itemName={confirmState.itemName} bullets={confirmState.bullets} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(null)} />}
       {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
     </div>

@@ -5,7 +5,7 @@ import PageHeader from '../components/PageHeader/PageHeader';
 import { getBroker, updateBroker } from '../api/brokers';
 import { getBrands } from '../api/brands';
 import { getRmJrmUsers } from '../api/users';
-import { getClientsByBroker, createClient, updateClient, deleteClient, createClientTransaction } from '../api/clients';
+import { getClientsByBroker, createClient, updateClient, deleteClient, createClientTransaction, updateClientMonthlyLegitimacy } from '../api/clients';
 import { formatINR } from './Brokers';
 import './Users.css';
 
@@ -97,6 +97,20 @@ const inputStyle = {
   outline: 'none',
   boxSizing: 'border-box',
 };
+
+const MONTH_SELECTION_STORAGE_KEY = 'bms-selected-month';
+
+function getDefaultMonthSelection() {
+  const now = new Date();
+  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getPersistedMonthSelection() {
+  if (typeof window === 'undefined') return getDefaultMonthSelection();
+  const value = window.localStorage.getItem(MONTH_SELECTION_STORAGE_KEY);
+  return value || getDefaultMonthSelection();
+}
 
 const legitimacyOptions = [
   { value: 'pending', label: 'Pending', shortLabel: 'P' },
@@ -464,7 +478,7 @@ function EditClientModal({ client, broker, canTradingOk, onClose, onUpdated }) {
   );
 }
 
-function AddAmountModal({ client, mode, onClose, onUpdated }) {
+function AddAmountModal({ client, mode, selectedMonth, onMonthChange, onClose, onUpdated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
   const [amount, setAmount] = useState('');
@@ -474,6 +488,10 @@ function AddAmountModal({ client, mode, onClose, onUpdated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!selectedMonth) {
+      setError('Please select month and year.');
+      return;
+    }
     if (!amount || Number(amount) <= 0) {
       setError(`Enter a valid ${isDeposit ? 'deposit' : 'withdrawal'} amount.`);
       return;
@@ -483,6 +501,7 @@ function AddAmountModal({ client, mode, onClose, onUpdated }) {
       await createClientTransaction(client.id, {
         transaction_type: isDeposit ? 'deposit' : 'withdrawal',
         amount: Number(amount),
+        month: selectedMonth,
       });
       onUpdated();
     } catch (err) {
@@ -536,6 +555,17 @@ function AddAmountModal({ client, mode, onClose, onUpdated }) {
               <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '18px 20px' }}>
+              <Field label="Month & Year" required>
+                <input
+                  type="month"
+                  style={inputStyle}
+                  value={selectedMonth}
+                  onChange={(e) => onMonthChange(e.target.value)}
+                  required
+                  onFocus={e => e.target.style.borderColor = '#004B4E'}
+                  onBlur={e => e.target.style.borderColor = '#d1d5db'}
+                />
+              </Field>
               <Field label={`${isDeposit ? 'Add Deposit' : 'Add Withdrawal'} (₹)`}>
                 <input
                   type="number" min="0" step="0.01"
@@ -561,7 +591,7 @@ function AddAmountModal({ client, mode, onClose, onUpdated }) {
   );
 }
 
-function ManageEquityModal({ client, onClose, onUpdated }) {
+function ManageEquityModal({ client, selectedMonth, onMonthChange, onClose, onUpdated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
   const [amount, setAmount] = useState(
@@ -573,13 +603,17 @@ function ManageEquityModal({ client, onClose, onUpdated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!selectedMonth) {
+      setError('Please select month and year.');
+      return;
+    }
     if (amount === '' || Number(amount) < 0 || Number.isNaN(Number(amount))) {
       setError('Enter a valid equity amount (0 or greater).');
       return;
     }
     setSaving(true);
     try {
-      await updateClient(client.id, { equity_amount: Number(amount) });
+      await updateClient(client.id, { equity_amount: Number(amount), month: selectedMonth });
       onUpdated();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update equity.');
@@ -626,6 +660,18 @@ function ManageEquityModal({ client, onClose, onUpdated }) {
             {error && (
               <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>
             )}
+            <Field label="Month & Year" required>
+              <input
+                type="month"
+                style={inputStyle}
+                value={selectedMonth}
+                onChange={(e) => onMonthChange(e.target.value)}
+                required
+                onFocus={e => e.target.style.borderColor = '#004B4E'}
+                onBlur={e => e.target.style.borderColor = '#d1d5db'}
+              />
+            </Field>
+            <div style={{ height: 14 }} />
             <Field label="Equity (₹)">
               <input
                 type="number" min="0" step="0.01"
@@ -815,13 +861,17 @@ export default function BrokerDetail() {
   const [pageSuccess, setPageSuccess]         = useState('');
   const [pageError, setPageError]             = useState('');
   const [sortConfig, setSortConfig]           = useState({ key: null, direction: 'asc' });
-  const [monthFilter, setMonthFilter]         = useState('');
+  const [monthFilter, setMonthFilter]         = useState(() => getPersistedMonthSelection());
+  const [actionMonth, setActionMonth]         = useState(() => getPersistedMonthSelection());
 
   const fetchAll = async () => {
     setLoading(true);
     setError('');
     try {
-      const [bRes, cRes] = await Promise.all([getBroker(id), getClientsByBroker(id)]);
+      const [bRes, cRes] = await Promise.all([
+        getBroker(id),
+        getClientsByBroker(id, monthFilter ? { month: monthFilter } : undefined),
+      ]);
       setBroker(bRes.data.data);
       setClients(cRes.data.data || []);
     } catch (err) {
@@ -831,13 +881,24 @@ export default function BrokerDetail() {
     }
   };
 
-  useEffect(() => { fetchAll(); }, [id]);
+  useEffect(() => { fetchAll(); }, [id, monthFilter]);
 
   useEffect(() => {
     if (!pageSuccess) return undefined;
     const timeoutId = window.setTimeout(() => setPageSuccess(''), 2000);
     return () => window.clearTimeout(timeoutId);
   }, [pageSuccess]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (actionMonth) {
+      window.localStorage.setItem(MONTH_SELECTION_STORAGE_KEY, actionMonth);
+    }
+  }, [actionMonth]);
+
+  useEffect(() => {
+    setActionMonth(monthFilter || getPersistedMonthSelection());
+  }, [monthFilter]);
 
   const handleToggleClient = async (c) => {
     const newStatus = c.status === 'Active' ? 'Inactive' : 'Active';
@@ -856,11 +917,21 @@ export default function BrokerDetail() {
     setPageSuccess('');
     setPageError('');
     if (normalizeLegitimacyStatus(c) === legitimacyStatus) return;
+    if (!monthFilter) {
+      setPageError('Please select month and year before updating legitimacy.');
+      return;
+    }
 
     try {
-      const res = await updateClient(c.id, { legitimacy_status: legitimacyStatus });
-      const updated = res.data?.data;
-      setClients(prev => prev.map(x => x.id === c.id ? { ...x, ...updated } : x));
+      await updateClientMonthlyLegitimacy(c.id, {
+        month: monthFilter,
+        legitimacy_status: legitimacyStatus,
+      });
+      setClients(prev => prev.map(x => x.id === c.id ? {
+        ...x,
+        legitimacy_status: legitimacyStatus,
+        is_legitimate: legitimacyStatus === 'approved',
+      } : x));
       setPageSuccess('Legitimate client status updated successfully.');
     } catch (err) {
       setPageError(err.response?.data?.message || 'Could not update trading legitimacy. Please try again.');
@@ -895,9 +966,7 @@ export default function BrokerDetail() {
   const pendingPayout   = Number(broker?.pending_payout || 0);
 
   const sortedClients = useMemo(() => {
-    const filtered = monthFilter
-      ? clients.filter((c) => (c.created_at || '').slice(0, 7) === monthFilter)
-      : clients;
+    const filtered = clients;
     if (!sortConfig.key) return filtered;
 
     const getSortValue = (client, key) => {
@@ -1011,6 +1080,8 @@ export default function BrokerDetail() {
         <AddAmountModal
           client={amountAction.client}
           mode={amountAction.mode}
+          selectedMonth={actionMonth}
+          onMonthChange={setActionMonth}
           onClose={() => setAmountAction(null)}
           onUpdated={() => { setAmountAction(null); setPageError(''); setPageSuccess(`${amountAction.mode === 'deposit' ? 'Deposit' : 'Withdrawal'} added successfully.`); fetchAll(); }}
         />
@@ -1019,6 +1090,8 @@ export default function BrokerDetail() {
       {equityAction && (
         <ManageEquityModal
           client={equityAction}
+          selectedMonth={actionMonth}
+          onMonthChange={setActionMonth}
           onClose={() => setEquityAction(null)}
           onUpdated={() => { setEquityAction(null); setPageError(''); setPageSuccess('Equity updated successfully.'); fetchAll(); }}
         />
