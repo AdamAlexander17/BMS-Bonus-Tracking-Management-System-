@@ -256,6 +256,7 @@ export default function Reports() {
             allClients.push({
               ...client,
               broker_id: broker.id,
+              broker_arc_id: broker.arc_id,
               broker_name: broker.name,
               brand_id: broker.brand?.id,
               brand_name: broker.brand?.name || 'Unassigned',
@@ -384,6 +385,7 @@ export default function Reports() {
       if (!grouped.has(key)) {
         grouped.set(key, {
           broker_id: client.broker_id,
+          broker_arc_id: client.broker_arc_id,
           broker_name: client.broker_name,
           brand_name: client.brand_name,
           rm_user_name: client.rm_user_name,
@@ -448,6 +450,7 @@ export default function Reports() {
 
   const brokerColumns = useMemo(() => [
     { label: 'Broker', value: (row) => row.broker_name },
+    { label: 'ARK ID', value: (row) => row.broker_arc_id || '' },
     { label: 'Brand', value: (row) => row.brand_name },
     { label: 'RM', value: (row) => row.rm_user_name },
     { label: 'Clients', value: (row) => row.client_count },
@@ -661,6 +664,7 @@ export default function Reports() {
           <thead>
             <tr>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('broker_name')}>Broker <span>{getBrokerIndicator('broker_name')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('broker_arc_id')}>ARK ID <span>{getBrokerIndicator('broker_arc_id')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('brand_name')}>Brand <span>{getBrokerIndicator('brand_name')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('rm_user_name')}>RM <span>{getBrokerIndicator('rm_user_name')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleBrokerSort('client_count')}>Clients <span>{getBrokerIndicator('client_count')}</span></button></th>
@@ -675,10 +679,11 @@ export default function Reports() {
           </thead>
           <tbody>
             {pagedBrokerSummary.length === 0 ? (
-              <tr><td colSpan="11" className="um__empty">No brokers match the current report filters.</td></tr>
+              <tr><td colSpan="12" className="um__empty">No brokers match the current report filters.</td></tr>
             ) : pagedBrokerSummary.map((broker) => (
               <tr key={broker.broker_id}>
                 <td>{broker.broker_name}</td>
+                <td>{broker.broker_arc_id || '—'}</td>
                 <td>{broker.brand_name}</td>
                 <td>{broker.rm_user_name}</td>
                 <td>{formatCount(broker.client_count)}</td>
