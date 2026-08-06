@@ -1949,8 +1949,33 @@ def brokers_by_rm_user(request, user_id):
             month_start, _, month_start_dt, next_month_dt = _month_bounds(month_date)
 
             broker_ids = list(brokers.values_list('id', flat=True))
-            clients_qs = Client.objects.filter(broker_id__in=broker_ids).values('id', 'broker_id')
-            client_to_broker = {row['id']: row['broker_id'] for row in clients_qs}
+            active_client_rows = list(
+                ClientTransaction.objects
+                .filter(
+                    client__broker_id__in=broker_ids,
+                    created_at__gte=month_start_dt,
+                    created_at__lt=next_month_dt,
+                )
+                .values('client_id', 'client__broker_id')
+                .distinct()
+            )
+
+            active_broker_ids = {row['client__broker_id'] for row in active_client_rows}
+            if not active_broker_ids:
+                return Response({
+                    'success': True,
+                    'rm_user': {
+                        'id': rm_user.id,
+                        'username': rm_user.username,
+                        'roles': rm_user.role_names,
+                        'brand': rm_user.brand_name,
+                    },
+                    'data': [],
+                }, status=status.HTTP_200_OK)
+
+            brokers = brokers.filter(id__in=active_broker_ids)
+            broker_ids = list(brokers.values_list('id', flat=True))
+            client_to_broker = {row['client_id']: row['client__broker_id'] for row in active_client_rows if row['client__broker_id'] in active_broker_ids}
             client_ids = list(client_to_broker.keys())
 
             monthly_leg_map = {
