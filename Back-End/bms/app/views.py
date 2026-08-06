@@ -1,5 +1,6 @@
 import jwt
 import re
+import datetime
 from django.db import transaction as db_transaction
 from decimal import Decimal, InvalidOperation
 from django.core.paginator import Paginator
@@ -49,6 +50,24 @@ def _validate_password_strength(password):
     if not re.search(r'[^A-Za-z0-9]', password):
         return PASSWORD_COMPLEXITY_MESSAGE
     return None
+
+
+def _month_bounds(month_date):
+    """Return month start/end as both date and timezone-aware datetime bounds.
+
+    The datetime bounds are safe for filtering DateTimeField columns while
+    USE_TZ is enabled.
+    """
+    month_start = month_date
+    if month_date.month == 12:
+        next_month = month_date.replace(year=month_date.year + 1, month=1)
+    else:
+        next_month = month_date.replace(month=month_date.month + 1)
+
+    tz = timezone.get_current_timezone()
+    month_start_dt = timezone.make_aware(datetime.datetime.combine(month_start, datetime.time.min), tz)
+    next_month_dt = timezone.make_aware(datetime.datetime.combine(next_month, datetime.time.min), tz)
+    return month_start, next_month, month_start_dt, next_month_dt
 
 
 def _normalize_audit_value(value):
@@ -1927,11 +1946,7 @@ def brokers_by_rm_user(request, user_id):
             if month_date is None:
                 raise ValueError()
 
-            month_start = month_date
-            if month_date.month == 12:
-                next_month = month_date.replace(year=month_date.year + 1, month=1)
-            else:
-                next_month = month_date.replace(month=month_date.month + 1)
+            month_start, _, month_start_dt, next_month_dt = _month_bounds(month_date)
 
             broker_ids = list(brokers.values_list('id', flat=True))
             clients_qs = Client.objects.filter(broker_id__in=broker_ids).values('id', 'broker_id')
@@ -1952,7 +1967,7 @@ def brokers_by_rm_user(request, user_id):
 
             txn_rows = (
                 ClientTransaction.objects
-                .filter(client_id__in=client_ids, created_at__gte=month_start, created_at__lt=next_month)
+                .filter(client_id__in=client_ids, created_at__gte=month_start_dt, created_at__lt=next_month_dt)
                 .values('client_id', 'transaction_type')
                 .annotate(total=Sum('amount'))
             )
@@ -1980,7 +1995,7 @@ def brokers_by_rm_user(request, user_id):
 
             payout_rows = (
                 BrokerPayout.objects
-                .filter(broker_id__in=broker_ids, created_at__gte=month_start, created_at__lt=next_month)
+                .filter(broker_id__in=broker_ids, created_at__gte=month_start_dt, created_at__lt=next_month_dt)
                 .values('broker_id')
                 .annotate(
                     paid=Sum('amount'),
@@ -2970,16 +2985,12 @@ def client_list(request, broker_id):
             from django.db.models import Sum
             from collections import defaultdict
 
-            month_start = month_date
-            if month_date.month == 12:
-                next_month = month_date.replace(year=month_date.year + 1, month=1)
-            else:
-                next_month = month_date.replace(month=month_date.month + 1)
+            month_start, _, month_start_dt, next_month_dt = _month_bounds(month_date)
 
             txn_qs = ClientTransaction.objects.filter(
                 client__broker=broker,
-                created_at__gte=month_start,
-                created_at__lt=next_month,
+                created_at__gte=month_start_dt,
+                created_at__lt=next_month_dt,
             )
 
             monthly_deposits = defaultdict(lambda: Decimal('0'))
@@ -3104,15 +3115,11 @@ def client_list_all(request):
             from django.db.models.functions import Coalesce
 
             # Get monthly transaction totals per client
-            month_start = month_date
-            if month_date.month == 12:
-                next_month = month_date.replace(year=month_date.year + 1, month=1)
-            else:
-                next_month = month_date.replace(month=month_date.month + 1)
+            month_start, _, month_start_dt, next_month_dt = _month_bounds(month_date)
 
             txn_qs = ClientTransaction.objects.filter(
-                created_at__gte=month_start,
-                created_at__lt=next_month,
+                created_at__gte=month_start_dt,
+                created_at__lt=next_month_dt,
             )
 
             from collections import defaultdict
