@@ -439,8 +439,10 @@ export default function Reports() {
       totalEarned: filteredClients.reduce((total, client) => total + Number(client.earned_amount || 0), 0),
       totalPaid: brokerSummary.reduce((total, broker) => total + Number(broker.amount_paid || 0), 0),
       totalPending: brokerSummary.reduce((total, broker) => total + Number(broker.pending_payout || 0), 0),
-      totalDeposited: filteredClients.reduce((total, client) => total + Number(client.deposited_amount || 0), 0),
-      totalWithdrawn: filteredClients.reduce((total, client) => total + Number(client.withdrawal_amount || 0), 0),
+      // Deposits/withdrawals follow the filtered transaction ledger so they honour the
+      // Transaction Type filter (and all other active filters).
+      totalDeposited: depositTransactions,
+      totalWithdrawn: withdrawalTransactions,
       periodDeposits: depositTransactions,
       periodWithdrawals: withdrawalTransactions,
     };
