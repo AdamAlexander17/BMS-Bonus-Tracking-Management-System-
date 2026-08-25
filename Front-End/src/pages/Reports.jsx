@@ -381,7 +381,6 @@ export default function Reports() {
     const grouped = new Map();
     filteredClients.forEach((client) => {
       const key = client.broker_id;
-      const brokerMeta = brokerLookup.get(key);
       if (!grouped.has(key)) {
         grouped.set(key, {
           broker_id: client.broker_id,
@@ -394,9 +393,9 @@ export default function Reports() {
           deposited_amount: 0,
           withdrawal_amount: 0,
           earned_amount: 0,
-          amount_paid: Number(brokerMeta?.amount_paid || 0),
-          pending_payout: Number(brokerMeta?.pending_payout || 0),
-          last_paid_at: brokerMeta?.last_paid_at || null,
+          amount_paid: 0,
+          pending_payout: 0,
+          last_paid_at: null,
         });
       }
 
@@ -406,9 +405,20 @@ export default function Reports() {
       item.deposited_amount += Number(client.deposited_amount || 0);
       item.withdrawal_amount += Number(client.withdrawal_amount || 0);
       item.earned_amount += Number(client.earned_amount || 0);
-      item.amount_paid = Number(brokerMeta?.amount_paid || item.amount_paid || 0);
-      item.pending_payout = Number(brokerMeta?.pending_payout || item.pending_payout || 0);
-      item.last_paid_at = brokerMeta?.last_paid_at || item.last_paid_at || null;
+      // Paid reflects the amount marked paid on each client (Clients module) for the period.
+      if (client.is_paid) {
+        item.amount_paid += Number(client.paid_amount || 0);
+        // Last Paid = most recent time a client under this broker was marked paid.
+        const paidTs = client.paid_updated_at;
+        if (paidTs && (!item.last_paid_at || new Date(paidTs) > new Date(item.last_paid_at))) {
+          item.last_paid_at = paidTs;
+        }
+      }
+    });
+
+    // Pending payout is what a broker has earned but not yet been paid.
+    grouped.forEach((item) => {
+      item.pending_payout = Math.max(item.earned_amount - item.amount_paid, 0);
     });
 
     return Array.from(grouped.values()).sort((left, right) => right.earned_amount - left.earned_amount);
@@ -473,6 +483,7 @@ export default function Reports() {
     { label: 'Deposited', value: (row) => row.deposited_amount, exportValue: (row) => formatAmountForCsv(row.deposited_amount) },
     { label: 'Withdrawn', value: (row) => row.withdrawal_amount, exportValue: (row) => formatAmountForCsv(row.withdrawal_amount) },
     { label: 'Earned', value: (row) => row.earned_amount, exportValue: (row) => formatAmountForCsv(row.earned_amount) },
+    { label: 'Paid', value: (row) => (row.is_paid ? Number(row.paid_amount || 0) : 0), exportValue: (row) => formatAmountForCsv(row.is_paid ? Number(row.paid_amount || 0) : 0) },
     { label: 'Created', value: (row) => row.created_at, exportValue: (row) => formatDateTime(row.created_at) },
   ], []);
 
@@ -721,12 +732,13 @@ export default function Reports() {
               <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('deposited_amount')}>Deposited <span>{getClientIndicator('deposited_amount')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('withdrawal_amount')}>Withdrawn <span>{getClientIndicator('withdrawal_amount')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('earned_amount')}>Earned <span>{getClientIndicator('earned_amount')}</span></button></th>
+              <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('paid_amount')}>Paid <span>{getClientIndicator('paid_amount')}</span></button></th>
               <th><button type="button" style={sortButtonStyle} onClick={() => handleClientSort('created_at')}>Created <span>{getClientIndicator('created_at')}</span></button></th>
             </tr>
           </thead>
           <tbody>
             {pagedClients.length === 0 ? (
-              <tr><td colSpan="10" className="um__empty">No clients match the current report filters.</td></tr>
+              <tr><td colSpan="11" className="um__empty">No clients match the current report filters.</td></tr>
             ) : pagedClients.map((client) => (
               <tr key={client.id}>
                 <td>{client.name}</td>
@@ -738,6 +750,7 @@ export default function Reports() {
                 <td>{formatMoney(client.deposited_amount)}</td>
                 <td>{formatMoney(client.withdrawal_amount)}</td>
                 <td style={{ fontWeight: 600, color: '#111827' }}>{formatMoney(client.earned_amount)}</td>
+                <td style={{ fontWeight: 600, color: client.is_paid ? '#059669' : '#9ca3af' }}>{client.is_paid ? formatMoney(client.paid_amount) : '—'}</td>
                 <td>{formatDateOnly(client.created_at)}</td>
               </tr>
             ))}
