@@ -16,7 +16,7 @@ from rest_framework import status
 from django.db.models import Count, Q, Sum, Max
 from django.db.models.deletion import ProtectedError
 
-from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, BrokerPayout, Client, ClientTransaction, ClientMonthlyLegitimacy, ClientMonthlyEquity, AuditLog
+from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, BrokerPayout, Client, ClientTransaction, ClientMonthlyLegitimacy, ClientMonthlyEquity, ClientMonthlyPaid, AuditLog
 from app.utils import verify_password, generate_access_token, generate_refresh_token, decode_token, hash_password
 from app.tenancy import (
     is_admin,
@@ -2800,6 +2800,8 @@ def format_client(client):
         'earned_amount':     str(client.earned_amount),
         'legitimacy_status': client.legitimacy_status,
         'is_legitimate':     client.is_legitimate,
+        'is_paid':           False,
+        'paid_amount':       '0',
         'status':            client.status,
         'created_by':        client.created_by.username if client.created_by else None,
         'created_at':        client.created_at.strftime('%Y-%m-%d %H:%M:%S'),
@@ -3038,6 +3040,12 @@ def client_list(request, broker_id):
             )
             monthly_equity_map = {me.client_id: Decimal(str(me.equity_amount or 0)) for me in monthly_equity_qs}
 
+            monthly_paid_qs = ClientMonthlyPaid.objects.filter(
+                client__broker=broker,
+                month=month_start,
+            )
+            monthly_paid_map = {mp.client_id: mp for mp in monthly_paid_qs}
+
             result = []
             for c in clients:
                 dep = monthly_deposits.get(c.id, Decimal('0'))
@@ -3047,6 +3055,7 @@ def client_list(request, broker_id):
                 net_dwe = net_total - equity
                 monthly_legitimacy = monthly_leg_map.get(c.id, 'pending')
                 earned = round(float(dep) * 0.01, 2) if monthly_legitimacy == 'approved' else 0
+                paid_record = monthly_paid_map.get(c.id)
                 result.append({
                     'id':                c.id,
                     'name':              c.name,
@@ -3066,6 +3075,8 @@ def client_list(request, broker_id):
                     'earned_amount':     str(earned),
                     'legitimacy_status': monthly_legitimacy,
                     'is_legitimate':     monthly_legitimacy == 'approved',
+                    'is_paid':           paid_record.is_paid if paid_record else False,
+                    'paid_amount':       str(paid_record.paid_amount) if paid_record else '0',
                     'status':            c.status,
                     'created_by':        c.created_by.username if c.created_by else None,
                     'created_at':        c.created_at.strftime('%Y-%m-%d %H:%M:%S'),
@@ -3163,6 +3174,9 @@ def client_list_all(request):
             monthly_equity_qs = ClientMonthlyEquity.objects.filter(month=month_start)
             monthly_equity_map = {me.client_id: Decimal(str(me.equity_amount or 0)) for me in monthly_equity_qs}
 
+            monthly_paid_qs = ClientMonthlyPaid.objects.filter(month=month_start)
+            monthly_paid_map = {mp.client_id: mp for mp in monthly_paid_qs}
+
             result = []
             for c in clients:
                 dep = monthly_deposits.get(c.id, Decimal('0'))
@@ -3172,6 +3186,7 @@ def client_list_all(request):
                 net_dwe = net_total - equity
                 monthly_legitimacy = monthly_leg_map.get(c.id, 'pending')
                 earned = round(float(dep) * 0.01, 2) if monthly_legitimacy == 'approved' else 0
+                paid_record = monthly_paid_map.get(c.id)
                 result.append({
                     'id':                c.id,
                     'name':              c.name,
@@ -3186,6 +3201,8 @@ def client_list_all(request):
                     'earned_amount':     str(earned),
                     'legitimacy_status': monthly_legitimacy,
                     'is_legitimate':     monthly_legitimacy == 'approved',
+                    'is_paid':           paid_record.is_paid if paid_record else False,
+                    'paid_amount':       str(paid_record.paid_amount) if paid_record else '0',
                     'status':            c.status,
                     'created_by':        c.created_by.username if c.created_by else None,
                     'created_at':        c.created_at.strftime('%Y-%m-%d %H:%M:%S'),
@@ -3885,5 +3902,152 @@ def client_monthly_legitimacy_update(request, client_id):
 
     return Response(
         {'success': True, 'message': 'Monthly legitimacy updated.', 'data': {'legitimacy_status': new_legitimacy}},
+        status=status.HTTP_200_OK
+    )
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def client_monthly_paid_update(request, client_id):
+    """Update the paid status / paid amount for a client in a specific month.
+
+    Rules:
+      - A client can only be marked as paid when its legitimacy for that month
+        is 'approved'.
+      - When marking as paid without an explicit amount, the paid amount
+        defaults to the earned amount for that month (1% of monthly deposits).
+      - The paid amount can be overridden by the caller.
+    """
+    if not has_perm(request, 'client:update'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    try:
+        client = Client.objects.select_related('broker__brand', 'created_by').get(id=client_id)
+    except Client.DoesNotExist:
+        return Response(
+            {'success': False, 'message': 'Client not found.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not _check_client_access(request, client):
+        return Response(
+            {'success': False, 'message': 'Access denied.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    month_str = (request.data.get('month') or '').strip()
+    if not month_str:
+        return Response(
+            {'success': False, 'message': 'month is required (YYYY-MM format).'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        month_date = parse_date(month_str + '-01')
+        if month_date is None:
+            raise ValueError()
+    except (ValueError, AttributeError):
+        return Response(
+            {'success': False, 'message': 'Invalid month format. Use YYYY-MM.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Determine the legitimacy status for this client/month.
+    monthly_leg = ClientMonthlyLegitimacy.objects.filter(client=client, month=month_date).first()
+    legitimacy_status = monthly_leg.legitimacy_status if monthly_leg else 'pending'
+
+    existing = ClientMonthlyPaid.objects.filter(client=client, month=month_date).first()
+
+    # Resolve target is_paid.
+    is_paid_raw = request.data.get('is_paid')
+    if is_paid_raw is not None:
+        try:
+            target_is_paid = _parse_bool(is_paid_raw, 'is_paid')
+        except ValueError as exc:
+            return Response(
+                {'success': False, 'message': str(exc)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    else:
+        target_is_paid = existing.is_paid if existing else False
+
+    # A client can only be marked paid when approved for that month.
+    if target_is_paid and legitimacy_status != 'approved':
+        return Response(
+            {'success': False, 'message': 'Client must be Approved for this month before it can be marked as paid.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Compute the earned amount for this month (1% of monthly deposits when approved).
+    _, _, month_start_dt, next_month_dt = _month_bounds(month_date)
+    monthly_deposits = ClientTransaction.objects.filter(
+        client=client,
+        transaction_type='deposit',
+        created_at__gte=month_start_dt,
+        created_at__lt=next_month_dt,
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    earned_amount = (
+        (monthly_deposits * Decimal('0.01')).quantize(Decimal('0.01'))
+        if legitimacy_status == 'approved' else Decimal('0')
+    )
+
+    # Resolve target paid amount.
+    paid_amount_raw = request.data.get('paid_amount')
+    if not target_is_paid:
+        target_amount = Decimal('0')
+    elif paid_amount_raw is not None and str(paid_amount_raw).strip() != '':
+        try:
+            target_amount = Decimal(str(paid_amount_raw))
+        except (InvalidOperation, ValueError, TypeError):
+            return Response(
+                {'success': False, 'message': 'paid_amount must be a valid number.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if target_amount < 0:
+            return Response(
+                {'success': False, 'message': 'paid_amount cannot be negative.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    elif existing and existing.paid_amount and Decimal(str(existing.paid_amount)) > 0:
+        # Keep the previously recorded amount when re-affirming paid without a new value.
+        target_amount = Decimal(str(existing.paid_amount))
+    else:
+        # Default to the earned amount for the month.
+        target_amount = earned_amount
+
+    obj, _created = ClientMonthlyPaid.objects.update_or_create(
+        client=client,
+        month=month_date,
+        defaults={
+            'is_paid': target_is_paid,
+            'paid_amount': target_amount,
+            'updated_by': request.user,
+        },
+    )
+
+    log_audit_event(
+        request,
+        module='client',
+        action='monthly_paid_update',
+        description=f'Monthly paid status updated for "{client.name}" ({month_str}).',
+        entity_type='client',
+        entity_id=client.id,
+        entity_label=client.name,
+        details={
+            'month': month_str,
+            'is_paid': target_is_paid,
+            'paid_amount': str(target_amount),
+        },
+    )
+
+    return Response(
+        {
+            'success': True,
+            'message': 'Paid status updated.',
+            'data': {'is_paid': obj.is_paid, 'paid_amount': str(obj.paid_amount)},
+        },
         status=status.HTTP_200_OK
     )

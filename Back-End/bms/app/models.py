@@ -368,6 +368,26 @@ class ClientMonthlyEquity(models.Model):
         return f'{self.client.arc_id} {self.month.strftime("%Y-%m")} equity={self.equity_amount}'
 
 
+class ClientMonthlyPaid(models.Model):
+    id           = models.BigAutoField(primary_key=True)
+    client       = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='monthly_paid')
+    month        = models.DateField()  # Always stored as first day of month (YYYY-MM-01)
+    is_paid      = models.BooleanField(default=False)
+    paid_amount  = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    updated_by   = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='paid_updates'
+    )
+    updated_at   = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'client_monthly_paid'
+        unique_together = [['client', 'month']]
+        ordering = ['-month']
+
+    def __str__(self):
+        return f'{self.client.arc_id} {self.month.strftime("%Y-%m")} paid={self.is_paid} amount={self.paid_amount}'
+
+
 class AuditLog(models.Model):
     id           = models.BigAutoField(primary_key=True)
     actor        = models.ForeignKey(

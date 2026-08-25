@@ -5,7 +5,7 @@ import PageHeader from '../components/PageHeader/PageHeader';
 import CustomSelect from '../components/CustomSelect/CustomSelect';
 import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
 import Toast from '../components/Toast/Toast';
-import { getAllClients, updateClient, deleteClient, createClientTransaction, updateClientMonthlyLegitimacy } from '../api/clients';
+import { getAllClients, updateClient, deleteClient, createClientTransaction, updateClientMonthlyLegitimacy, updateClientPaid } from '../api/clients';
 import { formatINR } from './Brokers';
 import * as XLSX from 'xlsx';
 import './Users.css';
@@ -220,6 +220,52 @@ function AddAmountModal({ client, mode, selectedMonth, onMonthChange, onClose, o
   );
 }
 
+function EditPaidModal({ client, selectedMonth, onMonthChange, onClose, onUpdated }) {
+  const earned = Number(client.earned_amount || 0);
+  const currentPaid = client.is_paid ? Number(client.paid_amount || 0) : earned;
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [amount, setAmount] = useState(currentPaid ? String(currentPaid) : '');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault(); setError('');
+    if (!selectedMonth) { setError('Please select month and year.'); return; }
+    if (amount === '' || Number(amount) < 0 || Number.isNaN(Number(amount))) { setError('Enter a valid paid amount (0 or greater).'); return; }
+    setSaving(true);
+    try {
+      const res = await updateClientPaid(client.id, { month: selectedMonth, is_paid: true, paid_amount: Number(amount) });
+      onUpdated(res.data?.data);
+    }
+    catch (err) { setError(err.response?.data?.message || 'Failed to update paid amount.'); setSaving(false); }
+  };
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div onClick={e => e.stopPropagation()} className="bd-modal" style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
+        <div className="bms-dialog__header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 18px' }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#ffffff' }}>Update Paid Amount</h2>
+            <p style={{ margin: '3px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.72)' }}>{client.name} · <strong>{client.arc_id}</strong> · Earned: <strong>{formatINR(earned)}</strong></p>
+          </div>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.8)', padding: 4, borderRadius: 6, display: 'flex' }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div style={{ padding: '24px 24px 8px' }}>
+            {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18 }}>{error}</div>}
+            <Field label="Month & Year" required><input type="month" style={inputStyle} value={selectedMonth} onChange={(e) => onMonthChange(e.target.value)} required /></Field>
+            <div style={{ height: 14 }} />
+            <Field label="Paid Amount (₹)"><input type="number" min="0" step="0.01" style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" autoFocus /></Field>
+            <p style={{ margin: '8px 0 0', fontSize: 12, color: '#6b7280' }}>Defaults to the earned amount. Adjust if a different amount was paid.</p>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
+            <button type="button" className="ph-btn ph-btn--ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" className="ph-btn ph-btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Update Paid Amount'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function ManageEquityModal({ client, selectedMonth, onMonthChange, onClose, onUpdated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -288,6 +334,7 @@ export default function Clients() {
   const [toast, setToast] = useState(null);
   const [amountAction, setAmountAction] = useState(null);
   const [equityAction, setEquityAction] = useState(null);
+  const [paidAction, setPaidAction] = useState(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showImportMenu, setShowImportMenu] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -352,6 +399,7 @@ export default function Clients() {
         case 'equity_amount': return Number(client.equity_amount || 0);
         case 'net_dwe': return Number(client.net_dwe || 0);
         case 'earned_amount': return Number(client.earned_amount || 0);
+        case 'paid_amount': return client.is_paid ? Number(client.paid_amount || 0) : -1;
         case 'legitimacy_status': return client.legitimacy_status || '';
         case 'status': return client.status || '';
         case 'created_at': return client.created_at ? new Date(client.created_at).getTime() : 0;
@@ -401,6 +449,28 @@ export default function Clients() {
     catch (err) { setToast({ type: 'error', message: err.response?.data?.message || 'Could not update status.' }); }
   };
 
+  const handleTogglePaid = async (c, checked) => {
+    if (!canUpdate) return;
+    if (!monthFilter) { setToast({ type: 'error', message: 'Please select month and year before updating paid status.' }); return; }
+    if (checked && normalizeLegitimacyStatus(c) !== 'approved') { setToast({ type: 'error', message: 'Client must be Approved before it can be marked as paid.' }); return; }
+    try {
+      const res = await updateClientPaid(c.id, { month: monthFilter, is_paid: checked });
+      const data = res.data?.data || {};
+      setClients(prev => prev.map(x => x.id === c.id ? { ...x, is_paid: data.is_paid ?? checked, paid_amount: data.paid_amount ?? x.paid_amount } : x));
+      setToast({ type: 'success', message: checked ? 'Client marked as paid.' : 'Client marked as unpaid.' });
+    }
+    catch (err) {
+      setToast({ type: 'error', message: err.response?.data?.message || 'Could not update paid status.' });
+      fetchClients();
+    }
+  };
+
+  const handlePaidUpdated = (c) => (data) => {
+    setPaidAction(null);
+    if (data) setClients(prev => prev.map(x => x.id === c.id ? { ...x, is_paid: data.is_paid, paid_amount: data.paid_amount } : x));
+    setToast({ type: 'success', message: 'Paid amount updated.' });
+  };
+
   const handleEditDone = () => { setEditClient(null); setToast({ type: 'success', message: 'Client updated successfully.' }); fetchClients(); };
   const canAdjust = (c) => c.status === 'Active' && normalizeLegitimacyStatus(c) !== 'declined';
   const formatDate = (str) => { if (!str) return '—'; const parsed = new Date(str.includes('T') ? str : str.replace(' ', 'T')); if (Number.isNaN(parsed.getTime())) return '—'; return parsed.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); };
@@ -417,6 +487,8 @@ export default function Clients() {
       'Equity': Number(c.equity_amount || 0),
       'Net D-W-E': Number(c.net_dwe || 0),
       'Earned': Number(c.earned_amount || 0),
+      'Paid': c.is_paid ? 'Yes' : 'No',
+      'Paid Amount': c.is_paid ? Number(c.paid_amount || 0) : 0,
       'Legitimacy': c.legitimacy_status || 'pending',
       'Status': c.status || '',
       'Created': c.created_at || '',
@@ -584,6 +656,7 @@ export default function Clients() {
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('equity_amount')}>EQUITY <span>{getSortIndicator('equity_amount')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('net_dwe')}>NET D-W-E <span>{getSortIndicator('net_dwe')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('earned_amount')}>EARNED <span>{getSortIndicator('earned_amount')}</span></button></th>
+                <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('paid_amount')}>PAID <span>{getSortIndicator('paid_amount')}</span></button></th>
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('legitimacy_status')}>LEGITIMACY <span>{getSortIndicator('legitimacy_status')}</span></button></th>
                 {canShowLegitimacy && <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('legitimacy_status')}>LEGITIMATE CLIENT <span>{getSortIndicator('legitimacy_status')}</span></button></th>}
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('status')}>STATUS <span>{getSortIndicator('status')}</span></button></th>
@@ -594,7 +667,7 @@ export default function Clients() {
 
             <tbody>
               {paged.length === 0 ? (
-                <tr><td colSpan={15} className="um__empty">No clients found.</td></tr>
+                <tr><td colSpan={canShowLegitimacy ? 16 : 15} className="um__empty">No clients found.</td></tr>
               ) : paged.map(c => (
                 <tr key={c.id}>
                   <td>
@@ -612,6 +685,31 @@ export default function Clients() {
                   <td>{formatINR(c.equity_amount)}</td>
                   <td>{formatINRSigned(c.net_dwe)}</td>
                   <td style={{ fontWeight: 600 }}>{formatINR(c.earned_amount)}</td>
+                  <td>
+                    {(() => {
+                      const approved = normalizeLegitimacyStatus(c) === 'approved';
+                      const disabled = !canUpdate || !approved || c.status !== 'Active';
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+                          <label title={!approved ? 'Client must be Approved before it can be marked as paid.' : (c.is_paid ? 'Paid' : 'Not paid')} style={{ display: 'inline-flex', alignItems: 'center', cursor: disabled ? 'not-allowed' : 'pointer', flex: '0 0 auto' }}>
+                            <span style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${c.is_paid ? '#059669' : '#d1d5db'}`, background: c.is_paid ? '#059669' : disabled ? '#f3f4f6' : 'transparent', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', opacity: disabled && !c.is_paid ? 0.6 : 1, transition: 'background 120ms, border-color 120ms' }}>
+                              {c.is_paid && <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                            </span>
+                            <input type="checkbox" checked={!!c.is_paid} disabled={disabled} onChange={(e) => handleTogglePaid(c, e.target.checked)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }} />
+                          </label>
+                          {c.is_paid ? (
+                            canUpdate ? (
+                              <button type="button" onClick={() => setPaidAction(c)} title="Update paid amount" style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', color: '#059669', fontWeight: 600, font: 'inherit' }}>{formatINR(c.paid_amount)}</button>
+                            ) : (
+                              <span style={{ color: '#059669', fontWeight: 600 }}>{formatINR(c.paid_amount)}</span>
+                            )
+                          ) : (
+                            <span style={{ color: '#9ca3af', fontSize: 13 }}>—</span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td>
                     <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600,
                       background: c.legitimacy_status === 'approved' ? '#dcfce7' : c.legitimacy_status === 'declined' ? '#fee2e2' : '#fef3c7',
@@ -687,6 +785,7 @@ export default function Clients() {
       {editClient && <EditClientModal client={editClient} canTradingOk={canTradingOk} onClose={() => setEditClient(null)} onUpdated={handleEditDone} />}
       {amountAction && <AddAmountModal client={amountAction.client} mode={amountAction.mode} selectedMonth={monthFilter} onMonthChange={setMonthFilter} onClose={() => setAmountAction(null)} onUpdated={() => { setAmountAction(null); setToast({ type: 'success', message: `${amountAction.mode === 'deposit' ? 'Deposit' : 'Withdrawal'} added successfully.` }); fetchClients(); }} />}
       {equityAction && <ManageEquityModal client={equityAction} selectedMonth={monthFilter} onMonthChange={setMonthFilter} onClose={() => setEquityAction(null)} onUpdated={() => { setEquityAction(null); setToast({ type: 'success', message: 'Equity updated successfully.' }); fetchClients(); }} />}
+      {paidAction && <EditPaidModal client={paidAction} selectedMonth={monthFilter} onMonthChange={setMonthFilter} onClose={() => setPaidAction(null)} onUpdated={handlePaidUpdated(paidAction)} />}
       {confirmState && <ConfirmDialog title={confirmState.title} itemName={confirmState.itemName} bullets={confirmState.bullets} onConfirm={confirmState.onConfirm} onCancel={() => setConfirmState(null)} />}
       {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
     </div>
