@@ -2018,23 +2018,23 @@ def brokers_by_rm_user(request, user_id):
                     continue
                 broker_monthly_earned[broker_id] += (deposit_total * Decimal('0.01'))
 
-            payout_rows = (
-                BrokerPayout.objects
-                .filter(broker_id__in=broker_ids, created_at__gte=month_start_dt, created_at__lt=next_month_dt)
-                .values('broker_id')
+            # Paid reflects the client-level paid amounts (Clients module) for this month.
+            paid_rows = (
+                ClientMonthlyPaid.objects
+                .filter(client__broker_id__in=broker_ids, month=month_start, is_paid=True)
+                .values('client__broker_id')
                 .annotate(
-                    paid=Sum('amount'),
-                    declined=Sum('decline_amount'),
-                    last_paid_at=Max('created_at'),
+                    paid=Sum('paid_amount'),
+                    last_paid_at=Max('updated_at'),
                 )
             )
             payout_map = {
-                row['broker_id']: {
+                row['client__broker_id']: {
                     'paid': row['paid'] or Decimal('0'),
-                    'declined': row['declined'] or Decimal('0'),
+                    'declined': Decimal('0'),
                     'last_paid_at': row['last_paid_at'],
                 }
-                for row in payout_rows
+                for row in paid_rows
             }
 
             data = []

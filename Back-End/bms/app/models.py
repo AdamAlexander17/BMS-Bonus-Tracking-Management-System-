@@ -209,7 +209,14 @@ class Broker(models.Model):
 
     @property
     def amount_paid(self):
-        total = sum((payout.amount for payout in self._payout_items()), Decimal('0'))
+        # Paid reflects the client-level paid amounts recorded in the Clients module
+        # (ClientMonthlyPaid), summed across all of this broker's clients / months.
+        total = (
+            ClientMonthlyPaid.objects
+            .filter(client__broker=self, is_paid=True)
+            .aggregate(total=models.Sum('paid_amount'))['total']
+            or Decimal('0')
+        )
         return round(float(total), 2)
 
     @property
@@ -223,11 +230,14 @@ class Broker(models.Model):
 
     @property
     def last_paid_at(self):
-        payouts = self._payout_items()
-        if isinstance(payouts, list):
-            return payouts[0].created_at if payouts else None
-        latest = payouts.first()
-        return latest.created_at if latest else None
+        # Most recent time any of this broker's clients was marked paid.
+        latest = (
+            ClientMonthlyPaid.objects
+            .filter(client__broker=self, is_paid=True)
+            .order_by('-updated_at')
+            .first()
+        )
+        return latest.updated_at if latest else None
 
 
 class BrokerPayout(models.Model):

@@ -1058,10 +1058,11 @@ export default function BrokerDetail() {
       />
       
       {/* Broker info cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0, 1fr))', gap: 12, marginBottom: 20 }}>
         <InfoCard label="Designation" value={broker.rm_user ? `${broker.rm_user.username} (${(broker.rm_user.roles || []).join('/')})` : 'Unassigned'} />
         <InfoCard label="Broker Earned" value={formatINR(totalEarned)} />
         <InfoCard label="Paid to Broker" value={formatINR(amountPaid)} />
+        <InfoCard label="Last Paid" value={formatDateTime(broker.last_paid_at)} />
         <InfoCard label="Pending Payout" value={formatINR(pendingPayout)} />
         <InfoCard label="Total Deposited" value={formatINR(totalDeposited)} />
         <InfoCard label="Total Withdrawn" value={formatINR(totalWithdrawn)} />
