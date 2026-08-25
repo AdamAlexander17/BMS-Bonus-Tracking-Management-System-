@@ -114,20 +114,58 @@ function Field({ label, required, children }) {
   );
 }
 
-function EditClientModal({ client, canTradingOk, onClose, onUpdated }) {
+function EditClientModal({ client, canTradingOk, selectedMonth, onClose, onUpdated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
-  const [form, setForm]     = useState({ name: client.name ?? '', arc_id: client.arc_id, equity_amount: client.equity_amount ?? '', legitimacy_status: normalizeLegitimacyStatus(client) });
+  const clientApproved = normalizeLegitimacyStatus(client) === 'approved';
+  const earnedAmount = Number(client.earned_amount || 0);
+  const initialPaid = !!client.is_paid;
+  const initialPaidAmount = client.is_paid ? Number(client.paid_amount || 0) : null;
+  const [form, setForm]     = useState({
+    name: client.name ?? '',
+    arc_id: client.arc_id,
+    equity_amount: client.equity_amount ?? '',
+    legitimacy_status: normalizeLegitimacyStatus(client),
+    is_paid: initialPaid,
+    paid_amount: client.is_paid && client.paid_amount != null && client.paid_amount !== '' ? String(client.paid_amount) : '',
+  });
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const togglePaid = (checked) => {
+    setForm(f => ({
+      ...f,
+      is_paid: checked,
+      // Default to the earned amount when marking paid without an existing value.
+      paid_amount: checked ? (f.paid_amount !== '' ? f.paid_amount : String(earnedAmount)) : '',
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setError('');
     if (!/^\d{1,6}$/.test(form.arc_id.trim())) { setError('ARK ID must be up to 6 digits.'); return; }
+
+    // Detect whether the paid section changed.
+    const paidChanged = form.is_paid !== initialPaid
+      || (form.is_paid && Number(form.paid_amount || 0) !== (initialPaidAmount ?? -1));
+    if (paidChanged) {
+      if (!selectedMonth) { setError('Select a month (top of the page) before updating the paid status.'); return; }
+      if (form.is_paid && !clientApproved) { setError('Client must be Approved for this month before it can be marked as paid.'); return; }
+      if (form.is_paid && (form.paid_amount === '' || Number(form.paid_amount) < 0 || Number.isNaN(Number(form.paid_amount)))) {
+        setError('Enter a valid paid amount (0 or greater).'); return;
+      }
+    }
+
     setSaving(true);
     try {
       const payload = { name: form.name.trim(), arc_id: form.arc_id.trim(), equity_amount: form.equity_amount === '' ? 0 : form.equity_amount };
       if (canTradingOk) payload.legitimacy_status = form.legitimacy_status;
-      await updateClient(client.id, payload); onUpdated();
+      await updateClient(client.id, payload);
+      if (paidChanged) {
+        const paidPayload = { month: selectedMonth, is_paid: form.is_paid };
+        if (form.is_paid) paidPayload.paid_amount = Number(form.paid_amount);
+        await updateClientPaid(client.id, paidPayload);
+      }
+      onUpdated();
     } catch (err) { setError(err.response?.data?.message || 'Failed to update client.'); setSaving(false); }
   };
 
@@ -151,6 +189,27 @@ function EditClientModal({ client, canTradingOk, onClose, onUpdated }) {
               <div style={{ gridColumn: '1 / -1' }}><Field label="ARK ID" required><input style={inputStyle} value={form.arc_id} onChange={(e) => setForm(f => ({ ...f, arc_id: e.target.value.replace(/\D/g, '').slice(0, 6) }))} required inputMode="numeric" pattern="\d*" maxLength={6} placeholder="123456" /></Field></div>
               {canTradingOk && <div style={{ gridColumn: '1 / -1' }}><Field label="Legitimate Client Status"><LegitimacyCheckboxGroup value={form.legitimacy_status} onChange={(v) => setForm(f => ({ ...f, legitimacy_status: v }))} /></Field></div>}
               <div style={{ gridColumn: '1 / -1' }}><Field label="Equity (₹)"><input type="number" min="0" step="0.01" style={inputStyle} value={form.equity_amount} onChange={set('equity_amount')} placeholder="0.00" /></Field></div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Field label="Paid">
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, color: clientApproved ? '#111827' : '#9ca3af', cursor: clientApproved ? 'pointer' : 'not-allowed', fontWeight: 500 }}>
+                    <span style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${form.is_paid ? '#059669' : '#d1d5db'}`, background: form.is_paid ? '#059669' : !clientApproved ? '#f3f4f6' : 'transparent', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto', transition: 'background 120ms, border-color 120ms' }}>
+                      {form.is_paid && <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                    </span>
+                    <input type="checkbox" checked={form.is_paid} disabled={!clientApproved} onChange={(e) => togglePaid(e.target.checked)} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }} />
+                    Mark as paid
+                  </label>
+                  {form.is_paid && (
+                    <input type="number" min="0" step="0.01" style={{ ...inputStyle, marginTop: 10 }} value={form.paid_amount} onChange={set('paid_amount')} placeholder="0.00" />
+                  )}
+                  <p style={{ margin: '8px 0 0', fontSize: 12, color: '#6b7280' }}>
+                    {!clientApproved
+                      ? 'Client must be Approved for the selected month before it can be marked as paid.'
+                      : form.is_paid
+                        ? `Defaults to the earned amount (${formatINR(earnedAmount)}). Adjust if a different amount was paid.`
+                        : 'Check to mark this client as paid for the selected month.'}
+                  </p>
+                </Field>
+              </div>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '20px 24px', borderTop: '1px solid #f1f5f9', marginTop: 16 }}>
@@ -782,7 +841,7 @@ export default function Clients() {
         )}
       </div>
 
-      {editClient && <EditClientModal client={editClient} canTradingOk={canTradingOk} onClose={() => setEditClient(null)} onUpdated={handleEditDone} />}
+      {editClient && <EditClientModal client={editClient} canTradingOk={canTradingOk} selectedMonth={monthFilter} onClose={() => setEditClient(null)} onUpdated={handleEditDone} />}
       {amountAction && <AddAmountModal client={amountAction.client} mode={amountAction.mode} selectedMonth={monthFilter} onMonthChange={setMonthFilter} onClose={() => setAmountAction(null)} onUpdated={() => { setAmountAction(null); setToast({ type: 'success', message: `${amountAction.mode === 'deposit' ? 'Deposit' : 'Withdrawal'} added successfully.` }); fetchClients(); }} />}
       {equityAction && <ManageEquityModal client={equityAction} selectedMonth={monthFilter} onMonthChange={setMonthFilter} onClose={() => setEquityAction(null)} onUpdated={() => { setEquityAction(null); setToast({ type: 'success', message: 'Equity updated successfully.' }); fetchClients(); }} />}
       {paidAction && <EditPaidModal client={paidAction} selectedMonth={monthFilter} onMonthChange={setMonthFilter} onClose={() => setPaidAction(null)} onUpdated={handlePaidUpdated(paidAction)} />}
