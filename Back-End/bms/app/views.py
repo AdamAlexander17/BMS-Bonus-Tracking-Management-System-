@@ -1146,11 +1146,42 @@ def rm_jrm_users(request):
 
 def format_brand(brand):
     return {
-        'id':         brand.id,
-        'name':       brand.name,
-        'code':       brand.code,
-        'created_at': brand.created_at.strftime('%b %d, %Y') if brand.created_at else '—',
+        'id':           brand.id,
+        'name':         brand.name,
+        'code':         brand.code,
+        'earning_rate': str(brand.earning_rate if brand.earning_rate is not None else Decimal('1.00')),
+        'created_at':   brand.created_at.strftime('%b %d, %Y') if brand.created_at else '—',
     }
+
+
+def _brand_earning_rate(brand):
+    """Broker earning rate (percent of deposits) for a brand. Defaults to 1%."""
+    if brand is None:
+        return Decimal('1.00')
+    rate = getattr(brand, 'earning_rate', None)
+    return Decimal(str(rate)) if rate is not None else Decimal('1.00')
+
+
+def _parse_earning_rate(value):
+    """Validate an incoming earning_rate (percent). Returns (Decimal|None, error|None).
+    None means the caller did not supply a value (leave as-is / use default)."""
+    if value is None or (isinstance(value, str) and value.strip() == ''):
+        return None, None
+    try:
+        rate = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None, 'earning_rate must be a valid number.'
+    if rate < 0 or rate > 100:
+        return None, 'earning_rate must be between 0 and 100.'
+    return rate.quantize(Decimal('0.01')), None
+
+
+def _earned_from_deposit(deposit, brand, legitimacy_status):
+    """Earned = deposit * brand_rate% when approved, else 0."""
+    if legitimacy_status != 'approved':
+        return Decimal('0')
+    rate = _brand_earning_rate(brand)
+    return (Decimal(str(deposit or 0)) * rate / Decimal('100')).quantize(Decimal('0.01'))
 
 
 @api_view(['POST'])
@@ -1175,6 +1206,13 @@ def brand_create(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    earning_rate, rate_error = _parse_earning_rate(request.data.get('earning_rate'))
+    if rate_error:
+        return Response(
+            {'success': False, 'message': rate_error},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     if Brand.objects.filter(name=name).exists():
         return Response(
             {'success': False, 'message': f'Brand "{name}" already exists.'},
@@ -1186,7 +1224,11 @@ def brand_create(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    brand = Brand.objects.create(name=name, code=code or None)
+    brand = Brand.objects.create(
+        name=name,
+        code=code or None,
+        **({'earning_rate': earning_rate} if earning_rate is not None else {}),
+    )
 
     # Auto-assign every new brand to all Admin users so they can immediately
     # see and manage it without a manual brand-assignment step. Uses the
@@ -1305,6 +1347,13 @@ def brand_update(request, brand_id):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    earning_rate, rate_error = _parse_earning_rate(request.data.get('earning_rate'))
+    if rate_error:
+        return Response(
+            {'success': False, 'message': rate_error},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     if Brand.objects.filter(name=name).exclude(id=brand_id).exists():
         return Response(
             {'success': False, 'message': f'Brand "{name}" already exists.'},
@@ -1319,9 +1368,12 @@ def brand_update(request, brand_id):
     previous_brand = {
         'name': brand.name,
         'code': brand.code,
+        'earning_rate': str(brand.earning_rate),
     }
     brand.name = name
     brand.code = code or None
+    if earning_rate is not None:
+        brand.earning_rate = earning_rate
     brand.save()
     log_audit_event(
         request,
@@ -1336,6 +1388,7 @@ def brand_update(request, brand_id):
             {
                 'name': brand.name,
                 'code': brand.code,
+                'earning_rate': str(brand.earning_rate),
             },
         ),
     )
@@ -2009,6 +2062,9 @@ def brokers_by_rm_user(request, user_id):
                 else:
                     broker_monthly_withdrawals[broker_id] += total
 
+            # Per-broker earning rate (percent of deposits), driven by the broker's brand.
+            broker_rate_map = {b.id: _brand_earning_rate(b.brand) for b in brokers}
+
             broker_monthly_earned = {broker_id: Decimal('0') for broker_id in broker_ids}
             for client_id, deposit_total in client_monthly_deposits.items():
                 if monthly_leg_map.get(client_id, 'pending') != 'approved':
@@ -2016,7 +2072,8 @@ def brokers_by_rm_user(request, user_id):
                 broker_id = client_to_broker.get(client_id)
                 if broker_id is None:
                     continue
-                broker_monthly_earned[broker_id] += (deposit_total * Decimal('0.01'))
+                rate = broker_rate_map.get(broker_id, Decimal('1.00'))
+                broker_monthly_earned[broker_id] += (deposit_total * rate / Decimal('100'))
 
             # Paid reflects the client-level paid amounts (Clients module) for this month.
             paid_rows = (
@@ -2798,6 +2855,7 @@ def format_client(client):
         'net_total':         str(net_total),
         'net_dwe':           str(net_dwe),
         'earned_amount':     str(client.earned_amount),
+        'earning_rate':      str(_brand_earning_rate(client.broker.brand if client.broker_id else None)),
         'legitimacy_status': client.legitimacy_status,
         'is_legitimate':     client.is_legitimate,
         'is_paid':           False,
@@ -3055,7 +3113,7 @@ def client_list(request, broker_id):
                 net_total = dep - wth
                 net_dwe = net_total - equity
                 monthly_legitimacy = monthly_leg_map.get(c.id, 'pending')
-                earned = round(float(dep) * 0.01, 2) if monthly_legitimacy == 'approved' else 0
+                earned = _earned_from_deposit(dep, c.broker.brand, monthly_legitimacy)
                 paid_record = monthly_paid_map.get(c.id)
                 result.append({
                     'id':                c.id,
@@ -3074,6 +3132,7 @@ def client_list(request, broker_id):
                     'net_total':         str(net_total),
                     'net_dwe':           str(net_dwe),
                     'earned_amount':     str(earned),
+                    'earning_rate':      str(_brand_earning_rate(c.broker.brand)),
                     'legitimacy_status': monthly_legitimacy,
                     'is_legitimate':     monthly_legitimacy == 'approved',
                     'is_paid':           paid_record.is_paid if paid_record else False,
@@ -3187,7 +3246,7 @@ def client_list_all(request):
                 net_total = dep - wth
                 net_dwe = net_total - equity
                 monthly_legitimacy = monthly_leg_map.get(c.id, 'pending')
-                earned = round(float(dep) * 0.01, 2) if monthly_legitimacy == 'approved' else 0
+                earned = _earned_from_deposit(dep, c.broker.brand, monthly_legitimacy)
                 paid_record = monthly_paid_map.get(c.id)
                 result.append({
                     'id':                c.id,
@@ -3201,6 +3260,7 @@ def client_list_all(request):
                     'net_total':         str(net_total),
                     'net_dwe':           str(net_dwe),
                     'earned_amount':     str(earned),
+                    'earning_rate':      str(_brand_earning_rate(c.broker.brand)),
                     'legitimacy_status': monthly_legitimacy,
                     'is_legitimate':     monthly_legitimacy == 'approved',
                     'is_paid':           paid_record.is_paid if paid_record else False,
@@ -3984,7 +4044,7 @@ def client_monthly_paid_update(request, client_id):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Compute the earned amount for this month (1% of monthly deposits when approved).
+    # Compute the earned amount for this month (brand rate % of monthly deposits when approved).
     _, _, month_start_dt, next_month_dt = _month_bounds(month_date)
     monthly_deposits = ClientTransaction.objects.filter(
         client=client,
@@ -3992,10 +4052,8 @@ def client_monthly_paid_update(request, client_id):
         created_at__gte=month_start_dt,
         created_at__lt=next_month_dt,
     ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
-    earned_amount = (
-        (monthly_deposits * Decimal('0.01')).quantize(Decimal('0.01'))
-        if legitimacy_status == 'approved' else Decimal('0')
-    )
+    brand = client.broker.brand if client.broker_id else None
+    earned_amount = _earned_from_deposit(monthly_deposits, brand, legitimacy_status)
 
     # Resolve target paid amount.
     paid_amount_raw = request.data.get('paid_amount')

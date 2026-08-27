@@ -489,8 +489,9 @@ export default function Clients() {
     }
     try {
       await updateClientMonthlyLegitimacy(c.id, { month: monthFilter, legitimacy_status: legitimacyStatus });
-      // Recalculate earned locally based on new legitimacy
-      const newEarned = legitimacyStatus === 'approved' ? (Number(c.deposited_amount || 0) * 0.01).toFixed(2) : '0';
+      // Recalculate earned locally based on new legitimacy and the brand's earning rate
+      const rate = Number(c.earning_rate || 1) / 100;
+      const newEarned = legitimacyStatus === 'approved' ? (Number(c.deposited_amount || 0) * rate).toFixed(2) : '0';
       setClients(prev => prev.map(x => x.id === c.id ? { ...x, legitimacy_status: legitimacyStatus, is_legitimate: legitimacyStatus === 'approved', earned_amount: newEarned } : x));
       setToast({ type: 'success', message: 'Legitimacy status updated.' });
     }

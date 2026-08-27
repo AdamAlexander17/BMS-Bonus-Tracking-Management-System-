@@ -7,6 +7,8 @@ class Brand(models.Model):
     id         = models.BigAutoField(primary_key=True)
     name       = models.CharField(max_length=50, unique=True)
     code       = models.CharField(max_length=10, blank=True, null=True, default=None)
+    # Percent of a client's deposit that the broker earns (e.g. 1.00 = 1%, 2.00 = 2%).
+    earning_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('1.00'))
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     class Meta:
@@ -299,8 +301,11 @@ class Client(models.Model):
         if self.legitimacy_status != 'approved':
             return 0
 
-        # 1% of deposited_amount for legitimate trading clients only
-        return round(float(self.deposited_amount) * 0.01, 2)
+        # Brand-specific percent of deposited_amount for legitimate trading clients only.
+        rate = Decimal('1.00')
+        if self.broker_id and self.broker.brand_id:
+            rate = Decimal(str(self.broker.brand.earning_rate or '1.00'))
+        return round(float(self.deposited_amount) * float(rate) / 100.0, 2)
 
     @property
     def net_dwe(self):

@@ -55,6 +55,7 @@ export default function Brands() {
   const [toast, setToast] = useState(null);
   const [newName, setNewName]     = useState('');
   const [newCode, setNewCode]     = useState('');
+  const [newRate, setNewRate]     = useState('1');
   const [creating, setCreating]   = useState(false);
   const [pageSize, setPageSize]   = useState(10);
   const [page, setPage]           = useState(1);
@@ -79,9 +80,10 @@ export default function Brands() {
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      await createBrand({ name: newName.trim(), code: newCode.trim().toUpperCase() });
+      await createBrand({ name: newName.trim(), code: newCode.trim().toUpperCase(), earning_rate: newRate === '' ? 1 : Number(newRate) });
       setNewName('');
       setNewCode('');
+      setNewRate('1');
       setShowAdd(false);
       fetchBrands();
     } catch (err) {
@@ -144,7 +146,7 @@ export default function Brands() {
               Refresh
             </button>
             {canCreate && (
-              <button className="ph-btn ph-btn--primary" onClick={() => { setNewName(''); setNewCode(''); setShowAdd(true); }}>
+              <button className="ph-btn ph-btn--primary" onClick={() => { setNewName(''); setNewCode(''); setNewRate('1'); setShowAdd(true); }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
                   <line x1="12" y1="5" x2="12" y2="19"/>
                   <line x1="5" y1="12" x2="19" y2="12"/>
@@ -180,8 +182,9 @@ export default function Brands() {
         {!loading && !error && (
           <table className="um__table">
             <colgroup>
-              <col style={{ width: '40%' }} />
-              <col style={{ width: '14%' }} />
+              <col style={{ width: '34%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '15%' }} />
               <col style={{ width: '20%' }} />
               {canActions && <col style={{ width: '18%' }} />}
             </colgroup>
@@ -189,13 +192,14 @@ export default function Brands() {
               <tr>
                 <th><button type="button" style={sortButtonStyle} onClick={() => handleSort('name')}>BRAND <span>{getSortIndicator('name')}</span></button></th>
                 <th style={{ textAlign: 'center' }}><button type="button" style={sortButtonStyle} onClick={() => handleSort('code')}>CODE <span>{getSortIndicator('code')}</span></button></th>
+                <th style={{ textAlign: 'center' }}><button type="button" style={sortButtonStyle} onClick={() => handleSort('earning_rate')}>EARNING RATE <span>{getSortIndicator('earning_rate')}</span></button></th>
                 <th style={{ textAlign: 'center' }}><button type="button" style={sortButtonStyle} onClick={() => handleSort('created_at')}>CREATED AT <span>{getSortIndicator('created_at')}</span></button></th>
                 {canActions && <th style={{ textAlign: 'right' }}>ACTIONS</th>}
               </tr>
             </thead>
             <tbody>
               {sorted.length === 0 ? (
-                <tr><td colSpan={canActions ? 4 : 3} className="um__empty">No brands found.</td></tr>
+                <tr><td colSpan={canActions ? 5 : 4} className="um__empty">No brands found.</td></tr>
               ) : paged.map(b => (
                 <tr key={b.id}>
                   <td>
@@ -208,6 +212,7 @@ export default function Brands() {
                     </div>
                   </td>
                   <td style={{ textAlign: 'center' }}><span className="um__role-badge" style={{ background: '#e0f5f5', color: '#004B4E', border: 'none', minWidth: 48, textAlign: 'center', display: 'inline-block' }}>{b.code || '—'}</span></td>
+                  <td style={{ textAlign: 'center', fontSize: 13, color: '#111827', fontWeight: 600 }}>{b.earning_rate != null ? `${Number(b.earning_rate)}%` : '1%'}</td>
                   <td style={{ textAlign: 'center', fontSize: 13, color: '#6b7280' }}>{b.created_at || '—'}</td>
                   {canActions && (
                     <td style={{ textAlign: 'right' }}>
@@ -276,6 +281,12 @@ export default function Brands() {
                   <input required placeholder="e.g. TK" maxLength={10} value={newCode} onChange={e => setNewCode(e.target.value.toUpperCase())} />
                 </div>
               </div>
+              <div className="um__form-row">
+                <div className="um__form-group">
+                  <label>Broker Earning Rate (% of deposit)</label>
+                  <input type="number" min="0" max="100" step="0.01" placeholder="1" value={newRate} onChange={e => setNewRate(e.target.value)} />
+                </div>
+              </div>
               <div className="um__form-footer">
                 <button type="button" className="um__btn-cancel" onClick={() => setShowAdd(false)}>Cancel</button>
                 <button type="submit" className="um__btn-save" disabled={creating}>
@@ -313,6 +324,7 @@ export default function Brands() {
 function EditBrandModal({ brand, onClose, onSuccess }) {
   const [name, setName]       = useState(brand.name);
   const [code, setCode]       = useState(brand.code || '');
+  const [rate, setRate]       = useState(brand.earning_rate != null ? String(brand.earning_rate) : '1');
   const [saving, setSaving]   = useState(false);
   const [err, setErr]         = useState('');
 
@@ -321,7 +333,7 @@ function EditBrandModal({ brand, onClose, onSuccess }) {
     if (!name.trim() || !code.trim()) return;
     setSaving(true); setErr('');
     try {
-      await updateBrand(brand.id, { name: name.trim(), code: code.trim().toUpperCase() });
+      await updateBrand(brand.id, { name: name.trim(), code: code.trim().toUpperCase(), earning_rate: rate === '' ? 1 : Number(rate) });
       onSuccess();
     } catch (ex) {
       setErr(ex.response?.data?.message || 'Failed to update brand.');
@@ -336,7 +348,7 @@ function EditBrandModal({ brand, onClose, onSuccess }) {
         <div className="um__modal-header um__modal-header--teal">
           <div>
             <h3>Edit Brand</h3>
-            <p className="um__modal-subtitle">Update brand name and code</p>
+            <p className="um__modal-subtitle">Update brand name, code and earning rate</p>
           </div>
           <button className="um__modal-close" onClick={onClose}>✕</button>
         </div>
@@ -350,6 +362,12 @@ function EditBrandModal({ brand, onClose, onSuccess }) {
             <div className="um__form-group">
               <label>Code <span className="um__required">*</span></label>
               <input required placeholder="e.g. TK" maxLength={10} value={code} onChange={e => setCode(e.target.value.toUpperCase())} />
+            </div>
+          </div>
+          <div className="um__form-row">
+            <div className="um__form-group">
+              <label>Broker Earning Rate (% of deposit)</label>
+              <input type="number" min="0" max="100" step="0.01" placeholder="1" value={rate} onChange={e => setRate(e.target.value)} />
             </div>
           </div>
           <div className="um__form-footer">
