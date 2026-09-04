@@ -1,17 +1,19 @@
 import axios from 'axios';
 
+// NOTE: These credentials are bundled into the browser and are readable by
+// anyone using DevTools. Move to a backend proxy if that is a concern.
 const brandApiConfigs = {
   bfx: {
-    baseURL: import.meta.env.VITE_BFX_BASE_URL,
-    apiKey: import.meta.env.VITE_BFX_API_KEY,
+    baseURL: 'http://192.248.144.79:4948',
+    apiKey:  'bfx-9kR2xLpQ8mNc4TvYb6JdWs1AeFo3Hz7',
   },
   tradeKaro: {
-    baseURL: import.meta.env.VITE_TRADE_KARO_BASE_URL,
-    apiKey: import.meta.env.VITE_TRADE_KARO_API_KEY,
+    baseURL: 'http://192.248.144.79:7879',
+    apiKey:  'tk-P0iQaX2eVn9RcTf6Lm3JdGy8Zw1Uh4Ks',
   },
   tradeBazaar: {
-    baseURL: import.meta.env.VITE_TRADE_BAZAAR_BASE_URL,
-    apiKey: import.meta.env.VITE_TRADE_BAZAAR_API_KEY,
+    baseURL: 'http://192.248.144.79:6979',
+    apiKey:  'tb-3nY7bQm1xLpW9eRj5Tc0AhF2VkUz6Ds8',
   },
 };
 
@@ -21,16 +23,15 @@ const brandDisplayNames = {
   tradeBazaar: 'Trade Bazaar',
 };
 
-// Warn once so misconfigured brands are visible in DevTools before any request runs.
 Object.entries(brandApiConfigs).forEach(([key, cfg]) => {
   if (!cfg.baseURL || !cfg.apiKey) {
-    console.warn(`[external-transactions] ${brandDisplayNames[key]} is missing VITE_${key === 'bfx' ? 'BFX' : key === 'tradeKaro' ? 'TRADE_KARO' : 'TRADE_BAZAAR'}_BASE_URL or _API_KEY in Front-End/.env`);
+    console.warn(`[external-transactions] ${brandDisplayNames[key]} baseURL/apiKey is empty in src/api/externalTransactions.js`);
   }
 });
 
 function normalizeBrandName(value) {
   const brand = String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (brand === 'bfx') return 'bfx';
+  if (brand === 'bfx' || brand === 'bazaarfx') return 'bfx';
   if (brand === 'tradekaro') return 'tradeKaro';
   if (brand === 'tradebazaar') return 'tradeBazaar';
   return null;
