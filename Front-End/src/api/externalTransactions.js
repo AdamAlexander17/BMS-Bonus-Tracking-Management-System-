@@ -21,6 +21,13 @@ const brandDisplayNames = {
   tradeBazaar: 'Trade Bazaar',
 };
 
+// Warn once so misconfigured brands are visible in DevTools before any request runs.
+Object.entries(brandApiConfigs).forEach(([key, cfg]) => {
+  if (!cfg.baseURL || !cfg.apiKey) {
+    console.warn(`[external-transactions] ${brandDisplayNames[key]} is missing VITE_${key === 'bfx' ? 'BFX' : key === 'tradeKaro' ? 'TRADE_KARO' : 'TRADE_BAZAAR'}_BASE_URL or _API_KEY in Front-End/.env`);
+  }
+});
+
 function normalizeBrandName(value) {
   const brand = String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
   if (brand === 'bfx') return 'bfx';
@@ -61,7 +68,7 @@ export const getExternalTransactions = (params, brandName) => {
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      'x-api-key': config.apiKey,
+      'X-API-Key': config.apiKey,
     },
   });
 };
