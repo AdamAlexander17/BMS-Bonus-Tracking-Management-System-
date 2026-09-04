@@ -6,6 +6,7 @@ import CustomSelect from '../components/CustomSelect/CustomSelect';
 import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
 import Toast from '../components/Toast/Toast';
 import { getAllClients, updateClient, deleteClient, createClientTransaction, updateClientMonthlyLegitimacy, updateClientPaid } from '../api/clients';
+import { getExternalTransactionRows } from '../api/externalTransactions';
 import { formatINR } from './Brokers';
 import * as XLSX from 'xlsx';
 import './Users.css';
@@ -409,12 +410,33 @@ export default function Clients() {
 
   const fetchClients = async () => {
     setLoading(true); setError('');
-    try { const params = {}; if (monthFilter) params.month = monthFilter; const res = await getAllClients(params); setClients(res.data.data || []); }
+    try {
+      const params = {}; if (monthFilter) params.month = monthFilter;
+      const res = await getAllClients(params);
+      const clientRows = res.data.data || [];
+      const transactions = await getExternalTransactionRows(clientRows.map((client) => ({
+        accountId: client.arc_id,
+        brandName: client.brand || client.broker?.brand,
+      })), monthFilter, pageSize);
+      const totalsByAccount = new Map();
+      transactions.forEach((transaction) => {
+        const key = String(transaction.accountId);
+        const current = totalsByAccount.get(key) || { deposited: 0, withdrawn: 0, latestDate: '' };
+        if (transaction.transaction_type === 'deposit') current.deposited += transaction.amount;
+        if (transaction.transaction_type === 'withdrawal') current.withdrawn += transaction.amount;
+        if (!current.latestDate || new Date(transaction.createdDate) > new Date(current.latestDate)) current.latestDate = transaction.createdDate;
+        totalsByAccount.set(key, current);
+      });
+      setClients(clientRows.map((client) => {
+        const totals = totalsByAccount.get(String(client.arc_id)) || { deposited: 0, withdrawn: 0, latestDate: '' };
+        return { ...client, deposited_amount: totals.deposited, withdrawal_amount: totals.withdrawn, transaction_date: totals.latestDate };
+      }));
+    }
     catch (err) { setError(err.response?.data?.message || 'Failed to load clients.'); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchClients(); }, [monthFilter]);
+  useEffect(() => { fetchClients(); }, [monthFilter, pageSize]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -461,6 +483,7 @@ export default function Clients() {
         case 'paid_amount': return client.is_paid ? Number(client.paid_amount || 0) : -1;
         case 'legitimacy_status': return client.legitimacy_status || '';
         case 'status': return client.status || '';
+        case 'transaction_date': return client.transaction_date ? new Date(client.transaction_date).getTime() : 0;
         case 'created_at': return client.created_at ? new Date(client.created_at).getTime() : 0;
         default: return '';
       }
@@ -549,6 +572,7 @@ export default function Clients() {
       'Earned': Number(c.earned_amount || 0),
       'Paid': c.is_paid ? 'Yes' : 'No',
       'Paid Amount': c.is_paid ? Number(c.paid_amount || 0) : 0,
+      'Transaction Date': c.transaction_date || '',
       'Legitimacy': c.legitimacy_status || 'pending',
       'Status': c.status || '',
       'Created': c.created_at || '',
@@ -720,7 +744,7 @@ export default function Clients() {
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('legitimacy_status')}>LEGITIMACY <span>{getSortIndicator('legitimacy_status')}</span></button></th>
                 {canShowLegitimacy && <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('legitimacy_status')}>LEGITIMATE CLIENT <span>{getSortIndicator('legitimacy_status')}</span></button></th>}
                 <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('status')}>STATUS <span>{getSortIndicator('status')}</span></button></th>
-                <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('created_at')}>CREATED <span>{getSortIndicator('created_at')}</span></button></th>
+                <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('transaction_date')}>TRANSACTION DATE <span>{getSortIndicator('transaction_date')}</span></button></th>
                 <th style={{ ...thWrapStyle, textAlign: 'left' }}>ACTIONS</th>
               </tr>
             </thead>
@@ -789,7 +813,7 @@ export default function Clients() {
                       <span className={`um__status-badge ${c.status === 'Active' ? 'um__status-badge--active' : 'um__status-badge--inactive'}`}>{c.status}</span>
                     )}
                   </td>
-                  <td><span className="um__date">{formatDate(c.created_at)}</span></td>
+                  <td><span className="um__date">{formatDate(c.transaction_date)}</span></td>
 
                   <td>
                     <div className="um__actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 26px)', gap: 4 }}>

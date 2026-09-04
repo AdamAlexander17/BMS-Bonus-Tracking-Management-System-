@@ -6,6 +6,7 @@ import { getBroker, updateBroker } from '../api/brokers';
 import { getBrands } from '../api/brands';
 import { getRmJrmUsers } from '../api/users';
 import { getClientsByBroker, createClient, updateClient, deleteClient, createClientTransaction, updateClientMonthlyLegitimacy } from '../api/clients';
+import { getExternalTransactionRows } from '../api/externalTransactions';
 import { formatINR } from './Brokers';
 import './Users.css';
 
@@ -873,7 +874,24 @@ export default function BrokerDetail() {
         getClientsByBroker(id, monthFilter ? { month: monthFilter } : undefined),
       ]);
       setBroker(bRes.data.data);
-      setClients(cRes.data.data || []);
+      const clientRows = cRes.data.data || [];
+      const transactions = await getExternalTransactionRows(clientRows.map((client) => ({
+        accountId: client.arc_id,
+        brandName: client.brand || client.broker?.brand || bRes.data.data.brand?.name,
+      })), monthFilter, Math.max(clientRows.length, 1));
+      const totalsByAccount = new Map();
+      transactions.forEach((transaction) => {
+        const key = String(transaction.accountId);
+        const current = totalsByAccount.get(key) || { deposited: 0, withdrawn: 0, latestDate: '' };
+        if (transaction.transaction_type === 'deposit') current.deposited += transaction.amount;
+        if (transaction.transaction_type === 'withdrawal') current.withdrawn += transaction.amount;
+        if (!current.latestDate || new Date(transaction.createdDate) > new Date(current.latestDate)) current.latestDate = transaction.createdDate;
+        totalsByAccount.set(key, current);
+      });
+      setClients(clientRows.map((client) => {
+        const totals = totalsByAccount.get(String(client.arc_id)) || { deposited: 0, withdrawn: 0, latestDate: '' };
+        return { ...client, deposited_amount: totals.deposited, withdrawal_amount: totals.withdrawn, transaction_date: totals.latestDate };
+      }));
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load broker.');
     } finally {
@@ -997,6 +1015,8 @@ export default function BrokerDetail() {
           return client.status || '';
         case 'legitimacy_status':
           return client.status === 'Active' ? normalizeLegitimacyStatus(client) : '';
+        case 'transaction_date':
+          return client.transaction_date ? new Date(client.transaction_date).getTime() : null;
         case 'created_at':
           return client.created_at ? new Date(client.created_at).getTime() : null;
         default:
@@ -1161,7 +1181,7 @@ export default function BrokerDetail() {
               <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('earned_amount')}>EARNED (1%) <span>{getSortIndicator('earned_amount')}</span></button></th>
               <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('status')}>STATUS <span>{getSortIndicator('status')}</span></button></th>
               {canShowLegitimacy && <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('legitimacy_status')}>LEGITIMATE CLIENT <span>{getSortIndicator('legitimacy_status')}</span></button></th>}
-              <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('created_at')}>CREATED <span>{getSortIndicator('created_at')}</span></button></th>
+              <th style={thWrapStyle}><button type="button" style={sortButtonStyle} onClick={() => handleSort('transaction_date')}>TRANSACTION DATE <span>{getSortIndicator('transaction_date')}</span></button></th>
               {canClientActions && <th style={{ ...thWrapStyle, width: 100, minWidth: 100, paddingLeft: 4, paddingRight: 8, textAlign: 'left' }}>ACTIONS</th>}
             </tr>
           </thead>
@@ -1210,7 +1230,7 @@ export default function BrokerDetail() {
                       )}
                     </td>
                   )}
-                  <td><span className="um__date">{formatDate(c.created_at)}</span></td>
+                  <td><span className="um__date">{formatDate(c.transaction_date)}</span></td>
                   {canClientActions && (
                     <td style={{ width: 100, minWidth: 100, paddingLeft: 4, paddingRight: 8, textAlign: 'left' }}>
                       <div className="um__actions" style={{ flexWrap: 'wrap', rowGap: 4, gap: 4, justifyContent: 'flex-start', maxWidth: 88, marginRight: 'auto' }}>

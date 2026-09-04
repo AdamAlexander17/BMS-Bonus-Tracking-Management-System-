@@ -4,7 +4,8 @@ import PageHeader from '../components/PageHeader/PageHeader';
 import CustomSelect from '../components/CustomSelect/CustomSelect';
 import { getBrokers } from '../api/brokers';
 import { getBrands } from '../api/brands';
-import { getClientsByBroker, getClientTransactions } from '../api/clients';
+import { getClientsByBroker } from '../api/clients';
+import { getExternalTransactionRows } from '../api/externalTransactions';
 import './Users.css';
 
 const inputControlStyle = {
@@ -273,29 +274,35 @@ export default function Reports() {
 
         setLoading(false);
 
-        const transactionResponses = await Promise.allSettled(
-          allClients.map((client) => getClientTransactions(client.id))
-        );
+        const clientsByArcId = new Map(allClients.map((client) => [String(client.arc_id), client]));
+        const transactionRows = await getExternalTransactionRows(allClients.map((client) => ({
+          accountId: client.arc_id,
+          brandName: client.brand_name,
+        })), monthFilter, transactionPageSize);
 
         const allTransactions = [];
-        transactionResponses.forEach((result, index) => {
-          if (result.status !== 'fulfilled') return;
-          const client = allClients[index];
-          const list = result.value.data?.data || [];
-          list.forEach((transaction) => {
+        transactionRows.forEach((transaction) => {
+            const client = clientsByArcId.get(String(transaction.accountId));
+            if (!client) return;
+            const broker = brokersList.find((item) => item.id === client.broker_id);
+            if (!broker) return;
             allTransactions.push({
               ...transaction,
-              client_id: client.id,
-              client_name: client.name,
-              client_arc_id: client.arc_id,
-              client_status: client.status,
-              is_legitimate: client.is_legitimate,
-              broker_id: client.broker_id,
-              broker_name: client.broker_name,
-              brand_id: client.brand_id,
-              brand_name: client.brand_name,
+              id: `${transaction.transaction_type}-${transaction.id}`,
+              transaction_type: transaction.transaction_type,
+              amount: transaction.amount,
+              created_at: transaction.createdDate,
+              entered_by: transaction.deviceType || 'External API',
+              client_name: 'Broker account transaction',
+              client_arc_id: '',
+              client_status: null,
+              is_legitimate: null,
+              broker_id: broker.id,
+              broker_arc_id: broker.arc_id,
+              broker_name: broker.name,
+              brand_id: broker.brand?.id,
+              brand_name: broker.brand?.name || 'Unassigned',
             });
-          });
         });
 
         if (!active) return;
@@ -315,7 +322,7 @@ export default function Reports() {
     return () => {
       active = false;
     };
-  }, [refreshKey, monthFilter]);
+  }, [refreshKey, monthFilter, transactionPageSize]);
 
   const normalizedSearch = search.trim().toLowerCase();
 
@@ -379,6 +386,13 @@ export default function Reports() {
 
   const brokerSummary = useMemo(() => {
     const grouped = new Map();
+    const transactionTotals = new Map();
+    filteredTransactions.forEach((transaction) => {
+      const current = transactionTotals.get(transaction.broker_id) || { deposited: 0, withdrawn: 0 };
+      if (transaction.transaction_type === 'deposit') current.deposited += Number(transaction.amount || 0);
+      if (transaction.transaction_type === 'withdrawal') current.withdrawn += Number(transaction.amount || 0);
+      transactionTotals.set(transaction.broker_id, current);
+    });
     filteredClients.forEach((client) => {
       const key = client.broker_id;
       if (!grouped.has(key)) {
@@ -400,10 +414,11 @@ export default function Reports() {
       }
 
       const item = grouped.get(key);
+      const totals = transactionTotals.get(key) || { deposited: 0, withdrawn: 0 };
       item.client_count += 1;
       item.legitimate_count += client.is_legitimate ? 1 : 0;
-      item.deposited_amount += Number(client.deposited_amount || 0);
-      item.withdrawal_amount += Number(client.withdrawal_amount || 0);
+      item.deposited_amount = totals.deposited;
+      item.withdrawal_amount = totals.withdrawn;
       item.earned_amount += Number(client.earned_amount || 0);
       // Paid reflects the amount marked paid on each client (Clients module) for the period.
       if (client.is_paid) {
@@ -422,7 +437,7 @@ export default function Reports() {
     });
 
     return Array.from(grouped.values()).sort((left, right) => right.earned_amount - left.earned_amount);
-  }, [filteredClients, brokerLookup]);
+  }, [filteredClients, filteredTransactions, brokerLookup]);
 
   const summary = useMemo(() => {
     const depositTransactions = filteredTransactions
