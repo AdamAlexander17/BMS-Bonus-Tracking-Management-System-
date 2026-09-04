@@ -880,7 +880,7 @@ export default function BrokerDetail() {
         transactions = await getExternalTransactionRows(clientRows.map((client) => ({
           accountId: client.arc_id,
           brandName: client.brand || client.broker?.brand || bRes.data.data.brand?.name,
-        })), monthFilter, Math.max(clientRows.length, 1));
+        })), monthFilter, 100);
       } catch (externalError) {
         console.warn('External transaction enrichment unavailable:', externalError);
       }

@@ -58,35 +58,35 @@ export async function getExternalTransactionRows(accounts, month, perPage) {
     accountsByBrand.get(brandKey).push(String(accountId));
   });
   if (!accountsByBrand.size) return [];
-  if (!Number.isInteger(perPage) || perPage < 1) {
-    throw new Error('A valid frontend page size is required to load external transactions.');
-  }
   const { from, to } = getMonthDateRange(month);
   const responses = [];
   for (const [brandKey, accountIds] of accountsByBrand) {
     const brandName = brandKey === 'tradeKaro' ? 'Trade Karo' : brandKey === 'tradeBazaar' ? 'Trade Bazaar' : 'BFX';
     for (const type of ['deposit', 'withdrawal']) {
-      const rows = [];
-      let page = 1;
-      let pageRows = [];
-      do {
-        const response = await getExternalTransactions({
-          ark_ids: [...new Set(accountIds)].join(','),
-          from,
-          to,
-          type,
-          page,
-          per_page: perPage,
-        }, brandName);
-        pageRows = response.data?.data || [];
-        rows.push(...pageRows);
-        page += 1;
-      } while (pageRows.length === perPage);
-      responses.push(...rows.map((row) => ({
-        ...row,
-        transaction_type: type,
-        amount: Number(row.amount || 0),
-      })));
+      for (const accountId of [...new Set(accountIds)]) {
+        const rows = [];
+        let page = 1;
+        let pageRows = [];
+        do {
+          const response = await getExternalTransactions({
+            ark_ids: accountId,
+            from,
+            to,
+            type,
+            page,
+            per_page: Math.max(Number(perPage) || 100, 100),
+          }, brandName);
+          pageRows = Array.isArray(response.data?.data) ? response.data.data : [];
+          rows.push(...pageRows);
+          page += 1;
+        } while (pageRows.length >= Math.max(Number(perPage) || 100, 100));
+        responses.push(...rows.map((row) => ({
+          ...row,
+          accountId: row.accountId || row.account_id || row.ark_id || row.arkId || accountId,
+          transaction_type: type,
+          amount: Number(row.amount || row.transaction_amount || 0),
+        })));
+      }
     }
   }
   return responses;
