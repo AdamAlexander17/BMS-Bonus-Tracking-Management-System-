@@ -15,6 +15,12 @@ const brandApiConfigs = {
   },
 };
 
+const brandDisplayNames = {
+  bfx: 'BFX',
+  tradeKaro: 'Trade Karo',
+  tradeBazaar: 'Trade Bazaar',
+};
+
 function normalizeBrandName(value) {
   const brand = String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
   if (brand === 'bfx') return 'bfx';
@@ -23,15 +29,38 @@ function normalizeBrandName(value) {
   return null;
 }
 
+function getTransactionRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== 'object') return [];
+  if (Array.isArray(payload.data)) return payload.data;
+  return [payload.transactions, payload.results, payload.rows, payload.items]
+    .find(Array.isArray) || [];
+}
+
+function getTransactionAmount(row) {
+  const value = row.amount
+    ?? row.transaction_amount
+    ?? row.transactionAmount
+    ?? row.deposit_amount
+    ?? row.withdrawal_amount
+    ?? row.value
+    ?? 0;
+  const normalized = String(value).replace(/[^\d.-]/g, '');
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
 export const getExternalTransactions = (params, brandName) => {
-  const config = brandApiConfigs[normalizeBrandName(brandName)];
+  const brandKey = normalizeBrandName(brandName);
+  const config = brandApiConfigs[brandKey];
   if (!config?.baseURL || !config.apiKey) {
-    throw new Error(`External transaction API is not configured for brand "${brandName || 'Unknown'}".`);
+    throw new Error(`External transaction API is not configured for ${brandDisplayNames[brandKey] || brandName || 'Unknown'}.`);
   }
   return axios.get(`${config.baseURL.replace(/\/$/, '')}/api/v1/external/transaction_logs/get`, {
     params,
     headers: {
       'Content-Type': 'application/json',
+      Accept: 'application/json',
       'x-api-key': config.apiKey,
     },
   });
@@ -61,32 +90,38 @@ export async function getExternalTransactionRows(accounts, month, perPage) {
   const { from, to } = getMonthDateRange(month);
   const responses = [];
   for (const [brandKey, accountIds] of accountsByBrand) {
-    const brandName = brandKey === 'tradeKaro' ? 'Trade Karo' : brandKey === 'tradeBazaar' ? 'Trade Bazaar' : 'BFX';
+    const brandName = brandDisplayNames[brandKey];
     for (const type of ['deposit', 'withdrawal']) {
-      for (const accountId of [...new Set(accountIds)]) {
-        const rows = [];
-        let page = 1;
-        let pageRows = [];
+      const rows = [];
+      const uniqueAccountIds = [...new Set(accountIds)];
+      let page = 1;
+      let pageRows = [];
+      const requestPageSize = Math.max(Number(perPage) || 100, 100);
+      try {
         do {
           const response = await getExternalTransactions({
-            ark_ids: accountId,
+            ark_ids: uniqueAccountIds.join(','),
             from,
             to,
             type,
             page,
-            per_page: Math.max(Number(perPage) || 100, 100),
+            per_page: requestPageSize,
           }, brandName);
-          pageRows = Array.isArray(response.data?.data) ? response.data.data : [];
+          pageRows = getTransactionRows(response.data?.data ?? response.data);
           rows.push(...pageRows);
           page += 1;
-        } while (pageRows.length >= Math.max(Number(perPage) || 100, 100));
-        responses.push(...rows.map((row) => ({
-          ...row,
-          accountId: row.accountId || row.account_id || row.ark_id || row.arkId || accountId,
-          transaction_type: type,
-          amount: Number(row.amount || row.transaction_amount || 0),
-        })));
+        } while (pageRows.length >= requestPageSize);
+      } catch (error) {
+        console.warn(`${brandName} ${type} transactions unavailable. Check its URL and API key:`, error);
+        continue;
       }
+      responses.push(...rows.map((row) => ({
+        ...row,
+        accountId: row.accountId || row.account_id || row.ark_id || row.arkId || row.ark,
+        transaction_type: type,
+        amount: getTransactionAmount(row),
+        createdDate: row.createdDate || row.created_at || row.date || row.transaction_date,
+      })));
     }
   }
   return responses;
