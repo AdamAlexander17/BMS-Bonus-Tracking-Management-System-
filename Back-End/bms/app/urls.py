@@ -9,6 +9,7 @@ urlpatterns = [
     path('me/',                          views.me,           name='me'),
     path('users/change-password/',       views.change_own_password, name='change_own_password'),
     path('audit-logs/',                  views.audit_log_list, name='audit_log_list'),
+    path('external-transactions/',       views.external_transaction_proxy, name='external_transaction_proxy'),
 
     # User CRUD
     path('users/create/',                views.user_create,       name='user_create'),

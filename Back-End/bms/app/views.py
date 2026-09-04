@@ -1,6 +1,10 @@
 import jwt
 import re
 import datetime
+import json
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 from django.db import transaction as db_transaction
 from decimal import Decimal, InvalidOperation
 from django.core.paginator import Paginator
@@ -31,6 +35,51 @@ from app.tenancy import (
 
 DEFAULT_USER_PASSWORD = '123456'
 PASSWORD_COMPLEXITY_MESSAGE = 'Password must be at least 8 characters long and include at least one uppercase letter, one number, and one symbol.'
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def external_transaction_proxy(request):
+    brand = str(request.query_params.get('brand', '')).strip().lower().replace(' ', '')
+    brand_key = {
+        'bfx': 'bfx',
+        'bazaarfx': 'bfx',
+        'tradekaro': 'tradeKaro',
+        'tradebazaar': 'tradeBazaar',
+    }.get(brand)
+    api_config = getattr(settings, 'EXTERNAL_TRANSACTION_APIS', {}).get(brand_key)
+    if not api_config or not api_config.get('api_key'):
+        return Response(
+            {'success': False, 'message': f'External transaction API is not configured for {brand or "unknown"}.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    allowed_params = ('ark_ids', 'from', 'to', 'type', 'page', 'per_page')
+    params = {key: request.query_params.get(key) for key in allowed_params if request.query_params.get(key)}
+    upstream_url = f"{api_config['base_url'].rstrip('/')}/api/v1/external/transaction_logs/get?{urlencode(params)}"
+    upstream_request = Request(
+        upstream_url,
+        headers={
+            'Accept': 'application/json',
+            'X-API-Key': api_config['api_key'],
+        },
+        method='GET',
+    )
+    try:
+        with urlopen(upstream_request, timeout=20) as upstream_response:
+            payload = json.loads(upstream_response.read().decode('utf-8'))
+    except HTTPError as error:
+        return Response(
+            {'success': False, 'message': f'External transaction API returned HTTP {error.code}.'},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+    except (URLError, TimeoutError, json.JSONDecodeError):
+        return Response(
+            {'success': False, 'message': 'External transaction API is unavailable.'},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    return Response(payload, status=status.HTTP_200_OK)
 
 
 def _extract_ip(request):

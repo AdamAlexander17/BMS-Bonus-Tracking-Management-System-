@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -144,3 +145,19 @@ JWT_SECRET_KEY = 'bms-jwt-secret-key-change-in-production'
 JWT_ALGORITHM = 'HS256'
 JWT_ACCESS_TOKEN_EXPIRE_HOURS = 1
 JWT_REFRESH_TOKEN_EXPIRE_DAYS = 7
+
+# Upstream transaction services are called by Django, never by the browser.
+EXTERNAL_TRANSACTION_APIS = {
+    'bfx': {
+        'base_url': os.getenv('BFX_TRANSACTION_BASE_URL', 'http://192.248.144.79:4948'),
+        'api_key': os.getenv('BFX_TRANSACTION_API_KEY', ''),
+    },
+    'tradeKaro': {
+        'base_url': os.getenv('TRADE_KARO_TRANSACTION_BASE_URL', 'http://192.248.144.79:7879'),
+        'api_key': os.getenv('TRADE_KARO_TRANSACTION_API_KEY', ''),
+    },
+    'tradeBazaar': {
+        'base_url': os.getenv('TRADE_BAZAAR_TRANSACTION_BASE_URL', 'http://192.248.144.79:6979'),
+        'api_key': os.getenv('TRADE_BAZAAR_TRANSACTION_API_KEY', ''),
+    },
+}

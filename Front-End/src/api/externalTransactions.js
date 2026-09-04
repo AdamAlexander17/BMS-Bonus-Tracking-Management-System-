@@ -1,33 +1,10 @@
 import axios from 'axios';
 
-// NOTE: These credentials are bundled into the browser and are readable by
-// anyone using DevTools. Move to a backend proxy if that is a concern.
-const brandApiConfigs = {
-  bfx: {
-    baseURL: 'http://192.248.144.79:4948',
-    apiKey:  'bfx-9kR2xLpQ8mNc4TvYb6JdWs1AeFo3Hz7',
-  },
-  tradeKaro: {
-    baseURL: 'http://192.248.144.79:7879',
-    apiKey:  'tk-P0iQaX2eVn9RcTf6Lm3JdGy8Zw1Uh4Ks',
-  },
-  tradeBazaar: {
-    baseURL: 'http://192.248.144.79:6979',
-    apiKey:  'tb-3nY7bQm1xLpW9eRj5Tc0AhF2VkUz6Ds8',
-  },
-};
-
 const brandDisplayNames = {
   bfx: 'BFX',
   tradeKaro: 'Trade Karo',
   tradeBazaar: 'Trade Bazaar',
 };
-
-Object.entries(brandApiConfigs).forEach(([key, cfg]) => {
-  if (!cfg.baseURL || !cfg.apiKey) {
-    console.warn(`[external-transactions] ${brandDisplayNames[key]} baseURL/apiKey is empty in src/api/externalTransactions.js`);
-  }
-});
 
 function normalizeBrandName(value) {
   const brand = String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -60,16 +37,14 @@ function getTransactionAmount(row) {
 
 export const getExternalTransactions = (params, brandName) => {
   const brandKey = normalizeBrandName(brandName);
-  const config = brandApiConfigs[brandKey];
-  if (!config?.baseURL || !config.apiKey) {
-    throw new Error(`External transaction API is not configured for ${brandDisplayNames[brandKey] || brandName || 'Unknown'}.`);
+  if (!brandKey) {
+    throw new Error(`Unsupported transaction brand "${brandName || 'Unknown'}".`);
   }
-  return axios.get(`${config.baseURL.replace(/\/$/, '')}/api/v1/external/transaction_logs/get`, {
-    params,
+  return axios.get('/api/external-transactions/', {
+    params: { ...params, brand: brandKey },
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      'X-API-Key': config.apiKey,
     },
   });
 };
