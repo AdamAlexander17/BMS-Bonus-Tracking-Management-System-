@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axiosInstance from './axiosInstance';
 
 const brandDisplayNames = {
   bfx: 'BFX',
@@ -40,7 +40,7 @@ export const getExternalTransactions = (params, brandName) => {
   if (!brandKey) {
     throw new Error(`Unsupported transaction brand "${brandName || 'Unknown'}".`);
   }
-  return axios.get('/api/external-transactions/', {
+  return axiosInstance.get('external-transactions/', {
     params: { ...params, brand: brandKey },
     headers: {
       'Content-Type': 'application/json',
