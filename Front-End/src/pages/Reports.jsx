@@ -167,13 +167,15 @@ function ReportToolbar({ title, subtitle, rowCount, pageSize, onPageSizeChange, 
   );
 }
 
-function PaginationControls({ page, pageSize, totalRows, onChange }) {
-  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+function PaginationControls({ page, pageSize, totalRows, onChange, hasMore = false }) {
+  const totalPages = hasMore ? page + 1 : Math.max(1, page);
+  const firstRow = totalRows === 0 ? 0 : ((page - 1) * pageSize) + 1;
+  const lastRow = totalRows === 0 ? 0 : ((page - 1) * pageSize) + totalRows;
 
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '14px 20px', borderTop: '1px solid #e8ecf0', flexWrap: 'wrap' }}>
       <span style={{ fontSize: 13, color: '#6b7280' }}>
-        Showing {totalRows === 0 ? 0 : ((page - 1) * pageSize) + 1}-{Math.min(page * pageSize, totalRows)} of {totalRows}
+        Showing {firstRow}-{lastRow}{hasMore ? '+' : ''}
       </span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <button className="ph-btn ph-btn--ghost" type="button" disabled={page <= 1} onClick={() => onChange(page - 1)}>Previous</button>
@@ -226,6 +228,7 @@ export default function Reports() {
   const [brokerPageSize, setBrokerPageSize] = useState(10);
   const [clientPageSize, setClientPageSize] = useState(10);
   const [transactionPageSize, setTransactionPageSize] = useState(10);
+  const [transactionHasMore, setTransactionHasMore] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [brokerSortConfig, setBrokerSortConfig] = useState({ key: null, direction: 'asc' });
@@ -274,10 +277,12 @@ export default function Reports() {
 
         setLoading(false);
 
-        const transactionRows = await getExternalTransactionRows(allClients.map((client) => ({
+        const transactionPageResult = await getExternalTransactionRows(allClients.map((client) => ({
           accountId: client.arc_id,
           brandName: client.brand_name,
-        })), monthFilter, transactionPageSize);
+        })), monthFilter, transactionPage, transactionPageSize);
+        const transactionRows = transactionPageResult.rows;
+        setTransactionHasMore(transactionPageResult.hasMore);
 
         const refreshedResponses = await Promise.allSettled(
           brokersList.map((broker) => getClientsByBroker(broker.id, monthFilter ? { month: monthFilter } : undefined))
@@ -347,7 +352,7 @@ export default function Reports() {
     return () => {
       active = false;
     };
-  }, [refreshKey, monthFilter, transactionPageSize]);
+  }, [refreshKey, monthFilter, transactionPage, transactionPageSize]);
 
   const normalizedSearch = search.trim().toLowerCase();
 
@@ -532,7 +537,6 @@ export default function Reports() {
 
   useEffect(() => { setBrokerPage(1); }, [brokerSummary.length, brokerPageSize, brokerSortConfig]);
   useEffect(() => { setClientPage(1); }, [filteredClients.length, clientPageSize, clientSortConfig]);
-  useEffect(() => { setTransactionPage(1); }, [filteredTransactions.length, transactionPageSize, txSortConfig]);
 
   const sortedBrokerSummary = useMemo(() => {
     if (!brokerSortConfig.key) return brokerSummary;
@@ -551,7 +555,7 @@ export default function Reports() {
 
   const pagedBrokerSummary = useMemo(() => paginateRows(sortedBrokerSummary, brokerPage, brokerPageSize), [sortedBrokerSummary, brokerPage, brokerPageSize]);
   const pagedClients = useMemo(() => paginateRows(sortedClients, clientPage, clientPageSize), [sortedClients, clientPage, clientPageSize]);
-  const pagedTransactions = useMemo(() => paginateRows(sortedTransactions, transactionPage, transactionPageSize), [sortedTransactions, transactionPage, transactionPageSize]);
+  const pagedTransactions = useMemo(() => sortedTransactions, [sortedTransactions]);
 
   const handleBrokerSort = (key) => setBrokerSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
   const handleClientSort = (key) => setClientSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc' }));
@@ -799,7 +803,10 @@ export default function Reports() {
             : `Deposits ${formatMoney(summary.periodDeposits)} · Withdrawals ${formatMoney(summary.periodWithdrawals)}`}
           rowCount={filteredTransactions.length}
           pageSize={transactionPageSize}
-          onPageSizeChange={setTransactionPageSize}
+          onPageSizeChange={(value) => {
+            setTransactionPageSize(value);
+            setTransactionPage(1);
+          }}
           onExport={canExport ? () => exportRowsToCsv('transaction-ledger.csv', transactionColumns, sortedTransactions) : undefined}
         />
         <table className="um__table">
@@ -834,7 +841,13 @@ export default function Reports() {
             ))}
           </tbody>
         </table>
-        <PaginationControls page={transactionPage} pageSize={transactionPageSize} totalRows={filteredTransactions.length} onChange={setTransactionPage} />
+        <PaginationControls
+          page={transactionPage}
+          pageSize={transactionPageSize}
+          totalRows={filteredTransactions.length}
+          hasMore={transactionHasMore}
+          onChange={setTransactionPage}
+        />
       </div>
         </>
       )}

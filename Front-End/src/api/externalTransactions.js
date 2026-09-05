@@ -1,5 +1,4 @@
 import axiosInstance from './axiosInstance';
-import { syncExternalTransactionTotals } from './clients';
 
 const brandDisplayNames = {
   bfx: 'BFX',
@@ -62,7 +61,7 @@ export function getMonthDateRange(month) {
   };
 }
 
-export async function getExternalTransactionRows(accounts, month, perPage) {
+export async function getExternalTransactionRows(accounts, month, page = 1, perPage = 10) {
   const accountsByBrand = new Map();
   accounts.forEach((account) => {
     const accountId = typeof account === 'object' ? account.accountId : account;
@@ -75,60 +74,35 @@ export async function getExternalTransactionRows(accounts, month, perPage) {
   if (!accountsByBrand.size) return [];
   const { from, to } = getMonthDateRange(month);
   const responses = [];
+  let hasMore = false;
   for (const [brandKey, accountIds] of accountsByBrand) {
     const brandName = brandDisplayNames[brandKey];
     for (const type of ['deposit', 'withdrawal']) {
-      const rows = [];
       const uniqueAccountIds = [...new Set(accountIds)];
-      let page = 1;
-      let pageRows;
       const requestPageSize = Math.max(Number(perPage) || 1, 1);
       try {
-        do {
-          const response = await getExternalTransactions({
-            ark_ids: uniqueAccountIds.join(','),
-            from,
-            to,
-            type,
-            page,
-            per_page: requestPageSize,
-          }, brandName);
-          pageRows = getTransactionRows(response.data?.data ?? response.data);
-          rows.push(...pageRows);
-          page += 1;
-        } while (pageRows.length >= requestPageSize);
+        const response = await getExternalTransactions({
+          ark_ids: uniqueAccountIds.join(','),
+          from,
+          to,
+          type,
+          page: Math.max(Number(page) || 1, 1),
+          per_page: requestPageSize,
+        }, brandName);
+        const pageRows = getTransactionRows(response.data?.data ?? response.data);
+        hasMore = hasMore || pageRows.length >= requestPageSize;
+
+        responses.push(...pageRows.map((row) => ({
+          ...row,
+          accountId: row.accountId || row.account_id || row.ark_id || row.arkId || row.ark,
+          transaction_type: type,
+          amount: getTransactionAmount(row),
+          createdDate: row.createdDate || row.created_at || row.date || row.transaction_date,
+        })));
       } catch (error) {
         console.warn(`${brandName} ${type} transactions unavailable. Check its URL and API key:`, error);
-        continue;
       }
-
-      if (month) {
-        const totalsByAccount = new Map(uniqueAccountIds.map((accountId) => [accountId, 0]));
-        rows.forEach((row) => {
-          const accountId = row.accountId || row.account_id || row.ark_id || row.arkId || row.ark;
-          if (!accountId) return;
-          const key = String(accountId);
-          totalsByAccount.set(key, (totalsByAccount.get(key) || 0) + getTransactionAmount(row));
-        });
-        try {
-          await syncExternalTransactionTotals({
-            month,
-            type,
-            totals: [...totalsByAccount.entries()].map(([account_id, amount]) => ({ account_id, amount })),
-          });
-        } catch (error) {
-          console.warn(`${brandName} ${type} totals could not be saved:`, error);
-        }
-      }
-
-      responses.push(...rows.map((row) => ({
-        ...row,
-        accountId: row.accountId || row.account_id || row.ark_id || row.arkId || row.ark,
-        transaction_type: type,
-        amount: getTransactionAmount(row),
-        createdDate: row.createdDate || row.created_at || row.date || row.transaction_date,
-      })));
     }
   }
-  return responses;
+  return { rows: responses, hasMore };
 }
