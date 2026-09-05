@@ -11,4 +11,5 @@ export const deleteClientTransaction = (clientId, transactionId) => axiosInstanc
 export const updateClient       = (id, data)       => axiosInstance.put(`clients/${id}/update/`, data);
 export const updateClientMonthlyLegitimacy = (id, data) => axiosInstance.put(`clients/${id}/monthly-legitimacy/`, data);
 export const updateClientPaid = (id, data) => axiosInstance.put(`clients/${id}/paid/`, data);
+export const syncExternalTransactionTotals = (data) => axiosInstance.post('external-transactions/totals-sync/', data);
 export const deleteClient       = (id)             => axiosInstance.delete(`clients/${id}/delete/`);

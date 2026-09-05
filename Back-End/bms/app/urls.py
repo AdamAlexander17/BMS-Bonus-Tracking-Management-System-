@@ -10,6 +10,7 @@ urlpatterns = [
     path('users/change-password/',       views.change_own_password, name='change_own_password'),
     path('audit-logs/',                  views.audit_log_list, name='audit_log_list'),
     path('external-transactions/',       views.external_transaction_proxy, name='external_transaction_proxy'),
+    path('external-transactions/totals-sync/', views.external_transaction_totals_sync, name='external_transaction_totals_sync'),
 
     # User CRUD
     path('users/create/',                views.user_create,       name='user_create'),

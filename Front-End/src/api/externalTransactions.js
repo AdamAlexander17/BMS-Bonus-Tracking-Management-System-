@@ -1,4 +1,5 @@
 import axiosInstance from './axiosInstance';
+import { syncExternalTransactionTotals } from './clients';
 
 const brandDisplayNames = {
   bfx: 'BFX',
@@ -80,7 +81,7 @@ export async function getExternalTransactionRows(accounts, month, perPage) {
       const rows = [];
       const uniqueAccountIds = [...new Set(accountIds)];
       let page = 1;
-      let pageRows = [];
+      let pageRows;
       const requestPageSize = Math.max(Number(perPage) || 100, 100);
       try {
         do {
@@ -100,6 +101,26 @@ export async function getExternalTransactionRows(accounts, month, perPage) {
         console.warn(`${brandName} ${type} transactions unavailable. Check its URL and API key:`, error);
         continue;
       }
+
+      if (month) {
+        const totalsByAccount = new Map(uniqueAccountIds.map((accountId) => [accountId, 0]));
+        rows.forEach((row) => {
+          const accountId = row.accountId || row.account_id || row.ark_id || row.arkId || row.ark;
+          if (!accountId) return;
+          const key = String(accountId);
+          totalsByAccount.set(key, (totalsByAccount.get(key) || 0) + getTransactionAmount(row));
+        });
+        try {
+          await syncExternalTransactionTotals({
+            month,
+            type,
+            totals: [...totalsByAccount.entries()].map(([account_id, amount]) => ({ account_id, amount })),
+          });
+        } catch (error) {
+          console.warn(`${brandName} ${type} totals could not be saved:`, error);
+        }
+      }
+
       responses.push(...rows.map((row) => ({
         ...row,
         accountId: row.accountId || row.account_id || row.ark_id || row.arkId || row.ark,

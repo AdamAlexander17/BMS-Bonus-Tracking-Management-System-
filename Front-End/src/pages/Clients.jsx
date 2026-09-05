@@ -414,32 +414,16 @@ export default function Clients() {
       const params = {}; if (monthFilter) params.month = monthFilter;
       const res = await getAllClients(params);
       const clientRows = res.data.data || [];
-      let transactions = [];
       try {
-        transactions = await getExternalTransactionRows(clientRows.map((client) => ({
+        await getExternalTransactionRows(clientRows.map((client) => ({
           accountId: client.arc_id,
           brandName: client.brand || client.broker?.brand,
         })), monthFilter, 100);
       } catch (externalError) {
         console.warn('External transaction enrichment unavailable:', externalError);
       }
-      const totalsByAccount = new Map();
-      transactions.forEach((transaction) => {
-        const key = String(transaction.accountId);
-        const current = totalsByAccount.get(key) || { deposited: 0, withdrawn: 0, latestDate: '' };
-        if (transaction.transaction_type === 'deposit') current.deposited += transaction.amount;
-        if (transaction.transaction_type === 'withdrawal') current.withdrawn += transaction.amount;
-        if (!current.latestDate || new Date(transaction.createdDate) > new Date(current.latestDate)) current.latestDate = transaction.createdDate;
-        totalsByAccount.set(key, current);
-      });
-      setClients(clientRows.map((client) => {
-        const totals = totalsByAccount.get(String(client.arc_id)) || {
-          deposited: Number(client.deposited_amount || 0),
-          withdrawn: Number(client.withdrawal_amount || 0),
-          latestDate: client.created_at || '',
-        };
-        return { ...client, deposited_amount: totals.deposited, withdrawal_amount: totals.withdrawn, transaction_date: totals.latestDate };
-      }));
+      const storedResponse = await getAllClients(params);
+      setClients(storedResponse.data.data || clientRows);
     }
     catch (err) { setError(err.response?.data?.message || 'Failed to load clients.'); }
     finally { setLoading(false); }

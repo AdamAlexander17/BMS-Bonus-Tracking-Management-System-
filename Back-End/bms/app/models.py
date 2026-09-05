@@ -403,6 +403,22 @@ class ClientMonthlyPaid(models.Model):
         return f'{self.client.arc_id} {self.month.strftime("%Y-%m")} paid={self.is_paid} amount={self.paid_amount}'
 
 
+class ClientMonthlyExternalTotal(models.Model):
+    client            = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='monthly_external_totals')
+    month             = models.DateField()  # Always stored as first day of month (YYYY-MM-01)
+    deposited_amount  = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    withdrawal_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    synced_at         = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'client_monthly_external_totals'
+        unique_together = [['client', 'month']]
+        ordering = ['-month']
+
+    def __str__(self):
+        return f'{self.client.arc_id} {self.month.strftime("%Y-%m")} external totals'
+
+
 class AuditLog(models.Model):
     id           = models.BigAutoField(primary_key=True)
     actor        = models.ForeignKey(

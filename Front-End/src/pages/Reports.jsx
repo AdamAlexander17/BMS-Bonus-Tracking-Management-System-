@@ -274,11 +274,36 @@ export default function Reports() {
 
         setLoading(false);
 
-        const clientsByArcId = new Map(allClients.map((client) => [String(client.arc_id), client]));
         const transactionRows = await getExternalTransactionRows(allClients.map((client) => ({
           accountId: client.arc_id,
           brandName: client.brand_name,
         })), monthFilter, transactionPageSize);
+
+        const refreshedResponses = await Promise.allSettled(
+          brokersList.map((broker) => getClientsByBroker(broker.id, monthFilter ? { month: monthFilter } : undefined))
+        );
+        const refreshedClients = [];
+        refreshedResponses.forEach((result, index) => {
+          if (result.status !== 'fulfilled') return;
+          const broker = brokersList[index];
+          const list = result.value.data?.data || [];
+          list.forEach((client) => {
+            refreshedClients.push({
+              ...client,
+              broker_id: broker.id,
+              broker_arc_id: broker.arc_id,
+              broker_name: broker.name,
+              brand_id: broker.brand?.id,
+              brand_name: broker.brand?.name || 'Unassigned',
+              broker_status: broker.status,
+              rm_user_name: broker.rm_user?.username || 'Unassigned',
+            });
+          });
+        });
+
+        if (!active) return;
+        setClients(refreshedClients);
+        const clientsByArcId = new Map(refreshedClients.map((client) => [String(client.arc_id), client]));
 
         const allTransactions = [];
         transactionRows.forEach((transaction) => {
@@ -386,13 +411,6 @@ export default function Reports() {
 
   const brokerSummary = useMemo(() => {
     const grouped = new Map();
-    const transactionTotals = new Map();
-    filteredTransactions.forEach((transaction) => {
-      const current = transactionTotals.get(transaction.broker_id) || { deposited: 0, withdrawn: 0 };
-      if (transaction.transaction_type === 'deposit') current.deposited += Number(transaction.amount || 0);
-      if (transaction.transaction_type === 'withdrawal') current.withdrawn += Number(transaction.amount || 0);
-      transactionTotals.set(transaction.broker_id, current);
-    });
     filteredClients.forEach((client) => {
       const key = client.broker_id;
       if (!grouped.has(key)) {
@@ -414,11 +432,10 @@ export default function Reports() {
       }
 
       const item = grouped.get(key);
-      const totals = transactionTotals.get(key) || { deposited: 0, withdrawn: 0 };
       item.client_count += 1;
       item.legitimate_count += client.is_legitimate ? 1 : 0;
-      item.deposited_amount = totals.deposited;
-      item.withdrawal_amount = totals.withdrawn;
+  item.deposited_amount += Number(client.deposited_amount || 0);
+  item.withdrawal_amount += Number(client.withdrawal_amount || 0);
       item.earned_amount += Number(client.earned_amount || 0);
       // Paid reflects the amount marked paid on each client (Clients module) for the period.
       if (client.is_paid) {
@@ -440,12 +457,10 @@ export default function Reports() {
   }, [filteredClients, filteredTransactions, brokerLookup]);
 
   const summary = useMemo(() => {
-    const depositTransactions = filteredTransactions
-      .filter((transaction) => transaction.transaction_type === 'deposit')
-      .reduce((total, transaction) => total + Number(transaction.amount || 0), 0);
-    const withdrawalTransactions = filteredTransactions
-      .filter((transaction) => transaction.transaction_type === 'withdrawal')
-      .reduce((total, transaction) => total + Number(transaction.amount || 0), 0);
+    const depositTransactions = filteredClients
+      .reduce((total, client) => total + Number(client.deposited_amount || 0), 0);
+    const withdrawalTransactions = filteredClients
+      .reduce((total, client) => total + Number(client.withdrawal_amount || 0), 0);
 
     return {
       brokerCount: new Set(filteredClients.map((client) => client.broker_id)).size,

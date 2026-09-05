@@ -20,7 +20,7 @@ from rest_framework import status
 from django.db.models import Count, Q, Sum, Max
 from django.db.models.deletion import ProtectedError
 
-from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, BrokerPayout, Client, ClientTransaction, ClientMonthlyLegitimacy, ClientMonthlyEquity, ClientMonthlyPaid, AuditLog
+from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, BrokerPayout, Client, ClientTransaction, ClientMonthlyLegitimacy, ClientMonthlyEquity, ClientMonthlyPaid, ClientMonthlyExternalTotal, AuditLog
 from app.utils import verify_password, generate_access_token, generate_refresh_token, decode_token, hash_password
 from app.tenancy import (
     is_admin,
@@ -90,6 +90,88 @@ def external_transaction_proxy(request):
         )
 
     return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def external_transaction_totals_sync(request):
+    """Persist one successfully fetched external transaction type for a month."""
+    if not has_perm(request, 'client:view'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    month_str = str(request.data.get('month', '')).strip()
+    transaction_type = str(request.data.get('type', '')).strip().lower()
+    if transaction_type not in ('deposit', 'withdrawal'):
+        return Response(
+            {'success': False, 'message': 'type must be deposit or withdrawal.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        month_date = parse_date(month_str + '-01')
+        if month_date is None or not re.fullmatch(r'\d{4}-(0[1-9]|1[0-2])', month_str):
+            raise ValueError()
+    except (TypeError, ValueError, AttributeError):
+        return Response(
+            {'success': False, 'message': 'Invalid month format. Use YYYY-MM.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    raw_totals = request.data.get('totals')
+    if not isinstance(raw_totals, list):
+        return Response(
+            {'success': False, 'message': 'totals must be a list.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    totals_by_arc_id = {}
+    try:
+        for item in raw_totals:
+            if not isinstance(item, dict):
+                raise ValueError()
+            arc_id = str(item.get('account_id', '')).strip()
+            amount = Decimal(str(item.get('amount', 0)))
+            if not arc_id or amount < 0:
+                raise ValueError()
+            totals_by_arc_id[arc_id] = amount
+    except (InvalidOperation, TypeError, ValueError):
+        return Response(
+            {'success': False, 'message': 'Each total must contain a valid account_id and non-negative amount.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    clients = list(
+        Client.objects.select_related('broker').filter(arc_id__in=totals_by_arc_id)
+    )
+    if len(clients) != len(totals_by_arc_id):
+        return Response(
+            {'success': False, 'message': 'One or more account IDs do not belong to a client.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if any(not _check_client_access(request, client) for client in clients):
+        return Response(
+            {'success': False, 'message': 'Access denied.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    with db_transaction.atomic():
+        for client in clients:
+            record, _created = ClientMonthlyExternalTotal.objects.get_or_create(
+                client=client,
+                month=month_date,
+                defaults={'deposited_amount': 0, 'withdrawal_amount': 0},
+            )
+            field_name = 'deposited_amount' if transaction_type == 'deposit' else 'withdrawal_amount'
+            setattr(record, field_name, totals_by_arc_id[client.arc_id])
+            record.save(update_fields=[field_name, 'synced_at'])
+
+    return Response(
+        {'success': True, 'message': f'{transaction_type.title()} totals saved for {month_str}.'},
+        status=status.HTTP_200_OK,
+    )
 
 
 def _extract_ip(request):
@@ -3164,10 +3246,17 @@ def client_list(request, broker_id):
             )
             monthly_paid_map = {mp.client_id: mp for mp in monthly_paid_qs}
 
+            monthly_external_qs = ClientMonthlyExternalTotal.objects.filter(
+                client__broker=broker,
+                month=month_start,
+            )
+            monthly_external_map = {et.client_id: et for et in monthly_external_qs}
+
             result = []
             for c in clients:
-                dep = monthly_deposits.get(c.id, Decimal('0'))
-                wth = monthly_withdrawals.get(c.id, Decimal('0'))
+                external_totals = monthly_external_map.get(c.id)
+                dep = external_totals.deposited_amount if external_totals else monthly_deposits.get(c.id, Decimal('0'))
+                wth = external_totals.withdrawal_amount if external_totals else monthly_withdrawals.get(c.id, Decimal('0'))
                 equity = monthly_equity_map.get(c.id, Decimal('0'))
                 net_total = dep - wth
                 net_dwe = net_total - equity
@@ -3297,10 +3386,14 @@ def client_list_all(request):
             monthly_paid_qs = ClientMonthlyPaid.objects.filter(month=month_start)
             monthly_paid_map = {mp.client_id: mp for mp in monthly_paid_qs}
 
+            monthly_external_qs = ClientMonthlyExternalTotal.objects.filter(month=month_start)
+            monthly_external_map = {et.client_id: et for et in monthly_external_qs}
+
             result = []
             for c in clients:
-                dep = monthly_deposits.get(c.id, Decimal('0'))
-                wth = monthly_withdrawals.get(c.id, Decimal('0'))
+                external_totals = monthly_external_map.get(c.id)
+                dep = external_totals.deposited_amount if external_totals else monthly_deposits.get(c.id, Decimal('0'))
+                wth = external_totals.withdrawal_amount if external_totals else monthly_withdrawals.get(c.id, Decimal('0'))
                 equity = monthly_equity_map.get(c.id, Decimal('0'))
                 net_total = dep - wth
                 net_dwe = net_total - equity
@@ -4111,6 +4204,12 @@ def client_monthly_paid_update(request, client_id):
         created_at__gte=month_start_dt,
         created_at__lt=next_month_dt,
     ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    external_totals = ClientMonthlyExternalTotal.objects.filter(
+        client=client,
+        month=month_date,
+    ).first()
+    if external_totals:
+        monthly_deposits = external_totals.deposited_amount
     brand = client.broker.brand if client.broker_id else None
     earned_amount = _earned_from_deposit(monthly_deposits, brand, legitimacy_status)
 
