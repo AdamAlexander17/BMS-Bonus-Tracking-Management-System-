@@ -864,6 +864,7 @@ export default function BrokerDetail() {
   const [sortConfig, setSortConfig]           = useState({ key: null, direction: 'asc' });
   const [monthFilter, setMonthFilter]         = useState(() => getPersistedMonthSelection());
   const [actionMonth, setActionMonth]         = useState(() => getPersistedMonthSelection());
+  const [transactionPageSize, setTransactionPageSize] = useState(10);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -879,7 +880,7 @@ export default function BrokerDetail() {
         await getExternalTransactionRows(clientRows.map((client) => ({
           accountId: client.arc_id,
           brandName: client.brand || client.broker?.brand || bRes.data.data.brand?.name,
-        })), monthFilter, 100);
+        })), monthFilter, transactionPageSize);
       } catch (externalError) {
         console.warn('External transaction enrichment unavailable:', externalError);
       }
@@ -892,7 +893,7 @@ export default function BrokerDetail() {
     }
   };
 
-  useEffect(() => { fetchAll(); }, [id, monthFilter]);
+  useEffect(() => { fetchAll(); }, [id, monthFilter, transactionPageSize]);
 
   useEffect(() => {
     if (!pageSuccess) return undefined;
@@ -1151,6 +1152,17 @@ export default function BrokerDetail() {
             {monthFilter && (
               <button type="button" className="ph-btn ph-btn--ghost" style={{ height: 32, padding: '0 10px', fontSize: 12 }} onClick={() => setMonthFilter('')}>Clear</button>
             )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label htmlFor="broker-transaction-page-size" style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>Rows per API page</label>
+            <select
+              id="broker-transaction-page-size"
+              value={String(transactionPageSize)}
+              onChange={(event) => setTransactionPageSize(Number(event.target.value))}
+              style={{ height: 32, padding: '0 8px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#111827', background: '#fff', outline: 'none' }}
+            >
+              {[10, 25, 50].map((size) => <option key={size} value={size}>{size}</option>)}
+            </select>
           </div>
           <SuccessChip message={pageSuccess} onClose={() => setPageSuccess('')} />
         </div>

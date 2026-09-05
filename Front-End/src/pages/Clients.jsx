@@ -418,7 +418,7 @@ export default function Clients() {
         await getExternalTransactionRows(clientRows.map((client) => ({
           accountId: client.arc_id,
           brandName: client.brand || client.broker?.brand,
-        })), monthFilter, 100);
+        })), monthFilter, pageSize);
       } catch (externalError) {
         console.warn('External transaction enrichment unavailable:', externalError);
       }

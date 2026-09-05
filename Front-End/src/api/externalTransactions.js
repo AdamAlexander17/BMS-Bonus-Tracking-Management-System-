@@ -82,7 +82,7 @@ export async function getExternalTransactionRows(accounts, month, perPage) {
       const uniqueAccountIds = [...new Set(accountIds)];
       let page = 1;
       let pageRows;
-      const requestPageSize = Math.max(Number(perPage) || 100, 100);
+      const requestPageSize = Math.max(Number(perPage) || 1, 1);
       try {
         do {
           const response = await getExternalTransactions({
