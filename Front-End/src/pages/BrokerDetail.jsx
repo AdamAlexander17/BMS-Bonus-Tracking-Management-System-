@@ -6,7 +6,7 @@ import { getBroker, updateBroker } from '../api/brokers';
 import { getBrands } from '../api/brands';
 import { getRmJrmUsers } from '../api/users';
 import { getClientsByBroker, createClient, updateClient, deleteClient, createClientTransaction, updateClientMonthlyLegitimacy } from '../api/clients';
-import { getExternalTransactionRows } from '../api/externalTransactions';
+import { syncExternalTransactions } from '../api/externalTransactions';
 import { formatINR } from './Brokers';
 import './Users.css';
 
@@ -865,6 +865,7 @@ export default function BrokerDetail() {
   const [monthFilter, setMonthFilter]         = useState(() => getPersistedMonthSelection());
   const [actionMonth, setActionMonth]         = useState(() => getPersistedMonthSelection());
   const [transactionPageSize, setTransactionPageSize] = useState(10);
+  const [syncing, setSyncing] = useState(false);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -875,17 +876,7 @@ export default function BrokerDetail() {
         getClientsByBroker(id, monthFilter ? { month: monthFilter } : undefined),
       ]);
       setBroker(bRes.data.data);
-      const clientRows = cRes.data.data || [];
-      try {
-        await getExternalTransactionRows(clientRows.map((client) => ({
-          accountId: client.arc_id,
-          brandName: client.brand || client.broker?.brand || bRes.data.data.brand?.name,
-        })), monthFilter, 1, transactionPageSize);
-      } catch (externalError) {
-        console.warn('External transaction enrichment unavailable:', externalError);
-      }
-      const storedResponse = await getClientsByBroker(id, monthFilter ? { month: monthFilter } : undefined);
-      setClients(storedResponse.data.data || clientRows);
+      setClients(cRes.data.data || []);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load broker.');
     } finally {
@@ -1051,6 +1042,27 @@ export default function BrokerDetail() {
           <>
             <button className="ph-btn ph-btn--ghost" onClick={() => broker.rm_user ? navigate(`/brokers/rm/${broker.rm_user.id}`) : navigate('/brokers')}>
               <BackIcon /> Back
+            </button>
+            <button
+              className="ph-btn ph-btn--primary"
+              type="button"
+              disabled={syncing || !monthFilter}
+              onClick={async () => {
+                setPageError('');
+                setPageSuccess('');
+                setSyncing(true);
+                try {
+                  const response = await syncExternalTransactions(monthFilter);
+                  setPageSuccess(response.data?.message || 'External transactions synced.');
+                  await fetchAll();
+                } catch (err) {
+                  setPageError(err.response?.data?.message || 'Sync failed.');
+                } finally {
+                  setSyncing(false);
+                }
+              }}
+            >
+              {syncing ? 'Syncing…' : 'Sync Data'}
             </button>
             {canManageBonus && (
               <button className="ph-btn ph-btn--ghost" onClick={() => navigate(`/brokers/${broker.id}/payouts`)}>

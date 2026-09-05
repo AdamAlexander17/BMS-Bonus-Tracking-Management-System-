@@ -20,7 +20,7 @@ from rest_framework import status
 from django.db.models import Count, Q, Sum, Max
 from django.db.models.deletion import ProtectedError
 
-from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, BrokerPayout, Client, ClientTransaction, ClientMonthlyLegitimacy, ClientMonthlyEquity, ClientMonthlyPaid, ClientMonthlyExternalTotal, AuditLog
+from app.models import User, UserToken, Role, Brand, UserRole, Permission, RolePermission, Broker, BrokerPayout, Client, ClientTransaction, ClientMonthlyLegitimacy, ClientMonthlyEquity, ClientMonthlyPaid, ClientMonthlyExternalTotal, ExternalTransaction, AuditLog
 from app.utils import verify_password, generate_access_token, generate_refresh_token, decode_token, hash_password
 from app.tenancy import (
     is_admin,
@@ -172,6 +172,368 @@ def external_transaction_totals_sync(request):
         {'success': True, 'message': f'{transaction_type.title()} totals saved for {month_str}.'},
         status=status.HTTP_200_OK,
     )
+
+
+def _month_first_day(month_str):
+    month_date = parse_date(month_str + '-01')
+    if month_date is None or not re.fullmatch(r'\d{4}-(0[1-9]|1[0-2])', month_str):
+        raise ValueError('Invalid month format. Use YYYY-MM.')
+    return month_date
+
+
+def _month_range_strings(month_date):
+    if month_date.month == 12:
+        next_month = month_date.replace(year=month_date.year + 1, month=1)
+    else:
+        next_month = month_date.replace(month=month_date.month + 1)
+    last_day = (next_month - datetime.timedelta(days=1)).day
+    return (
+        f'{month_date.strftime("%Y-%m")}-01 00:00:00',
+        f'{month_date.strftime("%Y-%m")}-{last_day:02d} 23:59:59',
+    )
+
+
+def _fetch_upstream_page(api_config, params):
+    upstream_url = (
+        f"{api_config['base_url'].rstrip('/')}"
+        f"/api/v1/external/transaction_logs/get?{urlencode(params)}"
+    )
+    upstream_request = Request(
+        upstream_url,
+        headers={
+            'Accept': 'application/json',
+            'X-API-Key': api_config['api_key'],
+        },
+        method='GET',
+    )
+    with urlopen(upstream_request, timeout=30) as upstream_response:
+        return json.loads(upstream_response.read().decode('utf-8'))
+
+
+def _extract_rows(payload):
+    if isinstance(payload, list):
+        return payload
+    if not isinstance(payload, dict):
+        return []
+    if isinstance(payload.get('data'), list):
+        return payload['data']
+    for key in ('transactions', 'results', 'rows', 'items'):
+        value = payload.get(key)
+        if isinstance(value, list):
+            return value
+    inner = payload.get('data')
+    if isinstance(inner, dict):
+        return _extract_rows(inner)
+    return []
+
+
+def _extract_external_id(row, transaction_type):
+    for key in ('id', 'transaction_id', 'transactionId', 'txn_id', 'reference', 'reference_id'):
+        value = row.get(key)
+        if value not in (None, ''):
+            return str(value)
+    account_id = row.get('accountId') or row.get('account_id') or row.get('ark_id') or ''
+    created = row.get('createdDate') or row.get('created_at') or row.get('date') or ''
+    amount = row.get('amount') or row.get('transaction_amount') or ''
+    return f'{account_id}-{transaction_type}-{created}-{amount}'
+
+
+def _extract_amount(row):
+    value = (
+        row.get('amount')
+        or row.get('transaction_amount')
+        or row.get('transactionAmount')
+        or row.get('deposit_amount')
+        or row.get('withdrawal_amount')
+        or row.get('value')
+        or 0
+    )
+    try:
+        return Decimal(str(value).replace(',', ''))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal('0')
+
+
+def _extract_transaction_date(row):
+    raw = (
+        row.get('createdDate')
+        or row.get('created_at')
+        or row.get('date')
+        or row.get('transaction_date')
+    )
+    if not raw:
+        return None
+    parsed = None
+    text = str(raw).strip()
+    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%d'):
+        try:
+            parsed = datetime.datetime.strptime(text, fmt)
+            break
+        except ValueError:
+            continue
+    if parsed is None:
+        return None
+    if timezone.is_naive(parsed):
+        parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+    return parsed
+
+
+BRAND_KEY_ALIASES = {
+    'bfx': 'bfx',
+    'bazaarfx': 'bfx',
+    'tradekaro': 'tradeKaro',
+    'tradebazaar': 'tradeBazaar',
+}
+
+
+def _normalize_brand_key(value):
+    normalized = re.sub(r'[^a-z0-9]', '', str(value or '').lower())
+    return BRAND_KEY_ALIASES.get(normalized)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def external_transaction_sync(request):
+    """Walk all pages of the upstream external API for the given month and
+    upsert every transaction row into the local DB, then refresh monthly
+    per-client totals used by the Clients and Reports modules."""
+    if not has_perm(request, 'client:view'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    month_str = str(request.data.get('month', '')).strip()
+    try:
+        month_date = _month_first_day(month_str)
+    except ValueError as err:
+        return Response(
+            {'success': False, 'message': str(err)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    from_str, to_str = _month_range_strings(month_date)
+
+    clients = list(
+        Client.objects.select_related('broker', 'broker__brand').all()
+    )
+    accessible_clients = [client for client in clients if _check_client_access(request, client)]
+    if not accessible_clients:
+        return Response(
+            {'success': True, 'message': 'No accessible clients to sync.', 'stats': {}},
+            status=status.HTTP_200_OK,
+        )
+
+    clients_by_brand_and_arc = {}
+    for client in accessible_clients:
+        brand_key = _normalize_brand_key(getattr(client.broker.brand, 'name', ''))
+        if not brand_key or not client.arc_id:
+            continue
+        bucket = clients_by_brand_and_arc.setdefault(brand_key, {})
+        bucket[str(client.arc_id)] = client
+
+    apis = getattr(settings, 'EXTERNAL_TRANSACTION_APIS', {})
+    stats = {}
+    per_page = 500
+
+    # Aggregated totals per (client_id, type) for the month.
+    totals = {}
+
+    for brand_key, arc_map in clients_by_brand_and_arc.items():
+        api_config = apis.get(brand_key)
+        brand_stats = stats.setdefault(brand_key, {'deposit': 0, 'withdrawal': 0, 'errors': []})
+        if not api_config or not api_config.get('api_key'):
+            brand_stats['errors'].append('API key not configured.')
+            continue
+
+        ark_ids = ','.join(sorted(arc_map.keys()))
+        for txn_type in ('deposit', 'withdrawal'):
+            page = 1
+            while True:
+                params = {
+                    'ark_ids': ark_ids,
+                    'from': from_str,
+                    'to': to_str,
+                    'type': txn_type,
+                    'page': page,
+                    'per_page': per_page,
+                }
+                try:
+                    payload = _fetch_upstream_page(api_config, params)
+                except HTTPError as error:
+                    brand_stats['errors'].append(f'{txn_type} page {page}: HTTP {error.code}')
+                    break
+                except (URLError, TimeoutError, json.JSONDecodeError) as error:
+                    brand_stats['errors'].append(f'{txn_type} page {page}: {error.__class__.__name__}')
+                    break
+
+                rows = _extract_rows(payload)
+                if not rows:
+                    break
+
+                with db_transaction.atomic():
+                    for row in rows:
+                        arc_id = str(
+                            row.get('accountId')
+                            or row.get('account_id')
+                            or row.get('ark_id')
+                            or row.get('arkId')
+                            or ''
+                        )
+                        client = arc_map.get(arc_id)
+                        if not client:
+                            continue
+                        external_id = _extract_external_id(row, txn_type)
+                        amount = _extract_amount(row)
+                        transaction_date = _extract_transaction_date(row)
+                        entered_by = str(row.get('deviceType') or row.get('entered_by') or '')[:100]
+                        ExternalTransaction.objects.update_or_create(
+                            brand_key=brand_key,
+                            external_id=external_id,
+                            transaction_type=txn_type,
+                            defaults={
+                                'client': client,
+                                'amount': amount,
+                                'transaction_date': transaction_date,
+                                'entered_by': entered_by,
+                                'raw_data': row,
+                            },
+                        )
+                        key = (client.id, txn_type)
+                        totals[key] = totals.get(key, Decimal('0')) + amount
+                        brand_stats[txn_type] += 1
+
+                if len(rows) < per_page:
+                    break
+                page += 1
+
+    # Refresh per-client monthly totals for the month.
+    client_ids = {client_id for (client_id, _txn) in totals.keys()}
+    with db_transaction.atomic():
+        # Reset all accessible clients so removed rows drop out of totals.
+        for client in accessible_clients:
+            deposit_total = totals.get((client.id, 'deposit'), Decimal('0'))
+            withdrawal_total = totals.get((client.id, 'withdrawal'), Decimal('0'))
+            if client.id not in client_ids and deposit_total == 0 and withdrawal_total == 0:
+                # Still upsert zero row so the month reflects that we synced.
+                pass
+            record, _created = ClientMonthlyExternalTotal.objects.get_or_create(
+                client=client,
+                month=month_date,
+                defaults={'deposited_amount': deposit_total, 'withdrawal_amount': withdrawal_total},
+            )
+            record.deposited_amount = deposit_total
+            record.withdrawal_amount = withdrawal_total
+            record.save(update_fields=['deposited_amount', 'withdrawal_amount', 'synced_at'])
+
+    return Response(
+        {
+            'success': True,
+            'message': f'External transactions synced for {month_str}.',
+            'stats': stats,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def external_transaction_list(request):
+    """Return stored external transactions for a month, paginated."""
+    if not has_perm(request, 'client:view'):
+        return Response(
+            {'success': False, 'message': 'Permission denied.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    month_str = str(request.query_params.get('month', '')).strip()
+    try:
+        month_date = _month_first_day(month_str)
+    except ValueError as err:
+        return Response(
+            {'success': False, 'message': str(err)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        page = max(int(request.query_params.get('page', 1)), 1)
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        per_page = min(max(int(request.query_params.get('per_page', 10)), 1), 500)
+    except (TypeError, ValueError):
+        per_page = 10
+
+    _month_start, next_month, month_start_dt, next_month_dt = _month_bounds(month_date)
+    txn_type = str(request.query_params.get('type', '')).strip().lower()
+    brand_filter = _normalize_brand_key(request.query_params.get('brand', ''))
+    broker_id = request.query_params.get('broker_id')
+    client_id = request.query_params.get('client_id')
+
+    queryset = (
+        ExternalTransaction.objects
+        .select_related('client', 'client__broker', 'client__broker__brand')
+        .filter(transaction_date__gte=month_start_dt, transaction_date__lt=next_month_dt)
+    )
+    if txn_type in ('deposit', 'withdrawal'):
+        queryset = queryset.filter(transaction_type=txn_type)
+    if brand_filter:
+        queryset = queryset.filter(brand_key=brand_filter)
+    if broker_id:
+        try:
+            queryset = queryset.filter(client__broker_id=int(broker_id))
+        except (TypeError, ValueError):
+            pass
+    if client_id:
+        try:
+            queryset = queryset.filter(client_id=int(client_id))
+        except (TypeError, ValueError):
+            pass
+
+    # Scope by broker access.
+    if not is_admin(request):
+        scoped_brokers = scope_to_brand(Broker.objects.all(), request, brand_field='brand_id')
+        accessible_broker_ids = list(scoped_brokers.values_list('id', flat=True))
+        queryset = queryset.filter(client__broker_id__in=accessible_broker_ids)
+
+    total = queryset.count()
+    start = (page - 1) * per_page
+    rows = list(queryset[start:start + per_page])
+
+    def serialize(txn):
+        broker = txn.client.broker
+        brand = getattr(broker, 'brand', None)
+        return {
+            'id': txn.id,
+            'external_id': txn.external_id,
+            'transaction_type': txn.transaction_type,
+            'amount': float(txn.amount or 0),
+            'transaction_date': txn.transaction_date.strftime('%Y-%m-%d %H:%M:%S') if txn.transaction_date else None,
+            'entered_by': txn.entered_by or '',
+            'client_id': txn.client_id,
+            'client_name': txn.client.name,
+            'client_arc_id': txn.client.arc_id,
+            'broker_id': broker.id,
+            'broker_arc_id': broker.arc_id,
+            'broker_name': broker.name,
+            'brand_id': getattr(brand, 'id', None),
+            'brand_name': getattr(brand, 'name', 'Unassigned') or 'Unassigned',
+        }
+
+    return Response(
+        {
+            'success': True,
+            'data': [serialize(row) for row in rows],
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': total,
+                'has_more': (start + len(rows)) < total,
+            },
+        },
+        status=status.HTTP_200_OK,
+    )
+
 
 
 def _extract_ip(request):

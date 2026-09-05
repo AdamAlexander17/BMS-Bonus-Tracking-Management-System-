@@ -5,7 +5,7 @@ import CustomSelect from '../components/CustomSelect/CustomSelect';
 import { getBrokers } from '../api/brokers';
 import { getBrands } from '../api/brands';
 import { getClientsByBroker } from '../api/clients';
-import { getExternalTransactionRows } from '../api/externalTransactions';
+import { listExternalTransactions } from '../api/externalTransactions';
 import './Users.css';
 
 const inputControlStyle = {
@@ -277,65 +277,38 @@ export default function Reports() {
 
         setLoading(false);
 
-        const transactionPageResult = await getExternalTransactionRows(allClients.map((client) => ({
-          accountId: client.arc_id,
-          brandName: client.brand_name,
-        })), monthFilter, transactionPage, transactionPageSize);
-        const transactionRows = transactionPageResult.rows;
-        setTransactionHasMore(transactionPageResult.hasMore);
-
-        const refreshedResponses = await Promise.allSettled(
-          brokersList.map((broker) => getClientsByBroker(broker.id, monthFilter ? { month: monthFilter } : undefined))
-        );
-        const refreshedClients = [];
-        refreshedResponses.forEach((result, index) => {
-          if (result.status !== 'fulfilled') return;
-          const broker = brokersList[index];
-          const list = result.value.data?.data || [];
-          list.forEach((client) => {
-            refreshedClients.push({
-              ...client,
-              broker_id: broker.id,
-              broker_arc_id: broker.arc_id,
-              broker_name: broker.name,
-              brand_id: broker.brand?.id,
-              brand_name: broker.brand?.name || 'Unassigned',
-              broker_status: broker.status,
-              rm_user_name: broker.rm_user?.username || 'Unassigned',
-            });
-          });
+        const listResponse = await listExternalTransactions({
+          month: monthFilter,
+          page: transactionPage,
+          perPage: transactionPageSize,
+          type: transactionType,
+          brand: brandId !== 'all'
+            ? brandsList.find((brand) => String(brand.id) === brandId)?.name
+            : undefined,
+          brokerId: brokerId !== 'all' ? brokerId : undefined,
         });
+        const rowsPayload = listResponse.data?.data || [];
+        const pagination = listResponse.data?.pagination || {};
+        setTransactionHasMore(Boolean(pagination.has_more));
 
         if (!active) return;
-        setClients(refreshedClients);
-        const clientsByArcId = new Map(refreshedClients.map((client) => [String(client.arc_id), client]));
+        const allTransactions = rowsPayload.map((row) => ({
+          id: `${row.transaction_type}-${row.id}`,
+          transaction_type: row.transaction_type,
+          amount: Number(row.amount || 0),
+          created_at: row.transaction_date,
+          entered_by: row.entered_by || 'External API',
+          client_name: row.client_name,
+          client_arc_id: row.client_arc_id,
+          client_status: null,
+          is_legitimate: null,
+          broker_id: row.broker_id,
+          broker_arc_id: row.broker_arc_id,
+          broker_name: row.broker_name,
+          brand_id: row.brand_id,
+          brand_name: row.brand_name || 'Unassigned',
+        }));
 
-        const allTransactions = [];
-        transactionRows.forEach((transaction) => {
-            const client = clientsByArcId.get(String(transaction.accountId));
-            if (!client) return;
-            const broker = brokersList.find((item) => item.id === client.broker_id);
-            if (!broker) return;
-            allTransactions.push({
-              ...transaction,
-              id: `${transaction.transaction_type}-${transaction.id}`,
-              transaction_type: transaction.transaction_type,
-              amount: transaction.amount,
-              created_at: transaction.createdDate,
-              entered_by: transaction.deviceType || 'External API',
-              client_name: 'Broker account transaction',
-              client_arc_id: '',
-              client_status: null,
-              is_legitimate: null,
-              broker_id: broker.id,
-              broker_arc_id: broker.arc_id,
-              broker_name: broker.name,
-              brand_id: broker.brand?.id,
-              brand_name: broker.brand?.name || 'Unassigned',
-            });
-        });
-
-        if (!active) return;
         setTransactions(allTransactions);
       } catch (err) {
         if (!active) return;
@@ -352,7 +325,7 @@ export default function Reports() {
     return () => {
       active = false;
     };
-  }, [refreshKey, monthFilter, transactionPage, transactionPageSize]);
+  }, [refreshKey, monthFilter, transactionPage, transactionPageSize, transactionType, brandId, brokerId]);
 
   const normalizedSearch = search.trim().toLowerCase();
 

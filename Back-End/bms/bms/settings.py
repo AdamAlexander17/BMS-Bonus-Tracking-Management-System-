@@ -155,7 +155,7 @@ EXTERNAL_TRANSACTION_APIS = {
         'api_key': os.getenv('BFX_TRANSACTION_API_KEY', ''),
     },
     'tradeKaro': {
-        'base_url': os.getenv('TRADE_KARO_TRANSACTION_BASE_URL', 'http://192.248.144.79:7879'),
+        'base_url': os.getenv('TRADE_KARO_TRANSACTION_BASE_URL', 'http://192.248.144.79:7898'),
         'api_key': os.getenv('TRADE_KARO_TRANSACTION_API_KEY', ''),
     },
     'tradeBazaar': {

@@ -419,6 +419,36 @@ class ClientMonthlyExternalTotal(models.Model):
         return f'{self.client.arc_id} {self.month.strftime("%Y-%m")} external totals'
 
 
+class ExternalTransaction(models.Model):
+    TYPE_CHOICES = [
+        ('deposit', 'Deposit'),
+        ('withdrawal', 'Withdrawal'),
+    ]
+
+    id               = models.BigAutoField(primary_key=True)
+    client           = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='external_transactions')
+    brand_key        = models.CharField(max_length=32)
+    external_id      = models.CharField(max_length=64)
+    transaction_type = models.CharField(max_length=16, choices=TYPE_CHOICES)
+    amount           = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    transaction_date = models.DateTimeField(null=True, blank=True)
+    entered_by       = models.CharField(max_length=100, blank=True, default='')
+    raw_data         = models.JSONField(default=dict, blank=True)
+    synced_at        = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'external_transactions'
+        unique_together = [['brand_key', 'external_id', 'transaction_type']]
+        ordering = ['-transaction_date', '-id']
+        indexes = [
+            models.Index(fields=['client', 'transaction_date']),
+            models.Index(fields=['transaction_type', 'transaction_date']),
+        ]
+
+    def __str__(self):
+        return f'{self.brand_key}:{self.external_id} {self.transaction_type} {self.amount}'
+
+
 class AuditLog(models.Model):
     id           = models.BigAutoField(primary_key=True)
     actor        = models.ForeignKey(

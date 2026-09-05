@@ -11,6 +11,8 @@ urlpatterns = [
     path('audit-logs/',                  views.audit_log_list, name='audit_log_list'),
     path('external-transactions/',       views.external_transaction_proxy, name='external_transaction_proxy'),
     path('external-transactions/totals-sync/', views.external_transaction_totals_sync, name='external_transaction_totals_sync'),
+    path('external-transactions/sync/',  views.external_transaction_sync, name='external_transaction_sync'),
+    path('external-transactions/list/',  views.external_transaction_list, name='external_transaction_list'),
 
     # User CRUD
     path('users/create/',                views.user_create,       name='user_create'),

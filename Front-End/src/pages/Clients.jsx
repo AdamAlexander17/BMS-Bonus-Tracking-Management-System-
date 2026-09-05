@@ -6,7 +6,7 @@ import CustomSelect from '../components/CustomSelect/CustomSelect';
 import ConfirmDialog from '../components/ConfirmDialog/ConfirmDialog';
 import Toast from '../components/Toast/Toast';
 import { getAllClients, updateClient, deleteClient, createClientTransaction, updateClientMonthlyLegitimacy, updateClientPaid } from '../api/clients';
-import { getExternalTransactionRows } from '../api/externalTransactions';
+import { syncExternalTransactions } from '../api/externalTransactions';
 import { formatINR } from './Brokers';
 import * as XLSX from 'xlsx';
 import './Users.css';
@@ -399,6 +399,7 @@ export default function Clients() {
   const [showImportMenu, setShowImportMenu] = useState(false);
   const [importing, setImporting] = useState(false);
   const [monthFilter, setMonthFilter] = useState(() => getPersistedMonthSelection());
+  const [syncing, setSyncing] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -413,17 +414,7 @@ export default function Clients() {
     try {
       const params = {}; if (monthFilter) params.month = monthFilter;
       const res = await getAllClients(params);
-      const clientRows = res.data.data || [];
-      try {
-        await getExternalTransactionRows(clientRows.map((client) => ({
-          accountId: client.arc_id,
-          brandName: client.brand || client.broker?.brand,
-        })), monthFilter, 1, pageSize);
-      } catch (externalError) {
-        console.warn('External transaction enrichment unavailable:', externalError);
-      }
-      const storedResponse = await getAllClients(params);
-      setClients(storedResponse.data.data || clientRows);
+      setClients(res.data.data || []);
     }
     catch (err) { setError(err.response?.data?.message || 'Failed to load clients.'); }
     finally { setLoading(false); }
@@ -657,6 +648,25 @@ export default function Clients() {
             <CustomSelect value={brokerFilter} onChange={(v) => { setBrokerFilter(v); setPage(1); }} placeholder="All Brokers" options={allBrokers} />
             <CustomSelect value={legitimacyFilter} onChange={(v) => { setLegitimacyFilter(v); setPage(1); }} placeholder="All Legitimacy" options={legitimacyFilterOptions} />
             <CustomSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1); }} placeholder="All Status" options={[{ value: 'Active', label: 'Active' }, { value: 'Inactive', label: 'Inactive' }]} />
+            <button
+              className="ph-btn ph-btn--primary"
+              type="button"
+              disabled={syncing || !monthFilter}
+              onClick={async () => {
+                setSyncing(true);
+                try {
+                  const response = await syncExternalTransactions(monthFilter);
+                  setToast({ type: 'success', message: response.data?.message || 'External transactions synced.' });
+                  await fetchClients();
+                } catch (err) {
+                  setToast({ type: 'error', message: err.response?.data?.message || 'Sync failed.' });
+                } finally {
+                  setSyncing(false);
+                }
+              }}
+            >
+              {syncing ? 'Syncing…' : 'Sync Data'}
+            </button>
             <button className="ph-btn ph-btn--ghost" onClick={fetchClients}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
               Refresh

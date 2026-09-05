@@ -106,3 +106,16 @@ export async function getExternalTransactionRows(accounts, month, page = 1, perP
   }
   return { rows: responses, hasMore };
 }
+
+export function syncExternalTransactions(month) {
+  return axiosInstance.post('external-transactions/sync/', { month });
+}
+
+export function listExternalTransactions({ month, page = 1, perPage = 10, type, brand, brokerId, clientId } = {}) {
+  const params = { month, page, per_page: perPage };
+  if (type && type !== 'all') params.type = type;
+  if (brand && brand !== 'all') params.brand = brand;
+  if (brokerId && brokerId !== 'all') params.broker_id = brokerId;
+  if (clientId) params.client_id = clientId;
+  return axiosInstance.get('external-transactions/list/', { params });
+}
