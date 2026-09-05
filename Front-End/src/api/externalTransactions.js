@@ -50,12 +50,14 @@ export const getExternalTransactions = (params, brandName) => {
 };
 
 export function getMonthDateRange(month) {
-  if (!month) return { from: '', to: '' };
-  const [year, monthNumber] = month.split('-').map(Number);
-  const lastDay = new Date(year, monthNumber, 0).getDate();
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(month || '').trim());
+  if (!match) return { from: '', to: '' };
+
+  const [, year, monthNumber] = match;
+  const lastDay = new Date(Date.UTC(Number(year), Number(monthNumber), 0)).getUTCDate();
   return {
-    from: `${month}-01`,
-    to: `${month}-${String(lastDay).padStart(2, '0')}`,
+    from: `${year}-${monthNumber}-01`,
+    to: `${year}-${monthNumber}-${String(lastDay).padStart(2, '0')}`,
   };
 }
 
