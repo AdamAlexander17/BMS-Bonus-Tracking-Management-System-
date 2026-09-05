@@ -73,9 +73,19 @@ def external_transaction_proxy(request):
             {'success': False, 'message': f'External transaction API returned HTTP {error.code}.'},
             status=status.HTTP_502_BAD_GATEWAY,
         )
-    except (URLError, TimeoutError, json.JSONDecodeError):
+    except (URLError, TimeoutError) as error:
+        reason = getattr(error, 'reason', None)
+        if isinstance(reason, TimeoutError):
+            message = 'External transaction API timed out.'
+        else:
+            message = 'External transaction API is unavailable.'
         return Response(
-            {'success': False, 'message': 'External transaction API is unavailable.'},
+            {'success': False, 'message': message},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+    except json.JSONDecodeError:
+        return Response(
+            {'success': False, 'message': 'External transaction API returned invalid JSON.'},
             status=status.HTTP_502_BAD_GATEWAY,
         )
 
