@@ -56,8 +56,8 @@ export function getMonthDateRange(month) {
   const [, year, monthNumber] = match;
   const lastDay = new Date(Date.UTC(Number(year), Number(monthNumber), 0)).getUTCDate();
   return {
-    from: `${year}-${monthNumber}-01`,
-    to: `${year}-${monthNumber}-${String(lastDay).padStart(2, '0')}`,
+    from: `${year}-${monthNumber}-01 00:00:00`,
+    to: `${year}-${monthNumber}-${String(lastDay).padStart(2, '0')} 23:59:59`,
   };
 }
 
